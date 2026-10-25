@@ -72,7 +72,7 @@ function completeMission(key){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
@@ -87,7 +87,7 @@ function header(){
 $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.tab); });
 function go(tab){
   if(EX && tab!=='exams'){ if(!confirm('Leave the exam in progress? Your answers will be lost.')) return; stopExamTimer(); EX = null; }
-  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
+  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
 
 /* ===================== VIEWS ===================== */
 function vToday(){
@@ -594,6 +594,7 @@ function vGuide(){
     '<li><b>Every day (20 to 30 minutes):</b> open the Today tab and finish all 3 missions. That keeps your 🔥 streak. Mission 1 always targets your weakest skill: read its 2-minute lesson the first time, then practice.</li>'+
     '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward mastery.</li>'+
     '<li><b>Mistake journal (Review tab):</b> every miss is saved with the right answer. Tag why you missed it, and retry what is due each day. A mistake clears only after you get it right on two different days.</li>'+
+    '<li><b>Labs tab:</b> real break-and-fix problems in your WSL Ubuntu. Do one or two a week; they are your best interview stories.</li>'+
     '<li><b>Exams tab:</b> timed Security+ and Network+ practice by official domain. Use it weekly to see which domain is weakest; aim for 85%+ on several attempts.</li>'+
     '<li><b>Watch the Skills tab.</b> Every skill has a mastery score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
     '<li><b>Then one real lab</b> from the list on the Today tab (TryHackMe, Bandit, SQLBolt or Microsoft Learn).</li>'+

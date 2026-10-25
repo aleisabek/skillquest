@@ -26,6 +26,17 @@ tools/            make_icon.py (redraws the icon; needs Pillow)
 build.js          concatenates src/ into one file
 ```
 
+## Break-and-fix labs (WSL)
+
+`labs/` holds real Linux labs that run in WSL Ubuntu, sandboxed in `~/sq-labs` (no sudo, nothing else touched).
+
+| Command | What it does |
+|---|---|
+| `wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/install.sh` | Installs/updates the labs and the `sq-lab` command |
+| `wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/test-labs.sh` | Runs every lab end to end (break → wrong fix caught → right fix passes → reset) in a throwaway home folder |
+
+Each lab is `labs/labs/NAME/lab.sh` with `TITLE`, `LEVEL`, `LESSON`, `HINTS`, and the functions `lab_setup`, `lab_mission`, `lab_check` and optionally `lab_cleanup`. The completion code is the first 6 hex characters of `sha256("skillquest-lab:NAME")`; `src/labs.js` must list the same code (checked by `npm test`).
+
 ## Rules that keep saved progress safe
 
 - **Only append** to the arrays `CARDS`, `QUIZ`, `TERM`, `IV`, `SQLT`. Saved progress is keyed by array position.
