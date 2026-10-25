@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# SkillQuest break-and-fix labs.
+# Everything happens inside ~/sq-labs. No sudo, no real services, nothing outside that folder is touched.
+#
+#   sq-lab                 list labs and your status
+#   sq-lab start NAME      break things on purpose and show your mission
+#   sq-lab mission NAME    show the mission again
+#   sq-lab hint NAME       show the next hint (each call reveals one more)
+#   sq-lab check NAME      check your fix; prints a completion code for the SkillQuest app
+#   sq-lab reset NAME|all  remove the lab's files and stop anything it started
+
+set -u
+LABS_HOME="${SQ_LABS_HOME:-$HOME/.skillquest-labs}"
+LAB_ROOT="$HOME/sq-labs"
+STATUS="$LAB_ROOT/.status"
+G=$'\e[32m'; R=$'\e[31m'; Y=$'\e[33m'; C=$'\e[36m'; B=$'\e[1m'; N=$'\e[0m'
+
+mkdir -p "$LAB_ROOT"; touch "$STATUS"
+
+lab_names() { for d in "$LABS_HOME"/labs/*/; do basename "$d"; done; }
+status_of() { grep -E "^$1 " "$STATUS" 2>/dev/null | tail -1 | cut -d' ' -f2; }
+set_status() { grep -vE "^$1 " "$STATUS" > "$STATUS.tmp" 2>/dev/null; echo "$1 $2" >> "$STATUS.tmp"; mv "$STATUS.tmp" "$STATUS"; }
+code_for() { printf 'skillquest-lab:%s' "$1" | sha256sum | cut -c1-6 | tr a-f A-F; }
+
+load_lab() {
+  local name="${1:-}"
+  if [ -z "$name" ] || [ ! -f "$LABS_HOME/labs/$name/lab.sh" ]; then
+    echo "${R}Unknown lab:${N} ${name:-(none)}. Run ${B}sq-lab${N} to see the list."; exit 1
+  fi
+  LAB="$name"; DIR="$LAB_ROOT/$name"
+  # shellcheck source=/dev/null
+  source "$LABS_HOME/labs/$name/lab.sh"
+}
+ok()   { echo "  ${G}✔${N} $*"; }
+bad()  { echo "  ${R}✘${N} $*"; FAILED=1; }
+
+cmd="${1:-list}"; shift || true
+case "$cmd" in
+  list|"")
+    echo "${B}SkillQuest labs${N}  (files live in ~/sq-labs)"
+    for n in $(lab_names); do
+      ( source "$LABS_HOME/labs/$n/lab.sh"
+        s=$(status_of "$n"); case "$s" in passed) tag="${G}passed${N}";; started) tag="${Y}started${N}";; *) tag="new";; esac
+        printf "  %-14s %-9s %s  ${C}[%s]${N}\n" "$n" "$tag" "$TITLE" "$LEVEL" )
+    done
+    echo; echo "Start one with: ${B}sq-lab start NAME${N}";;
+  start)
+    load_lab "${1:-}"
+    lab_cleanup 2>/dev/null; rm -rf "$DIR"; mkdir -p "$DIR"; rm -f "$DIR/.hint"
+    lab_setup
+    set_status "$LAB" started
+    echo "${B}${TITLE}${N}  ${C}[${LEVEL}]${N}"; echo; lab_mission; echo
+    echo "Work in: ${B}cd $DIR${N}"
+    echo "Stuck? ${B}sq-lab hint $LAB${N}    Done? ${B}sq-lab check $LAB${N}";;
+  mission)
+    load_lab "${1:-}"; echo "${B}${TITLE}${N}"; echo; lab_mission; echo; echo "Work in: ${B}cd $DIR${N}";;
+  hint)
+    load_lab "${1:-}"
+    n=$(cat "$DIR/.hint" 2>/dev/null || echo 0); total=${#HINTS[@]}
+    if [ "$n" -ge "$total" ]; then echo "No more hints. The last one was:"; n=$((total-1)); fi
+    echo "${Y}Hint $((n+1))/$total:${N} ${HINTS[$n]}"
+    echo $((n+1)) > "$DIR/.hint" 2>/dev/null;;
+  check)
+    load_lab "${1:-}"
+    if [ ! -d "$DIR" ]; then echo "This lab isn't started. Run: ${B}sq-lab start $LAB${N}"; exit 1; fi
+    FAILED=0; echo "${B}Checking ${TITLE}${N}"; lab_check
+    if [ "$FAILED" = 0 ]; then
+      set_status "$LAB" passed; lab_cleanup 2>/dev/null
+      echo; echo "${G}${B}Lab passed!${N} Completion code for the SkillQuest app: ${B}$(code_for "$LAB")${N}"
+      echo "What you practiced: $LESSON"
+    else
+      echo; echo "Not fixed yet. Try again, or: ${B}sq-lab hint $LAB${N}"; exit 1
+    fi;;
+  reset)
+    if [ "${1:-}" = all ]; then for n in $(lab_names); do ( load_lab "$n"; lab_cleanup 2>/dev/null; rm -rf "$DIR" ); done; : > "$STATUS"; echo "All labs reset."
+    else load_lab "${1:-}"; lab_cleanup 2>/dev/null; rm -rf "$DIR"; set_status "$LAB" new; echo "Reset $LAB."; fi;;
+  code)  # used by the test suite
+    code_for "${1:-}";;
+  *) echo "Usage: sq-lab [list|start|mission|hint|check|reset] NAME";;
+esac
