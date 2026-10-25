@@ -72,7 +72,7 @@ function completeMission(key){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
@@ -85,7 +85,9 @@ function header(){
   $('#nav').innerHTML = TABS.map(([k,l])=>'<button class="'+(k===current?'on':'')+'" data-tab="'+k+'">'+l+'</button>').join('');
 }
 $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.tab); });
-function go(tab){ current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
+function go(tab){
+  if(EX && tab!=='exams'){ if(!confirm('Leave the exam in progress? Your answers will be lost.')) return; stopExamTimer(); EX = null; }
+  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
 
 /* ===================== VIEWS ===================== */
 function vToday(){
@@ -94,13 +96,15 @@ function vToday(){
   const done = ms.filter(m=>d[m.key]).length;
   const tip = STRATEGIES[dayNum() % STRATEGIES.length];
   const due = CARDS.filter((c,i)=>S.cards[cardId(i)] && cardDue(i)).length;
+  const jdue = journal().filter(isDue).length;
+  const reviewBits = [due ? due+' flashcard'+(due>1?'s':'') : '', jdue ? jdue+' mistake'+(jdue>1?'s':'')+' to retry' : ''].filter(Boolean);
   view.innerHTML =
     '<h1>Today\'s missions</h1><p class="sub">'+done+' of 3 done. Finish all three for +50 XP and to keep your streak.</p>'+
     '<div class="grid">'+ms.map((m,i)=>
       '<div class="card mission '+(d[m.key]?'done':'')+'"><div class="tag">'+m.tag+'</div><h3>'+m.title+'</h3><p>'+esc(m.text)+'</p>'+
       '<div><button class="'+(d[m.key]?'':'primary')+'" data-m="'+i+'">'+(d[m.key]?'✓ Done · do it again':'Start')+'</button></div></div>').join('')+'</div>'+
     '<h2>Strategy of the day</h2><div class="card tip"><b>'+tip[0]+'.</b> '+tip[1]+'</div>'+
-    (due ? '<h2>Review</h2><div class="card row"><span>'+due+' flashcard'+(due>1?'s are':' is')+' due for review.</span><button data-go="review">Review now</button></div>' : '')+
+    (reviewBits.length ? '<h2>Review</h2><div class="card row"><span>Due today: '+reviewBits.join(' and ')+'.</span><button data-go="review">Review now</button></div>' : '')+
     '<h2>Real labs to pair with today</h2><div class="card"><ul class="clean">'+
       '<li><a href="https://tryhackme.com" target="_blank" rel="noopener">TryHackMe</a>: start the <i>Pre Security</i> path, then <i>SOC Level 1</i>.</li>'+
       '<li><a href="https://overthewire.org/wargames/bandit/" target="_blank" rel="noopener">OverTheWire Bandit</a>: one level a day.</li>'+
@@ -166,7 +170,7 @@ function quizStep(s){
   /* Generated short-answer questions are typed (recall), unless typed mode is off or you asked to see the choices. */
   const typed = isGen && typedOn() && typeable(idx) && !s.showChoices;
   const order = shuffle(q[3].map((o,k)=>k));
-  view.innerHTML = '<h1>'+t.icon+' '+(s.sk ? esc(s.sk) : t.name)+(s.endless?' drill':' quiz')+' <span class="lv open">L'+q[1]+'</span>'+(isGen?' <span class="lv open" title="Freshly generated for you">∞ new</span>':'')+(typed?' <span class="lv open" title="Type the answer from memory">⌨ type it</span>':'')+'</h1>'+
+  view.innerHTML = '<h1>'+(s.journalRun ? '📓 Mistake retry' : t.icon+' '+(s.sk ? esc(s.sk) : t.name)+(s.endless?' drill':' quiz'))+' <span class="lv open">L'+q[1]+'</span>'+(isGen && !s.journalRun?' <span class="lv open" title="Freshly generated for you">∞ new</span>':'')+(typed?' <span class="lv open" title="Type the answer from memory">⌨ type it</span>':'')+'</h1>'+
     '<div class="card"><div class="progress"><span>Question '+(s.i+1)+' of '+s.items.length+'</span><span>'+s.right+' correct</span></div>'+
     '<div class="q">'+q[2]+'</div>'+
     (typed ? '<div class="row"><input id="ta" class="typed" autocomplete="off" spellcheck="false" placeholder="Type your answer, then Enter" aria-label="Your answer"><button class="primary" id="chk">Check</button></div>'+
@@ -174,13 +178,18 @@ function quizStep(s){
            : '<div class="opts">'+order.map(k=>'<button class="opt" data-k="'+k+'">'+q[3][k]+'</button>').join('')+'</div>')+
     '<div id="after"></div></div>';
   const advance = ()=>{ s.i++; s.showChoices = false; s.usedChoices = false; quizStep(s); };
-  const finish = (ok, viaChoice)=>{
-    if(isGen){
-      const g = S.gen[q[0]] = S.gen[q[0]] || {right:0, total:0};
-      g.total++; if(ok){ g.right++; s.right++; addXP(typed ? 15 : 10); } else save();
+  const finish = (ok, viaChoice, your)=>{
+    /* Mistake journal: retries update their entry; new misses are saved with your answer. */
+    if(idx.journal){ journalResult(idx.journal, ok); if(ok){ s.right++; addXP(10); } }
+    else {
+      if(!ok) addMistake(q, {kind:'quiz', your, sid, qi: isGen ? null : idx});
+      if(isGen){
+        const g = S.gen[q[0]] = S.gen[q[0]] || {right:0, total:0};
+        g.total++; if(ok){ g.right++; s.right++; addXP(typed ? 15 : 10); } else save();
+      }
+      else if(ok){ s.right++; S.quiz[quizId(idx)] = true; delete S.miss[quizId(idx)]; addXP(10); }
+      else { S.miss[quizId(idx)] = true; save(); }
     }
-    else if(ok){ s.right++; S.quiz[quizId(idx)] = true; delete S.miss[quizId(idx)]; addXP(10); }
-    else { S.miss[quizId(idx)] = true; save(); }
     const nx = s.i+1 < s.items.length ? 'Next' : 'Finish';
     /* After a correct answer on a skill question, ask whether it was sure or a guess: guesses barely raise mastery. */
     const btns = (sid && ok) ? '<button class="primary" id="sure">'+nx+' · I was sure</button><button id="guess">'+nx+' · I guessed</button>' : '<button class="primary" id="next">'+nx+'</button>';
@@ -200,7 +209,7 @@ function quizStep(s){
       if(!inp.value.trim()) return;
       const ok = normAns(inp.value) === normAns(plainText(q[3][q[4]]));
       inp.disabled = true; $('#chk').disabled = true; inp.classList.add(ok ? 'ok' : 'no');
-      finish(ok, false);
+      finish(ok, false, inp.value.trim());
     };
     $('#chk').onclick = check;
     inp.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); check(); } };
@@ -209,16 +218,17 @@ function quizStep(s){
     const k = +b.dataset.k, ok = k===q[4];
     view.querySelectorAll('.opt').forEach(x=>{ x.disabled=true; if(+x.dataset.k===q[4]) x.classList.add('right'); });
     if(!ok) b.classList.add('wrong');
-    finish(ok, !!s.usedChoices);
+    finish(ok, !!s.usedChoices, plainText(q[3][k]));
   });
 }
 function quizEnd(s){
   if(s.mission) completeMission(s.mission);
   const pct = Math.round(s.right/s.items.length*100);
-  view.innerHTML = '<h1>Quiz complete</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' ('+pct+'%)</p><p>'+
-    (pct===100?'Perfect round. Try the flashcards next to lock it in.':pct>=70?'Solid. Missed questions are saved in the Review tab.':'Good practice. Your misses are in the Review tab; retry them tomorrow.')+'</p>'+
-    '<div class="row"><button class="primary" id="again">Another round</button><button id="home">Back to Today</button></div></div>';
-  $('#again').onclick=()=>startQuiz(s.tid, s.items.length, null, null, s.lv, s.endless, s.sk);
+  view.innerHTML = '<h1>'+(s.journalRun?'Mistake retry done':'Quiz complete')+'</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' ('+pct+'%)</p><p>'+
+    (s.journalRun ? 'Each mistake needs a correct answer on two different days to clear. The ones you got right today come back tomorrow for the second check.'
+      : pct===100?'Perfect round. Try the flashcards next to lock it in.':pct>=70?'Solid. Your misses are saved in the mistake journal (Review tab).':'Good practice. Your misses are in the mistake journal (Review tab); retry them tomorrow.')+'</p>'+
+    '<div class="row"><button class="primary" id="again">'+(s.journalRun?'Open the journal':'Another round')+'</button><button id="home">Back to Today</button></div></div>';
+  $('#again').onclick=()=> s.journalRun ? vJournal() : startQuiz(s.tid, s.items.length, null, null, s.lv, s.endless, s.sk);
   $('#home').onclick=()=>go('today');
 }
 
@@ -314,13 +324,13 @@ function termStep(s){
       s.lines.push(['✔ Correct (+'+pts+' XP). Model answer: '+t[2], 'ok']);
       termStep(s); setTimeout(next, 1100);
     } else {
-      s.wrong = true;
+      s.wrong = true; s.last = v;
       s.lines.push(['✘ Not that one. Try again, or use Hint.', 'no']); termStep(s);
     }
   };
   $('#hint').onclick=()=>{ s.hinted=true; s.lines.push(['hint: '+t[3], '']); termStep(s); };
-  $('#show').onclick=()=>{ s.lines.push(['answer: '+t[2]+'  (type it to lock it in, no XP)', '']); s.hinted=true; s.shown=true; termStep(s); };
-  $('#skip').onclick=()=>{ if(sid) recordSkill(sid, false); next(); };
+  $('#show').onclick=()=>{ s.lines.push(['answer: '+t[2]+'  (type it to lock it in, no XP)', '']); s.hinted=true; s.shown=true; addNote('term', t[0], t[2], s.last, sid); termStep(s); };
+  $('#skip').onclick=()=>{ if(sid) recordSkill(sid, false); addNote('term', t[0], t[2], s.last, sid); s.last = ''; next(); };
 }
 
 /* ---------- Interview ---------- */
@@ -446,8 +456,8 @@ function sqlStep(s){
   $('#run').onclick = run;
   ta.onkeydown = e=>{ if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); run(); } };
   $('#hint').onclick=()=>{ s.hinted=true; out.innerHTML='<div class="explain">💡 '+esc(t[4])+'</div>'; };
-  $('#show').onclick=()=>{ s.hinted=true; s.shown=true; out.innerHTML='<div class="explain">Answer: <code>'+esc(t[3])+'</code><br><span class="small">Type it in yourself to lock it in (fewer XP).</span></div>'; };
-  $('#skip').onclick = ()=>{ if(sid) recordSkill(sid, false); next(); };
+  $('#show').onclick=()=>{ s.hinted=true; s.shown=true; addNote('sql', t[1], t[3], ta.value.trim(), sid); out.innerHTML='<div class="explain">Answer: <code>'+esc(t[3])+'</code><br><span class="small">Type it in yourself to lock it in (fewer XP).</span></div>'; };
+  $('#skip').onclick = ()=>{ if(sid) recordSkill(sid, false); addNote('sql', t[1], t[3], ta.value.trim(), sid); next(); };
 }
 
 /* ---------- Job readiness ---------- */
@@ -547,14 +557,16 @@ function ticketEnd(st){
 /* ---------- Review ---------- */
 function vReview(){
   const due = CARDS.map((c,i)=>i).filter(i=>S.cards[cardId(i)] && cardDue(i));
-  const miss = QUIZ.map((q,i)=>i).filter(i=>S.miss[quizId(i)]);
+  importOldMisses();
+  const open = journal().filter(isOpen).length, jdue = journal().filter(isDue).length;
   const weak = IV.map((q,i)=>i).filter(i=>S.iv['i'+i]===1);
   view.innerHTML = '<h1>Review</h1><p class="sub">This is where learning sticks. Come here whenever something is due.</p><div class="grid">'+
     '<div class="card mission"><h3>🃏 Due flashcards</h3><p>'+due.length+' card'+(due.length===1?'':'s')+' due today.</p><div><button class="primary" id="rc" '+(due.length?'':'disabled')+'>Review cards</button></div></div>'+
-    '<div class="card mission"><h3>❌ Missed quiz questions</h3><p>'+miss.length+' question'+(miss.length===1?'':'s')+' to retry.</p><div><button class="primary" id="rq" '+(miss.length?'':'disabled')+'>Retry misses</button></div></div>'+
+    '<div class="card mission"><h3>📓 Mistake journal</h3><p>'+open+' open mistake'+(open===1?'':'s')+', '+jdue+' due for a retry today.</p><div class="row"><button class="primary" id="rq" '+(jdue?'':'disabled')+'>Retry due</button><button id="rj">Open journal</button></div></div>'+
     '<div class="card mission"><h3>🎤 Weak interview answers</h3><p>'+weak.length+' marked "Need work."</p><div><button class="primary" id="ri" '+(weak.length?'':'disabled')+'>Practice one</button></div></div></div>';
   if(due.length) $('#rc').onclick=()=>startCards(null, 20, null, due);
-  if(miss.length) $('#rq').onclick=()=>startQuiz(null, 10, null, miss);
+  if(jdue) $('#rq').onclick = retryMistakes;
+  $('#rj').onclick = vJournal;
   if(weak.length) $('#ri').onclick=()=>startIV(weak[0], null);
 }
 
@@ -581,6 +593,8 @@ function vGuide(){
   view.innerHTML = '<h1>How to use SkillQuest</h1><div class="card"><ol>'+
     '<li><b>Every day (20 to 30 minutes):</b> open the Today tab and finish all 3 missions. That keeps your 🔥 streak. Mission 1 always targets your weakest skill: read its 2-minute lesson the first time, then practice.</li>'+
     '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward mastery.</li>'+
+    '<li><b>Mistake journal (Review tab):</b> every miss is saved with the right answer. Tag why you missed it, and retry what is due each day. A mistake clears only after you get it right on two different days.</li>'+
+    '<li><b>Exams tab:</b> timed Security+ and Network+ practice by official domain. Use it weekly to see which domain is weakest; aim for 85%+ on several attempts.</li>'+
     '<li><b>Watch the Skills tab.</b> Every skill has a mastery score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
     '<li><b>Then one real lab</b> from the list on the Today tab (TryHackMe, Bandit, SQLBolt or Microsoft Learn).</li>'+
     '<li><b>Check the Review tab</b> whenever cards are due. Spaced review is what moves things into long-term memory.</li>'+

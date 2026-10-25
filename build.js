@@ -11,7 +11,7 @@ const INSTALL = process.env.SKILLQUEST_INSTALL || 'C:/Users/User/Documents/Job S
 // Script order matters: content, lessons, generators, the learning engine, then the app.
 const lessonDir = path.join(SRC, 'lessons');
 const lessons = fs.existsSync(lessonDir) ? fs.readdirSync(lessonDir).filter(f => f.endsWith('.js')).sort().map(f => 'lessons/' + f) : [];
-const ORDER = ['content.js', ...lessons, 'generators.js', 'learning.js', 'app.js'];
+const ORDER = ['content.js', ...lessons, 'generators.js', 'learning.js', 'journal.js', 'exam.js', 'app.js'];
 
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
 const js = ORDER.map(read).join('');
