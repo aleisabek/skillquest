@@ -8,10 +8,10 @@ const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist', 'SkillQuest.html');
 const INSTALL = process.env.SKILLQUEST_INSTALL || 'C:/Users/User/Documents/Job Search/SkillQuest.html';
 
-// Script order matters: content first, then lessons, then generators, then the app.
+// Script order matters: content, lessons, generators, the learning engine, then the app.
 const lessonDir = path.join(SRC, 'lessons');
 const lessons = fs.existsSync(lessonDir) ? fs.readdirSync(lessonDir).filter(f => f.endsWith('.js')).sort().map(f => 'lessons/' + f) : [];
-const ORDER = ['content.js', ...lessons, 'generators.js', 'app.js'];
+const ORDER = ['content.js', ...lessons, 'generators.js', 'learning.js', 'app.js'];
 
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
 const js = ORDER.map(read).join('');

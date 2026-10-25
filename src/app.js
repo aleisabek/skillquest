@@ -1,6 +1,6 @@
 /* ===================== STATE ===================== */
 const KEY = 'skillquest-v1';
-const DEFAULT = {xp:0, streak:0, best:0, lastFull:null, days:{}, cards:{}, quiz:{}, miss:{}, term:{}, iv:{}, notes:{}, tickets:{}, sql:{}, gen:{}};
+const DEFAULT = {xp:0, streak:0, best:0, lastFull:null, days:{}, cards:{}, quiz:{}, miss:{}, term:{}, iv:{}, notes:{}, tickets:{}, sql:{}, gen:{}, mastery:{}, lessons:{}};
 let S = load();
 function load(){
   try{ const raw = localStorage.getItem(KEY); if(raw) return Object.assign(structuredClone(DEFAULT), JSON.parse(raw)); }catch(e){}
@@ -40,8 +40,14 @@ function missions(){
   const kind = n % 4;
   const sc = n % SCEN.length;
   const ivIdx = n % IV.length;
+  /* Mission 1 targets your weakest (or next new) skill: lesson first if you haven't read it, then fresh problems. */
+  const focus = recommend(1)[0];
+  const fresh = focus && lessonFor(focus.id) && !(S.lessons||{})[focus.id];
   return [
-    {key:'quiz', tag:'Mission 1 · Quiz', title:qt.icon+' '+qt.name+' quiz (L'+qlv+')', text:'5 questions. Read every explanation, even when you get it right.', go:()=>startQuiz(qt.id, 5, 'quiz', null, qlv)},
+    focus
+      ? {key:'quiz', tag:'Mission 1 · Focus skill', title:focus.icon+' '+focus.sk, text:(skillStatus(focus.id)[0]==='New' ? 'A new skill for you. ' : 'Your weakest skill right now ('+skillScore(focus.id)+'%). ')+(fresh ? 'Read the 2-minute lesson, then 6 fresh problems.' : '6 fresh problems. Type your answers.'),
+         go:()=> fresh ? vLesson(focus.id, 'quiz') : startSkill(focus, 6, 'quiz')}
+      : {key:'quiz', tag:'Mission 1 · Quiz', title:qt.icon+' '+qt.name+' quiz (L'+qlv+')', text:'5 questions. Read every explanation, even when you get it right.', go:()=>startQuiz(qt.id, 5, 'quiz', null, qlv)},
     [
       {key:'skill', tag:'Mission 2 · Hands-on', title:'🐧 Terminal challenge', text:'5 real Linux tasks. Type the command like you would on a server.', go:()=>startTerm(5,'skill',levelFor('linux'))},
       {key:'skill', tag:'Mission 2 · Memory', title:ft.icon+' '+ft.name+' flashcards (L'+flv+')', text:'8 cards. Say each answer out loud before you flip.', go:()=>startCards(ft.id, 8, 'skill', null, flv)},
@@ -66,7 +72,7 @@ function completeMission(key){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
@@ -79,7 +85,7 @@ function header(){
   $('#nav').innerHTML = TABS.map(([k,l])=>'<button class="'+(k===current?'on':'')+'" data-tab="'+k+'">'+l+'</button>').join('');
 }
 $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.tab); });
-function go(tab){ current = tab; stopTimer(); header(); ({today:vToday,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
+function go(tab){ current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
 
 /* ===================== VIEWS ===================== */
 function vToday(){
@@ -156,24 +162,54 @@ function startQuiz(tid, n, mission, list, lv, endless, sk){
 function quizStep(s){
   if(s.i >= s.items.length) return quizEnd(s);
   const idx = s.items[s.i], isGen = typeof idx === 'object', q = isGen ? idx.d : QUIZ[idx], t = track(q[0]);
+  const sid = isGen && idx.sk ? skillIdFor('quiz', idx.tid, idx.sk) : null;
+  /* Generated short-answer questions are typed (recall), unless typed mode is off or you asked to see the choices. */
+  const typed = isGen && typedOn() && typeable(idx) && !s.showChoices;
   const order = shuffle(q[3].map((o,k)=>k));
-  view.innerHTML = '<h1>'+t.icon+' '+(s.sk ? esc(s.sk) : t.name)+(s.endless?' drill':' quiz')+' <span class="lv open">L'+q[1]+'</span>'+(isGen?' <span class="lv open" title="Freshly generated for you">∞ new</span>':'')+'</h1>'+
+  view.innerHTML = '<h1>'+t.icon+' '+(s.sk ? esc(s.sk) : t.name)+(s.endless?' drill':' quiz')+' <span class="lv open">L'+q[1]+'</span>'+(isGen?' <span class="lv open" title="Freshly generated for you">∞ new</span>':'')+(typed?' <span class="lv open" title="Type the answer from memory">⌨ type it</span>':'')+'</h1>'+
     '<div class="card"><div class="progress"><span>Question '+(s.i+1)+' of '+s.items.length+'</span><span>'+s.right+' correct</span></div>'+
-    '<div class="q">'+q[2]+'</div><div class="opts">'+order.map(k=>'<button class="opt" data-k="'+k+'">'+q[3][k]+'</button>').join('')+'</div>'+
+    '<div class="q">'+q[2]+'</div>'+
+    (typed ? '<div class="row"><input id="ta" class="typed" autocomplete="off" spellcheck="false" placeholder="Type your answer, then Enter" aria-label="Your answer"><button class="primary" id="chk">Check</button></div>'+
+             '<p class="small">Recall it from memory; that is what makes it stick. Stuck? <a href="#" id="choices">Show the choices</a> (counts as a guess).</p>'
+           : '<div class="opts">'+order.map(k=>'<button class="opt" data-k="'+k+'">'+q[3][k]+'</button>').join('')+'</div>')+
     '<div id="after"></div></div>';
-  view.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
-    const k = +b.dataset.k, ok = k===q[4];
-    view.querySelectorAll('.opt').forEach(x=>{ x.disabled=true; if(+x.dataset.k===q[4]) x.classList.add('right'); });
-    if(!ok) b.classList.add('wrong');
+  const advance = ()=>{ s.i++; s.showChoices = false; s.usedChoices = false; quizStep(s); };
+  const finish = (ok, viaChoice)=>{
     if(isGen){
       const g = S.gen[q[0]] = S.gen[q[0]] || {right:0, total:0};
-      g.total++; if(ok){ g.right++; s.right++; addXP(10); } else save();
+      g.total++; if(ok){ g.right++; s.right++; addXP(typed ? 15 : 10); } else save();
     }
     else if(ok){ s.right++; S.quiz[quizId(idx)] = true; delete S.miss[quizId(idx)]; addXP(10); }
     else { S.miss[quizId(idx)] = true; save(); }
-    $('#after').innerHTML = '<div class="explain">'+(ok?'✅ <b>Correct.</b> ':'❌ <b>Not quite.</b> ')+q[5]+'</div><div class="row" style="margin-top:12px"><button class="primary" id="next">'+(s.i+1<s.items.length?'Next':'Finish')+'</button></div>';
-    $('#next').onclick=()=>{ s.i++; quizStep(s); };
-    $('#next').focus();
+    const nx = s.i+1 < s.items.length ? 'Next' : 'Finish';
+    /* After a correct answer on a skill question, ask whether it was sure or a guess: guesses barely raise mastery. */
+    const btns = (sid && ok) ? '<button class="primary" id="sure">'+nx+' · I was sure</button><button id="guess">'+nx+' · I guessed</button>' : '<button class="primary" id="next">'+nx+'</button>';
+    $('#after').innerHTML = '<div class="explain">'+(ok?'✅ <b>Correct.</b> ':'❌ <b>Not quite.</b> ')+(typed && !ok ? 'Answer: <b>'+q[3][q[4]]+'</b>. ' : '')+q[5]+'</div><div class="row" style="margin-top:12px">'+btns+'</div>';
+    if(sid && ok){
+      $('#sure').onclick = ()=>{ recordSkill(sid, true, !viaChoice); advance(); };
+      $('#guess').onclick = ()=>{ recordSkill(sid, true, false); advance(); };
+      $('#sure').focus();
+    } else {
+      if(sid) recordSkill(sid, false);
+      $('#next').onclick = advance; $('#next').focus();
+    }
+  };
+  if(typed){
+    const inp = $('#ta'); inp.focus();
+    const check = ()=>{
+      if(!inp.value.trim()) return;
+      const ok = normAns(inp.value) === normAns(plainText(q[3][q[4]]));
+      inp.disabled = true; $('#chk').disabled = true; inp.classList.add(ok ? 'ok' : 'no');
+      finish(ok, false);
+    };
+    $('#chk').onclick = check;
+    inp.onkeydown = e=>{ if(e.key==='Enter'){ e.preventDefault(); check(); } };
+    $('#choices').onclick = e=>{ e.preventDefault(); s.showChoices = true; s.usedChoices = true; quizStep(s); };
+  } else view.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+    const k = +b.dataset.k, ok = k===q[4];
+    view.querySelectorAll('.opt').forEach(x=>{ x.disabled=true; if(+x.dataset.k===q[4]) x.classList.add('right'); });
+    if(!ok) b.classList.add('wrong');
+    finish(ok, !!s.usedChoices);
   });
 }
 function quizEnd(s){
@@ -263,7 +299,9 @@ function termStep(s){
     '<div class="inrow"><span class="ok">alei@skillquest:~$</span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command"></div></div>'+
     '<div class="row" style="margin-top:12px"><button id="hint">Hint</button><button id="show">Show answer</button><button id="skip">Skip</button></div>';
   const inp = $('#cmd'); inp.focus();
-  const next = ()=>{ s.i++; s.lines=[]; s.hinted=false; termStep(s); };
+  /* Mastery: first try with no hint = sure; wrong tries or a hint = guess; shown answer or skip = miss. */
+  const sid = isGen && t.sk ? skillIdFor('term', 'linux', t.sk) : null;
+  const next = ()=>{ s.i++; s.lines=[]; s.hinted=false; s.wrong=false; s.shown=false; termStep(s); };
   inp.onkeydown = e=>{
     if(e.key!=='Enter') return;
     const v = inp.value; if(!v.trim()) return;
@@ -271,16 +309,18 @@ function termStep(s){
     if(t[1].some(re=>re.test(norm(v)))){
       s.right++; const pts = s.hinted?8:15;
       if(isGen){ const g = S.gen.terminal = S.gen.terminal || {right:0,total:0}; g.right++; g.total++; } else S.term[t[2]] = true;
+      if(sid) recordSkill(sid, !s.shown, !s.hinted && !s.wrong);
       addXP(pts);
       s.lines.push(['✔ Correct (+'+pts+' XP). Model answer: '+t[2], 'ok']);
       termStep(s); setTimeout(next, 1100);
     } else {
+      s.wrong = true;
       s.lines.push(['✘ Not that one. Try again, or use Hint.', 'no']); termStep(s);
     }
   };
   $('#hint').onclick=()=>{ s.hinted=true; s.lines.push(['hint: '+t[3], '']); termStep(s); };
-  $('#show').onclick=()=>{ s.lines.push(['answer: '+t[2]+'  (type it to lock it in, no XP)', '']); s.hinted=true; termStep(s); };
-  $('#skip').onclick=next;
+  $('#show').onclick=()=>{ s.lines.push(['answer: '+t[2]+'  (type it to lock it in, no XP)', '']); s.hinted=true; s.shown=true; termStep(s); };
+  $('#skip').onclick=()=>{ if(sid) recordSkill(sid, false); next(); };
 }
 
 /* ---------- Interview ---------- */
@@ -379,13 +419,16 @@ function sqlStep(s){
     '<div class="row" style="margin-top:10px"><button class="primary" id="run">Run</button><button id="hint">Hint</button><button id="show">Show answer</button><button id="skip">Skip</button></div>'+
     '<div id="out"></div></div>';
   const ta = $('#sq'), out = $('#out'); ta.focus();
-  const next = ()=>{ s.i++; s.hinted=false; sqlStep(s); };
+  const sid = isGen && t.sk ? skillIdFor('sql', 'sql', t.sk) : null;
+  const next = ()=>{ s.i++; s.hinted=false; s.wrong=false; s.shown=false; sqlStep(s); };
   const run = ()=>{
     const v = ta.value; if(!v.trim()) return;
     const q = sqlNorm(v);
     if(t[2].some(re=>re.test(q))){
+      if($('#run').disabled) return;
       s.right++; const pts = s.hinted?8:15;
       if(isGen){ const g = S.gen.sqlconsole = S.gen.sqlconsole || {right:0,total:0}; g.right++; g.total++; } else S.sql[t[3]] = true;
+      if(sid) recordSkill(sid, !s.shown, !s.hinted && !s.wrong);
       addXP(pts);
       const r = t[5]();
       out.innerHTML = '<div class="explain">✅ <b>Correct (+'+pts+' XP).</b> Model answer: <code>'+esc(t[3])+'</code></div>'+
@@ -393,16 +436,18 @@ function sqlStep(s){
         '<div class="row" style="margin-top:10px"><button class="primary" id="nx">Next challenge</button></div>';
       $('#run').disabled = true; $('#nx').onclick = next; $('#nx').focus();
     } else if(/^(update|delete)\b/.test(q) && !/ where /.test(q)){
+      s.wrong = true;
       out.innerHTML = '<div class="explain">⚠️ <b>Careful!</b> An UPDATE or DELETE without WHERE changes <b>every row</b> in the table. Add a WHERE clause.</div>';
     } else {
+      s.wrong = true;
       out.innerHTML = '<div class="explain">❌ Not quite. Check the table and column names, the quotes around text, and the order of clauses (SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT).</div>';
     }
   };
   $('#run').onclick = run;
   ta.onkeydown = e=>{ if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); run(); } };
   $('#hint').onclick=()=>{ s.hinted=true; out.innerHTML='<div class="explain">💡 '+esc(t[4])+'</div>'; };
-  $('#show').onclick=()=>{ s.hinted=true; out.innerHTML='<div class="explain">Answer: <code>'+esc(t[3])+'</code><br><span class="small">Type it in yourself to lock it in (fewer XP).</span></div>'; };
-  $('#skip').onclick = next;
+  $('#show').onclick=()=>{ s.hinted=true; s.shown=true; out.innerHTML='<div class="explain">Answer: <code>'+esc(t[3])+'</code><br><span class="small">Type it in yourself to lock it in (fewer XP).</span></div>'; };
+  $('#skip').onclick = ()=>{ if(sid) recordSkill(sid, false); next(); };
 }
 
 /* ---------- Job readiness ---------- */
@@ -534,7 +579,9 @@ function vProgress(){
 /* ---------- Guide ---------- */
 function vGuide(){
   view.innerHTML = '<h1>How to use SkillQuest</h1><div class="card"><ol>'+
-    '<li><b>Every day (20 to 30 minutes):</b> open the Today tab and finish all 3 missions. That keeps your 🔥 streak.</li>'+
+    '<li><b>Every day (20 to 30 minutes):</b> open the Today tab and finish all 3 missions. That keeps your 🔥 streak. Mission 1 always targets your weakest skill: read its 2-minute lesson the first time, then practice.</li>'+
+    '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward mastery.</li>'+
+    '<li><b>Watch the Skills tab.</b> Every skill has a mastery score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
     '<li><b>Then one real lab</b> from the list on the Today tab (TryHackMe, Bandit, SQLBolt or Microsoft Learn).</li>'+
     '<li><b>Check the Review tab</b> whenever cards are due. Spaced review is what moves things into long-term memory.</li>'+
     '<li><b>Before any interview:</b> do every question in the Interview tab for that job type, out loud, with the timer.</li>'+

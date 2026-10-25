@@ -643,3 +643,6 @@ const SCEN = [
 const RANKS = [[0,'Intern'],[150,'Help Desk Rookie'],[400,'Tier 1 Tech'],[800,'Junior Analyst'],[1500,'Analyst'],[2500,'Engineer'],[4000,'Senior Engineer'],[6000,'Architect']];
 const BOX_DAYS = [0,1,3,7,14,30];
 
+
+/* Mini-lessons are added by src/lessons/*.js, keyed by skill id (see learning.js). */
+const LESSONS = {};
