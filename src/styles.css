@@ -149,3 +149,7 @@ details summary{cursor:pointer;font-weight:600;margin:4px 0;color:var(--accent2)
 ::selection{background:var(--accent);color:var(--on-accent)}
 @media (max-width:600px){ .xpbar{width:70px} h1{font-size:1.9rem} h1::before{display:none} .ritem>span:first-child{flex-basis:100%} }
 @media (prefers-reduced-motion: reduce){ .glitch::before,.glitch::after,h1::after,.timer.low{animation:none} #rain{display:none} }
+input.typed{flex:1;min-width:200px;font:inherit;font-size:1.05rem;padding:10px 12px;border:1px solid var(--line);background:rgba(0,0,0,.45);color:var(--text);outline:none;caret-color:var(--accent)}
+input.typed:focus{border-color:var(--accent);box-shadow:var(--glow)}
+input.typed.ok{border-color:var(--good);box-shadow:0 0 10px var(--good-soft)}
+input.typed.no{border-color:var(--bad)}

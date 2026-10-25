@@ -275,7 +275,10 @@ const SGEN = [
      return [2,'Delete ticket '+id+' (and only that ticket).',[R_('delete from tickets where id='+id)],'DELETE FROM tickets WHERE id = '+id+';','DELETE FROM table WHERE ... (never forget the WHERE).',()=>({msg:'1 row deleted: ticket '+id+'. (Practice only; the database resets.)'})]; }}
 ];
 const skillsOf = list=>[...new Set(list.map(g=>g.sk))];
-function genTask(list, lv, sk){ const pool = list.filter(g=>(!lv || g.lv===lv) && (!sk || g.sk===sk)); return pool.length ? pick(pool).f() : null; }
+function genTask(list, lv, sk){
+  const pool = list.filter(g=>(!lv || g.lv===lv) && (!sk || g.sk===sk)); if(!pool.length) return null;
+  const g = pick(pool), t = g.f(); if(t) t.sk = g.sk; return t;
+}
 
 /* Skill name for each quiz generator, in the same order as GEN[track][level] */
 const GEN_SKILLS = {
@@ -289,7 +292,14 @@ const GEN_SKILLS = {
 };
 for(const tid in GEN) for(const lv of [1,2]) (GEN[tid][lv]||[]).forEach((f,i)=>{ f.sk = GEN_SKILLS[tid][lv][i]; f.lv = lv; });
 function genFor(tid, lv, sk){ const g = GEN[tid]; if(!g) return []; const all = lv ? (g[lv]||[]) : [...(g[1]||[]), ...(g[2]||[])]; return sk ? all.filter(f=>f.sk===sk) : all; }
-function makeGen(tid, lv, sk){ const gens = genFor(tid, lv, sk); for(let t=0;t<20;t++){ const q = pick(gens)(); if(q) return q; } return null; }
+function makeGen(tid, lv, sk){
+  const gens = genFor(tid, lv, sk);
+  for(let t=0;t<20;t++){ const f = pick(gens), q = f(); if(q){ q.sk = f.sk; q.tid = tid; q.noType = !!f.noType; return q; } }
+  return null;
+}
+/* Questions with more than one correct answer can't be typed (e.g. "which host is in the same subnet"). */
+const NO_TYPE = {net:{1:[1], 2:[1]}, qa:{1:[1]}, sec:{1:[3]}};
+for(const tid in NO_TYPE) for(const lv in NO_TYPE[tid]) NO_TYPE[tid][lv].forEach(i=>{ GEN[tid][lv][i].noType = true; });
 /* [[skill, [levels]], ...] for one track, in first-seen order */
 function genSkills(tid){ const m = new Map(); genFor(tid).forEach(f=>{ if(!m.has(f.sk)) m.set(f.sk, new Set()); m.get(f.sk).add(f.lv); }); return [...m].map(([k,v])=>[k,[...v].sort()]); }
 
