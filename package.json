@@ -1,0 +1,11 @@
+{
+  "name": "skillquest",
+  "version": "2.1.0",
+  "private": true,
+  "description": "Offline practice app for IT support, security, testing, Linux, networking and SQL job skills.",
+  "scripts": {
+    "build": "node build.js",
+    "install-app": "node build.js --install",
+    "test": "node tests/run-all.js"
+  }
+}
