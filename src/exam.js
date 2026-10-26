@@ -73,7 +73,7 @@ function examStep(){
   $('#prev').onclick = ()=>{ EX.i--; examStep(); };
   $('#nxt').onclick = ()=>{ EX.i++; examStep(); };
   $('#flag').onclick = ()=>{ it.flag = !it.flag; examStep(); };
-  $('#sub').onclick = ()=>{ const blank = EX.items.length - answered; if(!blank || confirm(blank+' question'+(blank===1?' is':'s are')+' unanswered. Submit anyway?')) submitExam(); };
+  $('#sub').onclick = ()=>{ const blank = EX.items.length - answered; if(!blank) submitExam(); else askConfirm(blank+' question'+(blank===1?' is':'s are')+' unanswered. Submit anyway?', 'Submit exam', submitExam); };
 }
 function submitExam(){
   stopExamTimer(); if(!EX) return;
@@ -108,8 +108,7 @@ function submitExam(){
 }
 function vExams(){
   current = 'exams'; header(); stopExamTimer();
-  if(EX && !confirm('Leave the exam in progress? Your answers will be lost.')) return examStep();
-  EX = null;
+  if(EX){ examStep(); askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; vExams(); }); return; }
   const hist = S.exams || [];
   view.innerHTML = '<h1>📝 Practice exams</h1><p class="sub">Timed, exam-style practice mapped to the official CompTIA domains. No feedback until you submit, like the real thing. Fixed questions plus freshly generated ones, so every exam is different.</p>'+
     CERTS.map(c=>{ const mine = hist.filter(h=>h.cert===c.id), best = mine.length ? Math.max(...mine.map(h=>h.pct)) : null;

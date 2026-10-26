@@ -153,3 +153,11 @@ input.typed{flex:1;min-width:200px;font:inherit;font-size:1.05rem;padding:10px 1
 input.typed:focus{border-color:var(--accent);box-shadow:var(--glow)}
 input.typed.ok{border-color:var(--good);box-shadow:0 0 10px var(--good-soft)}
 input.typed.no{border-color:var(--bad)}
+/* Phone fixes: long commands wrap, the terminal input can shrink */
+.card code,.model code{overflow-wrap:anywhere}
+.term{overflow-wrap:anywhere}
+.term .inrow input{min-width:0;width:100%}
+@media (max-width:600px){ .term .inrow .ok{font-size:.8em} .grid{grid-template-columns:1fr} audio{max-width:100%} }
+/* In-page confirmation box */
+.ask{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(0,0,0,.6);padding:16px}
+.ask .card{max-width:420px;width:100%;border-color:var(--accent);box-shadow:var(--glow)}

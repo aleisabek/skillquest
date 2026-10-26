@@ -1,4 +1,7 @@
 /* ===================== STATE ===================== */
+/* The build sets this to true for the phone version (published as a private artifact),
+   where file downloads and the microphone aren't available. */
+const PHONE = false;
 const KEY = 'skillquest-v1';
 const DEFAULT = {xp:0, streak:0, best:0, lastFull:null, days:{}, cards:{}, quiz:{}, miss:{}, term:{}, iv:{}, notes:{}, tickets:{}, sql:{}, gen:{}, mastery:{}, lessons:{}};
 let S = load();
@@ -26,13 +29,71 @@ function addXP(n, why){
   const after = rankOf(S.xp).r[1];
   if(after !== before) toast('🎉 Rank up: ' + after + '!'); else if(why) toast('+' + n + ' XP · ' + why);
 }
+/* In-page confirmation (browser confirm() pop-ups don't work in every place the app runs, e.g. the phone version). */
+function askConfirm(msg, yesLabel, onYes){
+  const old = $('#ask'); if(old) old.remove();
+  const box = document.createElement('div'); box.id = 'ask'; box.className = 'ask';
+  box.innerHTML = '<div class="card" role="dialog" aria-modal="true"><p>'+esc(msg)+'</p><div class="row"><button class="primary" id="askYes">'+esc(yesLabel)+'</button><button id="askNo">Cancel</button></div></div>';
+  document.body.appendChild(box);
+  $('#askNo').onclick = ()=>box.remove();
+  $('#askYes').onclick = ()=>{ box.remove(); onYes(); };
+  $('#askNo').focus();
+}
+/* Backups as text, for devices where file downloads are blocked (copy on one device, paste on the other). */
+function copyBackupText(){
+  const txt = JSON.stringify(S);
+  try{ navigator.clipboard.writeText(txt).then(()=>{ S.lastBackup = dayStr(); save(); toast('Backup copied. Paste it into SkillQuest on your other device (Progress → Paste backup).'); vProgress(); }, ()=>showBackupText(txt)); }
+  catch(e){ showBackupText(txt); }
+}
+function showBackupText(txt){ const t = $('#bkText'); if(t){ t.hidden = false; t.value = txt; t.select(); toast('Copy blocked here: the backup text is selected below, copy it manually.'); } }
 /* Backups: a JSON file of all progress. The date is remembered so Today can remind you weekly. */
 function downloadBackup(){
+  if(PHONE) return copyBackupText();
   S.lastBackup = dayStr(); save();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(S,null,1)], {type:'application/json'}));
   a.download = 'skillquest-backup-'+dayStr()+'.json'; a.click();
   toast('Backup downloaded. Keep it somewhere safe, like OneDrive or a USB drive.');
+}
+/* Combine progress from two devices (e.g. phone + PC) instead of overwriting one with the other.
+   For each kind of data, keep the most progress: higher scores, later dates, and both sets of entries. */
+function mergeProgress(a, b){
+  const m = Object.assign(structuredClone(DEFAULT), structuredClone(a));
+  const maxNum = k=>{ m[k] = Math.max(a[k]||0, b[k]||0); };
+  ['xp','best'].forEach(maxNum);
+  const later = (x,y)=>(x||'') >= (y||'') ? x : y;
+  /* streak: take it from whichever device finished all missions most recently */
+  if((b.lastFull||'') > (a.lastFull||'')){ m.streak = b.streak; m.lastFull = b.lastFull; }
+  m.lastBackup = later(a.lastBackup, b.lastBackup);
+  /* simple maps: union; on conflict keep the "more done" value */
+  for(const k of ['quiz','term','sql','lessons','labs','practice','notes']){
+    m[k] = Object.assign({}, a[k]||{});
+    for(const [x,v] of Object.entries(b[k]||{})){
+      const o = m[k][x];
+      if(o === undefined) m[k][x] = v;
+      else if(k === 'notes') m[k][x] = String(v).length > String(o).length ? v : o;   /* keep the longer note */
+      else if(typeof o === 'string' && typeof v === 'string') m[k][x] = later(o, v);   /* dates: keep the latest */
+    }
+  }
+  for(const k of ['iv','tickets']){ m[k] = Object.assign({}, a[k]||{}); for(const [x,v] of Object.entries(b[k]||{})) m[k][x] = Math.max(m[k][x]||0, v); }
+  /* misses: keep only those not answered right on either device */
+  m.miss = Object.assign({}, a.miss||{}, b.miss||{}); for(const x of Object.keys(m.miss)) if(m.quiz[x]) delete m.miss[x];
+  /* days: union of completed missions */
+  m.days = structuredClone(a.days||{}); for(const [d,v] of Object.entries(b.days||{})) m.days[d] = Object.assign({}, m.days[d]||{}, v);
+  /* flashcards: keep the higher box (and its due date) */
+  m.cards = Object.assign({}, a.cards||{}); for(const [x,v] of Object.entries(b.cards||{})) if(!m.cards[x] || v.box > m.cards[x].box) m.cards[x] = v;
+  /* skill mastery: keep the record with more practice, or the more recent one */
+  m.mastery = Object.assign({}, a.mastery||{}); for(const [x,v] of Object.entries(b.mastery||{})){ const o = m.mastery[x]; if(!o || v.n > o.n || (v.n===o.n && (v.last||'') > (o.last||''))) m.mastery[x] = v; }
+  /* generated-problem counters: keep the larger totals */
+  m.gen = Object.assign({}, a.gen||{}); for(const [x,v] of Object.entries(b.gen||{})) if(!m.gen[x] || v.total > m.gen[x].total) m.gen[x] = v;
+  /* journal: union by question; a mistake cleared on either device stays cleared */
+  const J = new Map(); for(const e of [...(a.journal||[]), ...(b.journal||[])]){ const o = J.get(e.key+'|'+e.at); if(!o || (e.done && !o.done) || (e.hits||[]).length > (o.hits||[]).length) J.set(e.key+'|'+e.at, e); }
+  m.journal = [...J.values()].sort((x,y)=>(y.at||'').localeCompare(x.at||'')).slice(0, 300);
+  /* exam history: union, newest first */
+  const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]) E.set(e.cert+e.date+e.pct+e.n+e.secs, e);
+  m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date)).slice(0, 50);
+  if(a.typed === false && b.typed === false) m.typed = false; else delete m.typed;
+  return m;
 }
 function backupDue(){
   const hasProgress = S.xp > 0 || Object.keys(S.mastery||{}).length > 0;
@@ -100,7 +161,8 @@ function header(){
 }
 $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.tab); });
 function go(tab){
-  if(EX && tab!=='exams'){ if(!confirm('Leave the exam in progress? Your answers will be lost.')) return; stopExamTimer(); EX = null; }
+  if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
+  stopRecording(true);   /* leaving the page discards a half-finished recording */
   current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
 
 /* ===================== VIEWS ===================== */
@@ -113,7 +175,7 @@ function vToday(){
   const jdue = journal().filter(isDue).length;
   const reviewBits = [due ? due+' flashcard'+(due>1?'s':'') : '', jdue ? jdue+' mistake'+(jdue>1?'s':'')+' to retry' : ''].filter(Boolean);
   view.innerHTML =
-    (backupDue() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>💾 '+(S.lastBackup ? 'Your last backup was on '+S.lastBackup+'.' : 'You haven\'t backed up your progress yet.')+' A backup protects your progress if browser data gets cleared.</span><button class="primary" id="bk">Download backup</button></div>' : '')+
+    (backupDue() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>💾 '+(S.lastBackup ? 'Your last backup was on '+S.lastBackup+'.' : 'You haven\'t backed up your progress yet.')+' A backup protects your progress if browser data gets cleared.</span><button class="primary" id="bk">'+(PHONE?'Copy backup':'Download backup')+'</button></div>' : '')+
     '<h1>Today\'s missions</h1><p class="sub">'+done+' of 3 done. Finish all three for +50 XP and to keep your streak.</p>'+
     '<div class="grid">'+ms.map((m,i)=>
       '<div class="card mission '+(d[m.key]?'done':'')+'"><div class="tag">'+m.tag+'</div><h3>'+m.title+'</h3><p>'+esc(m.text)+'</p>'+
@@ -368,8 +430,10 @@ function startIV(i, mission){
   const q = IV[i];
   view.innerHTML = '<h1>🎤 Interview rep</h1><div class="card"><div class="small">'+IVCATS.find(c=>c[0]===q.c)[1]+'</div><p class="q">'+esc(q.q)+'</p><p class="small">💡 '+esc(q.tip)+'</p>'+
     '<div class="row" style="margin:12px 0"><span class="timer" id="tm">1:30</span><button class="primary" id="startt">Start 90-second timer</button></div>'+
-    '<textarea id="ans" placeholder="Optional: jot your answer or key points here. It\'s saved on this computer."></textarea>'+
+    '<h2>🎙 Say it out loud</h2><div id="rec"></div>'+
+    '<h2>📝 Notes</h2><textarea id="ans" placeholder="Optional: jot your answer or key points here. It\'s saved on this computer."></textarea>'+
     '<div class="row" style="margin-top:12px"><button class="primary" id="reveal">Reveal model answer</button></div><div id="after"></div></div>';
+  renderRecorder('i'+i);
   const ta = $('#ans'); ta.value = S.notes['i'+i] || '';
   ta.oninput = ()=>{ S.notes['i'+i] = ta.value; save(); };
   $('#startt').onclick=()=>{
@@ -391,7 +455,7 @@ function startIV(i, mission){
       const nextI = (i+1) % IV.length;
       $('#after').insertAdjacentHTML('beforeend','<div class="row" style="margin-top:14px"><button class="primary" id="nxt">Next question</button><button id="home">Back to Today</button></div>');
       $('#after').querySelectorAll('[data-r]').forEach(x=>x.disabled=true);
-      $('#nxt').onclick=()=>startIV(nextI,null); $('#home').onclick=()=>go('today');
+      $('#nxt').onclick=()=>{ stopRecording(true); startIV(nextI,null); }; $('#home').onclick=()=>go('today');
     });
   };
 }
@@ -599,11 +663,31 @@ function vProgress(){
     '<div class="card ladder"><h3 style="margin-top:0">Rank ladder</h3>'+RANKS.map(x=>'<div class="'+(x[1]===r[1]?'me':'')+'"><span>'+x[1]+'</span><span>'+x[0]+' XP</span></div>').join('')+'</div></div>'+
     '<h2>Track mastery</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div></div>';}).join('')+'</div>'+
     '<h2>Backup</h2><div class="card"><p class="small">Progress is saved in this browser only. Clearing browser data or switching browsers loses it, so download a backup once a week. Last backup: <b>'+(S.lastBackup || 'never')+'</b>.</p>'+
-    '<div class="row"><button class="primary" id="exp">Download backup</button><label class="row"><button id="impb">Restore from backup</button><input type="file" id="imp" accept=".json" hidden></label><button id="reset">Reset everything</button></div></div>';
+    '<div class="row"><button class="primary" id="exp"'+(PHONE?' hidden':'')+'>Download backup file</button><button id="mrgb" title="Combine a backup file with the progress here. Nothing is lost.">Merge a backup file in</button><button id="impb" title="Throw away the progress here and use the backup instead">Replace with a backup file</button><input type="file" id="imp" accept=".json,application/json,text/plain" hidden><button id="reset">Reset everything</button></div>'+
+    '<h3>Move progress between your PC and phone</h3>'+
+    '<p class="small">Your PC and your phone each keep their own progress. To combine them: on one device tap <b>Copy backup</b>, send the text to yourself (email, OneDrive or a note), then on the other device paste it below and tap <b>Merge</b>. Merging keeps the best of both (higher scores, all missions, mistakes and exams) and never erases anything.</p>'+
+    '<div class="row"><button class="primary" id="cpb">Copy backup</button></div>'+
+    '<textarea id="bkText" hidden readonly style="min-height:70px;margin-top:8px" aria-label="Backup text"></textarea>'+
+    '<textarea id="pasteBk" style="min-height:70px;margin-top:8px" placeholder="Paste backup text from your other device here" aria-label="Paste backup text"></textarea>'+
+    '<div class="row" style="margin-top:8px"><button id="pasteMerge">Merge pasted backup</button></div></div>';
   $('#exp').onclick=()=>{ downloadBackup(); vProgress(); };
-  $('#impb').onclick=()=>$('#imp').click();
-  $('#imp').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ S=Object.assign(structuredClone(DEFAULT), JSON.parse(rd.result)); save(); header(); vProgress(); toast('Backup restored'); }catch(err){ toast('That file is not a SkillQuest backup'); } }; rd.readAsText(f); };
-  $('#reset').onclick=()=>{ if(confirm('Erase all SkillQuest progress on this computer?')){ S=structuredClone(DEFAULT); save(); header(); vProgress(); } };
+  $('#cpb').onclick = copyBackupText;
+  $('#pasteMerge').onclick = ()=>{
+    try{ const b = JSON.parse($('#pasteBk').value.trim()); if(typeof b !== 'object' || b === null || !('xp' in b)) throw new Error('not a backup');
+      S = mergeProgress(S, b); save(); header(); vProgress(); toast('Backup merged in. Nothing was lost.'); }
+    catch(e){ toast('That text isn\'t a complete SkillQuest backup. Copy it again on the other device and paste all of it.'); }
+  };
+  let importMode = 'merge';
+  $('#mrgb').onclick = ()=>{ importMode = 'merge'; $('#imp').click(); };
+  $('#impb').onclick = ()=>askConfirm('Replace ALL progress on this device with a backup file? Use "Merge" to keep both.', 'Choose file to replace with', ()=>{ importMode = 'replace'; $('#imp').click(); });
+  $('#imp').onchange = e=>{ const f = e.target.files[0]; if(!f) return; const rd = new FileReader();
+    rd.onload = ()=>{ try{
+        const b = JSON.parse(rd.result); if(typeof b !== 'object' || b === null || !('xp' in b)) throw new Error('not a backup');
+        S = importMode === 'merge' ? mergeProgress(S, b) : Object.assign(structuredClone(DEFAULT), b);
+        save(); header(); vProgress(); toast(importMode === 'merge' ? 'Backup merged in' : 'Backup restored');
+      }catch(err){ toast('That file is not a SkillQuest backup'); } e.target.value = ''; };
+    rd.readAsText(f); };
+  $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device? This cannot be undone.', 'Erase everything', ()=>{ S=structuredClone(DEFAULT); save(); header(); vProgress(); });
 }
 
 /* ---------- Guide ---------- */
