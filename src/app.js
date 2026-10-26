@@ -26,6 +26,20 @@ function addXP(n, why){
   const after = rankOf(S.xp).r[1];
   if(after !== before) toast('🎉 Rank up: ' + after + '!'); else if(why) toast('+' + n + ' XP · ' + why);
 }
+/* Backups: a JSON file of all progress. The date is remembered so Today can remind you weekly. */
+function downloadBackup(){
+  S.lastBackup = dayStr(); save();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(S,null,1)], {type:'application/json'}));
+  a.download = 'skillquest-backup-'+dayStr()+'.json'; a.click();
+  toast('Backup downloaded. Keep it somewhere safe, like OneDrive or a USB drive.');
+}
+function backupDue(){
+  const hasProgress = S.xp > 0 || Object.keys(S.mastery||{}).length > 0;
+  if(!hasProgress) return false;
+  if(!S.lastBackup) return true;
+  return (new Date(dayStr()+'T12:00:00') - new Date(S.lastBackup+'T12:00:00')) / 86400000 > 7;
+}
 function cardId(i){ return 'c'+i; }
 function quizId(i){ return 'q'+i; }
 function cardDue(i){ const c = S.cards[cardId(i)]; return !c || c.due <= dayStr(); }
@@ -99,6 +113,7 @@ function vToday(){
   const jdue = journal().filter(isDue).length;
   const reviewBits = [due ? due+' flashcard'+(due>1?'s':'') : '', jdue ? jdue+' mistake'+(jdue>1?'s':'')+' to retry' : ''].filter(Boolean);
   view.innerHTML =
+    (backupDue() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>💾 '+(S.lastBackup ? 'Your last backup was on '+S.lastBackup+'.' : 'You haven\'t backed up your progress yet.')+' A backup protects your progress if browser data gets cleared.</span><button class="primary" id="bk">Download backup</button></div>' : '')+
     '<h1>Today\'s missions</h1><p class="sub">'+done+' of 3 done. Finish all three for +50 XP and to keep your streak.</p>'+
     '<div class="grid">'+ms.map((m,i)=>
       '<div class="card mission '+(d[m.key]?'done':'')+'"><div class="tag">'+m.tag+'</div><h3>'+m.title+'</h3><p>'+esc(m.text)+'</p>'+
@@ -115,6 +130,7 @@ function vToday(){
   view.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>ms[+b.dataset.m].go());
   const r = view.querySelector('[data-go]'); if(r) r.onclick=()=>go('review');
   $('#toPractice').onclick = e=>{ e.preventDefault(); go('practice'); };
+  const bk = $('#bk'); if(bk) bk.onclick = ()=>{ downloadBackup(); vToday(); };
 }
 
 function mastery(tid, lv){
@@ -582,9 +598,9 @@ function vProgress(){
     '<br>∞ Generated problems: '+Object.values(S.gen||{}).reduce((a,g)=>a+g.right,0)+' right of '+Object.values(S.gen||{}).reduce((a,g)=>a+g.total,0)+'</p></div>'+
     '<div class="card ladder"><h3 style="margin-top:0">Rank ladder</h3>'+RANKS.map(x=>'<div class="'+(x[1]===r[1]?'me':'')+'"><span>'+x[1]+'</span><span>'+x[0]+' XP</span></div>').join('')+'</div></div>'+
     '<h2>Track mastery</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div></div>';}).join('')+'</div>'+
-    '<h2>Backup</h2><div class="card"><p class="small">Progress is saved in this browser only. Clearing browser data or switching browsers loses it, so download a backup once a week.</p>'+
+    '<h2>Backup</h2><div class="card"><p class="small">Progress is saved in this browser only. Clearing browser data or switching browsers loses it, so download a backup once a week. Last backup: <b>'+(S.lastBackup || 'never')+'</b>.</p>'+
     '<div class="row"><button class="primary" id="exp">Download backup</button><label class="row"><button id="impb">Restore from backup</button><input type="file" id="imp" accept=".json" hidden></label><button id="reset">Reset everything</button></div></div>';
-  $('#exp').onclick=()=>{ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'})); a.download='skillquest-backup-'+dayStr()+'.json'; a.click(); };
+  $('#exp').onclick=()=>{ downloadBackup(); vProgress(); };
   $('#impb').onclick=()=>$('#imp').click();
   $('#imp').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const rd=new FileReader(); rd.onload=()=>{ try{ S=Object.assign(structuredClone(DEFAULT), JSON.parse(rd.result)); save(); header(); vProgress(); toast('Backup restored'); }catch(err){ toast('That file is not a SkillQuest backup'); } }; rd.readAsText(f); };
   $('#reset').onclick=()=>{ if(confirm('Erase all SkillQuest progress on this computer?')){ S=structuredClone(DEFAULT); save(); header(); vProgress(); } };
