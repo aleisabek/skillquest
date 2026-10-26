@@ -72,7 +72,7 @@ function completeMission(key){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['practice','Free practice'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
@@ -87,7 +87,7 @@ function header(){
 $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.tab); });
 function go(tab){
   if(EX && tab!=='exams'){ if(!confirm('Leave the exam in progress? Your answers will be lost.')) return; stopExamTimer(); EX = null; }
-  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
+  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
 
 /* ===================== VIEWS ===================== */
 function vToday(){
@@ -110,9 +110,11 @@ function vToday(){
       '<li><a href="https://overthewire.org/wargames/bandit/" target="_blank" rel="noopener">OverTheWire Bandit</a>: one level a day.</li>'+
       '<li><a href="https://sqlbolt.com" target="_blank" rel="noopener">SQLBolt</a>: one lesson. Employers keep asking for SQL.</li>'+
       '<li><a href="https://learn.microsoft.com/training/" target="_blank" rel="noopener">Microsoft Learn</a>: search "Microsoft 365 fundamentals."</li>'+
-      '<li><a href="https://www.professormesser.com/security-plus/sy0-701/sy0-701-video/sy0-701-comptia-security-plus-course/" target="_blank" rel="noopener">Professor Messer Security+</a>: one free video.</li></ul></div>';
+      '<li><a href="https://www.professormesser.com/security-plus/sy0-701/sy0-701-video/sy0-701-comptia-security-plus-course/" target="_blank" rel="noopener">Professor Messer Security+</a>: one free video.</li></ul>'+
+      '<p class="small">Many TryHackMe paths need a paid plan. <a href="#" id="toPractice">See the Free practice tab</a> for no-cost alternatives (picoCTF, Hack The Box Academy, Blue Team Labs, Cisco NetAcad and more).</p></div>';
   view.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>ms[+b.dataset.m].go());
   const r = view.querySelector('[data-go]'); if(r) r.onclick=()=>go('review');
+  $('#toPractice').onclick = e=>{ e.preventDefault(); go('practice'); };
 }
 
 function mastery(tid, lv){
