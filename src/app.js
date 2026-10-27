@@ -468,11 +468,13 @@ function termStep(s){
     const v = inp.value; if(!v.trim()) return;
     s.lines.push(['$ '+v, '']);
     if(t[1].some(re=>re.test(norm(v)))){
-      s.right++; const pts = s.hinted?8:15;
-      if(isGen){ const g = S.gen.terminal = S.gen.terminal || {right:0,total:0}; g.right++; g.total++; } else S.term[t[2]] = true;
+      /* A shown answer typed back in is practice only: no XP, not counted as solved. */
+      const pts = s.shown ? 0 : s.hinted ? 8 : 15;
+      if(isGen){ const g = S.gen.terminal = S.gen.terminal || {right:0,total:0}; g.total++; if(!s.shown) g.right++; } else if(!s.shown) S.term[t[2]] = true;
+      if(!s.shown) s.right++;
       if(sid) recordSkill(sid, !s.shown, !s.hinted && !s.wrong);
-      addXP(pts);
-      s.lines.push(['✔ Correct (+'+pts+' XP). Model answer: '+t[2], 'ok']);
+      if(pts) addXP(pts); else save();
+      s.lines.push([s.shown ? '✔ Locked in (no XP, the answer was shown).' : '✔ Correct (+'+pts+' XP). Model answer: '+t[2], 'ok']);
       termStep(s); setTimeout(next, 1100);
     } else {
       s.wrong = true; s.last = v;
@@ -589,12 +591,14 @@ function sqlStep(s){
     const q = sqlNorm(v);
     if(t[2].some(re=>re.test(q))){
       if($('#run').disabled) return;
-      s.right++; const pts = s.hinted?8:15;
-      if(isGen){ const g = S.gen.sqlconsole = S.gen.sqlconsole || {right:0,total:0}; g.right++; g.total++; } else S.sql[t[3]] = true;
+      /* A shown answer typed back in is practice only: no XP, not counted as solved. */
+      const pts = s.shown ? 0 : s.hinted ? 8 : 15;
+      if(isGen){ const g = S.gen.sqlconsole = S.gen.sqlconsole || {right:0,total:0}; g.total++; if(!s.shown) g.right++; } else if(!s.shown) S.sql[t[3]] = true;
+      if(!s.shown) s.right++;
       if(sid) recordSkill(sid, !s.shown, !s.hinted && !s.wrong);
-      addXP(pts);
+      if(pts) addXP(pts); else save();
       const r = t[5]();
-      out.innerHTML = '<div class="explain">✅ <b>Correct (+'+pts+' XP).</b> Model answer: <code>'+esc(t[3])+'</code></div>'+
+      out.innerHTML = '<div class="explain">✅ <b>'+(s.shown ? 'Locked in (no XP, the answer was shown).' : 'Correct (+'+pts+' XP).')+'</b> Model answer: <code>'+esc(t[3])+'</code></div>'+
         (r.msg ? '<p>'+esc(r.msg)+'</p>' : '<p class="small">Result: '+r.rows.length+' row'+(r.rows.length===1?'':'s')+'</p>'+tableHTML(r.cols, r.rows))+
         '<div class="row" style="margin-top:10px"><button class="primary" id="nx">Next challenge</button></div>';
       $('#run').disabled = true; $('#nx').onclick = next; $('#nx').focus();
@@ -609,7 +613,7 @@ function sqlStep(s){
   $('#run').onclick = run;
   ta.onkeydown = e=>{ if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); run(); } };
   $('#hint').onclick=()=>{ s.hinted=true; out.innerHTML='<div class="explain">💡 '+esc(t[4])+'</div>'; };
-  $('#show').onclick=()=>{ s.hinted=true; s.shown=true; addNote('sql', t[1], t[3], ta.value.trim(), sid); out.innerHTML='<div class="explain">Answer: <code>'+esc(t[3])+'</code><br><span class="small">Type it in yourself to lock it in (fewer XP).</span></div>'; };
+  $('#show').onclick=()=>{ s.hinted=true; s.shown=true; addNote('sql', t[1], t[3], ta.value.trim(), sid); out.innerHTML='<div class="explain">Answer: <code>'+esc(t[3])+'</code><br><span class="small">Type it in yourself to lock it in (no XP).</span></div>'; };
   $('#skip').onclick = ()=>{ if(sid) recordSkill(sid, false); addNote('sql', t[1], t[3], ta.value.trim(), sid); next(); };
 }
 
@@ -777,7 +781,7 @@ function vGuide(){
     '<li><b>Check the Review tab</b> whenever cards are due. Spaced review is what moves things into long-term memory.</li>'+
     '<li><b>Before any interview:</b> do every question in the Interview tab for that job type, out loud, with the timer.</li>'+
     '<li><b>Fridays:</b> go to Progress and download a backup.</li></ol>'+
-    '<p><b>Scoring:</b> quiz +10, flashcard +5, terminal +15 (+8 with a hint), interview rep +10 to +25, all 3 missions +50.</p>'+
+    '<p><b>Scoring:</b> quiz +10, flashcard +5, terminal and SQL +15 (+8 with a hint, 0 once the answer is shown), interview rep +10 to +25, all 3 missions +50.</p>'+
     '<p><b>Levels:</b> Levels 1 (Foundations) and 2 (Job-ready) are ready now. Levels 3 and 4 (Mid-level, Senior) come in a later phase.</p>'+
     '<p><b>Look and feel:</b> the ◐ button switches between three color modes (matrix, cyber, amber). The ⁂ rain button turns the background code rain on or off.</p>'+
     '<p class="small">Your progress stays on this computer. When you are online, the fonts load from Google Fonts; offline, it uses your built-in coding font.</p></div>';
