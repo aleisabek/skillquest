@@ -27,5 +27,26 @@ Object.assign(LESSONS, {
   example: `<p>A developer marks "Total wrong for 11+ line items" as Fixed. You retest with 11 items (passes), check the boundaries 10 and 12, run regression on reports that use totals, then mark it Verified and Closed. If 12 items still fails: Reopened, with notes.</p>`,
   mistakes: [`Closing a bug because the developer said "fixed," without retesting.`, `Reopening without notes on what still fails.`],
   say: `When a bug is fixed I retest the exact case, check nearby boundaries and related features, and only then close it, or reopen it with clear evidence.`
+},
+'quiz:qa:Pre-registration': {
+  why: `It's how you stop fooling yourself. Interviewers ask about it when you say a project was "pre-registered", and it's the same habit as writing test cases before you see the build.`,
+  idea: `<ul class="clean"><li><b>Pre-registration</b> = write down the rules, the data, and the pass/fail mark <b>before</b> you see any results.</li><li>Then run the test as written and report every result, including the failures.</li><li>It blocks three traps: <b>moving the goalposts</b> (changing the pass mark after), <b>cherry-picking</b> (reporting only the best run), and <b>overfitting</b> (tuning until the past looks perfect).</li></ul>`,
+  example: `<p>In the trading research lab, the evaluation protocol went through 4 reviewed versions <b>before any strategy ran</b>. A daily breakout strategy was profitable but far below simply buying and holding, so by the pre-set rules it was marked DEAD. Nobody got to move the bar afterwards.</p>`,
+  mistakes: [`Writing the rules after peeking at results "just to get a feel."`, `Changing a frozen rule quietly instead of making a new, dated version.`],
+  say: `Pre-registration means I fix the rules and the pass mark before seeing results, then report every run. If a rule has to change, it becomes a new dated version, so the test can still say no.`
+},
+'quiz:qa:Walk-forward testing': {
+  why: `Testing on data you also built the rules on always looks good. Walk-forward is the standard way to check if a strategy or model holds up on data it hasn't seen.`,
+  idea: `<ul class="clean"><li>Split history into steps. <b>Train</b> (develop the rules) on an earlier window, then <b>test</b> on the next period, which is unseen.</li><li><b>Roll forward</b> and repeat. Each step is a <b>fold</b>.</li><li>The test period is never in its own training data, so every fold is a small "future" the rules had to survive.</li></ul>`,
+  example: `<p>Data 2016 to 2023, train on 3 years, test on 1, roll 1 year: fold 1 trains on 2016 to 2018 and tests 2019; fold 2 trains on 2017 to 2019 and tests 2020; the last fold tests 2023. That's 5 folds. The lab worked this way: develop on earlier data, freeze the rules, then test the next unseen period.</p>`,
+  mistakes: [`Letting an indicator peek at future data (look-ahead bias).`, `Judging a strategy on one pooled number instead of fold by fold.`],
+  say: `Walk-forward means I develop on earlier data, freeze the rules, and test on the next unseen period, then roll forward. It shows whether an edge survives on data the rules never saw.`
+},
+'quiz:qa:Holdout data': {
+  why: `A holdout is your one honest final exam. "What were your sealed months?" is a natural follow-up when you describe the trading research.`,
+  idea: `<ul class="clean"><li>A <b>holdout</b> (in the lab, the "sealed months") is the most recent data, locked away while you develop.</li><li>It's opened <b>once</b>, after the rules are frozen.</li><li>It's spoiled if you peek and adjust, pick strategies by their holdout score, re-run it after tweaks, or mix it into training.</li></ul>`,
+  example: `<p>In the lab, the most recent months of data stayed sealed until the candidate strategies and their full evaluation were registered. All development happened on earlier data, so the sealed months stayed a fair test.</p>`,
+  mistakes: [`"Just a quick look" at the holdout before freezing the rules.`, `Running the holdout again after it fails. Now it's training data.`],
+  say: `The sealed months were a holdout: the most recent data, untouched until the rules were frozen, then used once as a final test. If I'd peeked or reused it, it would stop being a fair test.`
 }
 });

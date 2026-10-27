@@ -41,5 +41,12 @@ Object.assign(LESSONS, {
   example: `<p>A plan with the live data plus one copy on a NAS in the same office has 2 copies, 1 location: it fails 3-2-1. Adding a cloud backup gives 3 copies, 2 storage types, 1 offsite.</p>`,
   mistakes: [`Keeping every copy in the same building.`, `Never testing a restore.`],
   say: `I follow 3-2-1 with one immutable copy, and I test restores, because a backup only counts if it comes back.`
+},
+'quiz:sec:Secrets & untrusted code': {
+  why: `Leaked keys and scripts nobody reviewed are two of the most common ways in. SOC and support roles deal with both, and the trading lab was built around avoiding them.`,
+  idea: `<ul class="clean"><li><b>Secrets never live in the code.</b> Keep them in environment variables or a secrets manager, outside the repo.</li><li><b>Catch them before commit</b> with a pre-commit or preflight scan. Git history keeps everything.</li><li><b>Exposed? Revoke and rotate first.</b> Deleting the line doesn't help; someone may already have it.</li><li><b>Untrusted code is read, not run</b>, until it's been reviewed. Quarantine it.</li></ul>`,
+  example: `<p>The trading research lab ran offline with no API keys and live trading blocked in its settings. A preflight check looked for secrets committed to Git, and outside code was quarantined and read without being executed until it was audited.</p>`,
+  mistakes: [`Deleting a leaked key from the file but never revoking it.`, `Running a downloaded script "to see what it does."`],
+  say: `I keep secrets out of the repo, scan before every commit, and if one leaks I revoke and rotate it first. Code I didn't write gets read and reviewed before it ever runs.`
 }
 });
