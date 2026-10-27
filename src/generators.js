@@ -184,6 +184,61 @@ GEN.qa = {1:[
         'Life cycle: '+BUGFLOW.join(' → ')+' (or Reopened if the retest fails).'); }
  ]};
 
+/* ---- Research discipline (from the trading research lab) and secrets handling ---- */
+const RESEARCH_VERDICTS = ['Sound: rules fixed before results','Moving the goalposts','Cherry-picking','Overfitting'];
+const PREREG = [
+  ['You write the entry rules and the pass mark, run the test once, and report the result.', 0],
+  ['You test 10 variants and publish all 10 results, losers included.', 0],
+  ['After seeing the results, you lower the pass mark so the strategy passes.', 1],
+  ['The test failed, so you change what "success" means and call it a pass.', 1],
+  ['You try 200 settings and only report the best one.', 2],
+  ['You drop the worst month from the results because it "looks unusual".', 2],
+  ['You keep adjusting the stop-loss until last year\'s results look great.', 3],
+  ['You add rules until the strategy wins every trade in your test data.', 3]
+];
+const HOLDOUT_VERDICTS = ['Still clean','Contaminated: it chose the rules','Contaminated: tested more than once','Contaminated: mixed into training'];
+const HOLDOUT = [
+  ['Rules are frozen, then the strategy runs once on the sealed months.', 0],
+  ['The sealed months stay untouched while you develop on earlier years.', 0],
+  ['You glance at the sealed months\' chart, then pick a different moving average.', 1],
+  ['You pick the best of 5 strategies by their score on the sealed months.', 1],
+  ['It failed on the sealed months, so you tweak it and run them again.', 2],
+  ['You add the sealed months to the training data to get more examples.', 3]
+];
+const SECRET_ACTIONS = ['Revoke and rotate it first, then remove it from the code and history','Read it without running it until it has been reviewed','Keep it outside the repo, in an environment variable or secrets manager','Stop the commit and move the secret out of the file'];
+const SECRETS = [
+  ['A teammate finds a live API key that was committed to GitHub last week.', 0],
+  ['An access token was pasted into a public chat by mistake.', 0],
+  ['You download a trading script from a forum and want to know what it does.', 1],
+  ['Someone sends you a "quick fix" script to run on the server.', 1],
+  ['Your app needs an API key to run. Where should the key live?', 2],
+  ['Where should the production database password be stored?', 2],
+  ['A pre-commit scan flags a password in a file you are about to commit.', 3],
+  ['Your preflight check finds a .env file with a key staged for commit.', 3]
+];
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const monthName = (m,y)=>{ while(m<0){ m+=12; y--; } while(m>11){ m-=12; y++; } return MON[m]+' '+y; };
+GEN.qa[2].push(
+  ()=>{ const [s,v] = pick(PREREG); return mcq('qa',2,'A strategy test: "'+s+'" Which describes it?', RESEARCH_VERDICTS[v], RESEARCH_VERDICTS,
+      ['Fixing the rules and the pass mark before seeing results, and reporting every run, is what makes a test honest.','Changing the pass mark after seeing results is moving the goalposts: the test can no longer fail.','Reporting only the best run, or removing bad data, is cherry-picking: luck looks like skill.','Tuning rules until the past looks perfect is overfitting: it memorizes history and fails on new data.'][v]); },
+  ()=>{ const y0 = rnd(2012,2018), span = rnd(6,10), y1 = y0+span-1, tr = rnd(2,4), folds = span-tr;
+      if(Math.random()<.5) return mcq('qa',2,'Walk-forward test on yearly data from <b>'+y0+'</b> to <b>'+y1+'</b>: train on <b>'+tr+'</b> years, test on the <b>next 1</b> year, then roll forward 1 year. How many test years (folds) are there?', folds, [folds-1, folds+1, folds+2, span, tr],
+        'The first test year is '+(y0+tr)+', right after '+tr+' training years. Test years run from '+(y0+tr)+' to '+y1+': '+folds+' folds.');
+      const k = rnd(1,folds), ts = y0+tr+k-1;
+      return mcq('qa',2,'Walk-forward on '+y0+' to '+y1+', training on '+tr+' years and testing on the next 1, rolling forward 1 year. In fold <b>'+k+'</b>, which year is the <b>test</b> year?', ts, [ts-1, ts+1, y0+k-1, y1],
+        'Fold '+k+' trains on '+(ts-tr)+' to '+(ts-1)+', then tests on the next unseen year: '+ts+'. A test year is never in its own training data.'); },
+  ()=>{ if(Math.random()<.5){ const [s,v] = pick(HOLDOUT); return mcq('qa',2,'Holdout ("sealed") data: "'+s+'" Is the holdout still a fair test?', HOLDOUT_VERDICTS[v], HOLDOUT_VERDICTS,
+        ['Still clean: the holdout is used once, after the rules are frozen.','Looking at the holdout to choose or tweak rules lets it shape the strategy, so it no longer tests anything new.','Re-running the holdout after changes turns it into a second training set.','Data used for training can never be a fair test of the same model.'][v]); }
+      const endY = rnd(2023,2026), endM = rnd(0,11), k = rnd(3,9), right = monthName(endM-k+1, endY);
+      return mcq('qa',2,'Your data runs through <b>'+MON[endM]+' '+endY+'</b>. You seal the last <b>'+k+' months</b> as a holdout nobody looks at until the rules are frozen. What is the <b>first</b> sealed month?', right,
+        [monthName(endM-k, endY), monthName(endM-k+2, endY), monthName(endM-k+1, endY-1), monthName(endM-k-1, endY)],
+        'Count back '+k+' months ending in '+MON[endM]+' '+endY+': the sealed period starts in '+right+'. Everything before it is development data.'); }
+);
+GEN.sec[2].push(
+  ()=>{ const [s,v] = pick(SECRETS); return mcq('sec',2,'"'+s+'" What is the right move?', SECRET_ACTIONS[v], SECRET_ACTIONS,
+      ['Once a secret is exposed, deleting it is not enough: anyone may have copied it. Revoke and rotate first, then clean the code and history.','Untrusted code is read and reviewed before it ever runs; running it is how malware gets in.','Secrets live outside the code (environment variables or a secrets manager), so the repo never holds them.','Catch it before it is committed: stop, move the secret out, and only then commit.'][v]); }
+);
+
 /* SQL generators use a fresh random tickets table every time */
 function randTickets(){
   const n = rnd(5,8), rows = [];
@@ -286,9 +341,9 @@ const GEN_SKILLS = {
   linux:{1:['Permissions','Permissions','Everyday commands','Filesystem layout'], 2:['Scheduling (cron)','Admin tools']},
   code:{1:['HTTP & APIs','Python','Git'], 2:['Regex','Logging']},
   sql:{1:['Filtering','Filtering','Grouping','Sorting & limiting'], 2:['Joins','Grouping']},
-  sec:{1:['CIA triad','Authentication & MFA','Authentication & MFA','Cryptography'], 2:['Windows logs','Vulnerabilities','Backups']},
+  sec:{1:['CIA triad','Authentication & MFA','Authentication & MFA','Cryptography'], 2:['Windows logs','Vulnerabilities','Backups','Secrets & untrusted code']},
   support:{1:['Troubleshooting method','Windows tools','Ticket priority'], 2:['ITIL','Microsoft 365 admin']},
-  qa:{1:['Test design','Test design','Test types'], 2:['Testing process','Defect life cycle']}
+  qa:{1:['Test design','Test design','Test types'], 2:['Testing process','Defect life cycle','Pre-registration','Walk-forward testing','Holdout data']}
 };
 for(const tid in GEN) for(const lv of [1,2]) (GEN[tid][lv]||[]).forEach((f,i)=>{ f.sk = GEN_SKILLS[tid][lv][i]; f.lv = lv; });
 function genFor(tid, lv, sk){ const g = GEN[tid]; if(!g) return []; const all = lv ? (g[lv]||[]) : [...(g[1]||[]), ...(g[2]||[])]; return sk ? all.filter(f=>f.sk===sk) : all; }
