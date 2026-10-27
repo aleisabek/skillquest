@@ -3,13 +3,30 @@
    where file downloads and the microphone aren't available. */
 const PHONE = false;
 const KEY = 'skillquest-v1';
-const DEFAULT = {xp:0, streak:0, best:0, lastFull:null, days:{}, cards:{}, quiz:{}, miss:{}, term:{}, iv:{}, notes:{}, tickets:{}, sql:{}, gen:{}, mastery:{}, lessons:{}};
+const DEFAULT = {xp:0, streak:0, best:0, lastFull:null, days:{}, cards:{}, quiz:{}, miss:{}, term:{}, iv:{}, notes:{}, tickets:{}, sql:{}, gen:{}, mastery:{}, lessons:{}, recent:{}};
 let S = load();
 function load(){
-  try{ const raw = localStorage.getItem(KEY); if(raw) return Object.assign(structuredClone(DEFAULT), JSON.parse(raw)); }catch(e){}
+  try{ const raw = localStorage.getItem(KEY); if(raw) return migrateTerm(Object.assign(structuredClone(DEFAULT), JSON.parse(raw))); }catch(e){}
   return structuredClone(DEFAULT);
 }
 function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+/* 2026-10-27: Terminal skills were renamed to match the flashcard deck's topics. Progress under an old name
+   moves to the new skill(s); where two old skills land on one new skill, the record with more practice wins.
+   Safe to run any number of times (old backups are migrated when merged or restored). */
+function migrateTerm(st){
+  const TERM_RENAME = {'Reading files':['Reading & identifying'], 'Files & folders':['Files & names'], 'Searching':['Finding','Filtering text'],
+    'Permissions & ownership':['Users, processes & privilege'], 'Services & logs':['Admin','Filtering text'], 'Disk & archives':['Archives','Admin'], 'Scheduling (cron)':['Admin']};
+  const better = (a, b)=>!a || b.n > a.n || (b.n === a.n && (b.last||'') > (a.last||''));
+  for(const [old, news] of Object.entries(TERM_RENAME)){
+    const oid = 'term:linux:'+old;
+    const m = st.mastery && st.mastery[oid];
+    if(m){ news.forEach(n=>{ const nid = 'term:linux:'+n; if(better(st.mastery[nid], m)) st.mastery[nid] = Object.assign({}, m); }); delete st.mastery[oid]; }
+    const l = st.lessons && st.lessons[oid];
+    if(l){ news.forEach(n=>{ const nid = 'term:linux:'+n; if((st.lessons[nid]||'') < l) st.lessons[nid] = l; }); delete st.lessons[oid]; }
+    (st.journal||[]).forEach(e=>{ if(e.sid === oid) e.sid = 'term:linux:'+news[0]; });
+  }
+  return st;
+}
 
 /* ===================== HELPERS ===================== */
 const $ = s => document.querySelector(s);
@@ -93,7 +110,7 @@ function mergeProgress(a, b){
   const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]) E.set(e.cert+e.date+e.pct+e.n+e.secs, e);
   m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date)).slice(0, 50);
   if(a.typed === false && b.typed === false) m.typed = false; else delete m.typed;
-  return m;
+  return migrateTerm(m);
 }
 function backupDue(){
   const hasProgress = S.xp > 0 || Object.keys(S.mastery||{}).length > 0;
@@ -251,7 +268,9 @@ function startQuiz(tid, n, mission, list, lv, endless, sk){
   let items = endless ? [] : shuffle(pool).slice(0, n);
   if(!list && tid && genFor(tid, lv, sk).length){
     const k = endless ? n : Math.min(Math.ceil(n/2), n);
-    const fresh = []; for(let j=0;j<k;j++){ const g = makeGen(tid, lv, sk); if(g) fresh.push(g); }
+    S.recent = S.recent || {};
+    const fresh = quizSet(tid, k, lv, sk, S.recent.quiz);
+    rememberRecent(S.recent, 'quiz', fresh.map(quizKey)); save();
     items = endless ? fresh : shuffle(items.slice(0, n - fresh.length).concat(fresh));
   }
   if(!items.length){ toast('Quiz questions for this level are coming soon'); return; }
@@ -437,12 +456,18 @@ function skillGrid(list, attr, note){
 function startTerm(n, mission, lv, sk){
   current = 'terminal'; header();
   let items;
-  if(sk){ items = []; for(let j=0;j<n;j++){ const g = genTask(TGEN, 0, sk==='*'?null:sk); if(g) items.push(g); } }
+  S.recent = S.recent || {};
+  if(sk) items = termSet(n, 0, sk==='*'?null:sk, S.recent.term);
   else {
-    const pool = TERM.map((t,i)=>i).filter(i=>!lv || (TERM[i][4]||1)===lv), k = Math.floor(n/2);
-    const fresh = []; for(let j=0;j<k;j++){ const g = genTask(TGEN, lv||0); if(g) fresh.push(g); }
+    const pool = TERM.map((t,i)=>i).filter(i=>!lv || (TERM[i][4]||1)===lv);
+    const fresh = termSet(Math.floor(n/2), lv||0, null, S.recent.term);
     items = shuffle(shuffle(pool).slice(0, n - fresh.length).concat(fresh));
   }
+  /* every practice set (not the short daily mission) ends with one multi-step scenario when the skill has one */
+  const chain = mission ? null : chainSet(1, sk ? 0 : lv||0, sk && sk!=='*' ? sk : null, S.recent.chain)[0];
+  if(chain){ items = items.slice(0, Math.max(n - 2, 1)).concat(chain); rememberRecent(S.recent, 'chain', [chainKey(chain)]); }
+  rememberRecent(S.recent, 'term', items.filter(Array.isArray).map(termKey)); save();
+  if(!items.length){ toast('No terminal tasks for this yet'); return; }
   const s = {items, i:0, mission, lv, sk, lines:[], hinted:false, right:0};
   termStep(s);
 }
@@ -455,7 +480,9 @@ function termStep(s){
   }
   const it = s.items[s.i], isGen = Array.isArray(it), t = isGen ? it : TERM[it];
   view.innerHTML = '<h1>🐧 Terminal</h1><p class="sub">Type the Linux command and press Enter. Task '+(s.i+1)+' of '+s.items.length+'.</p>'+
-    '<div class="term" id="term"><div class="task"># TASK: '+esc(t[0])+'</div>'+
+    '<div class="term" id="term">'+(t.chain ? '<div class="task"># SCENARIO: '+esc(t.chain.title)+' (step '+(t.chain.i+1)+' of '+t.chain.n+')</div>' : '')+
+    (t.out ? t.out.map(l=>'<div class="line'+(/^\$ /.test(l) ? '' : ' outp')+'">'+esc(l)+'</div>').join('') : '')+
+    '<div class="task"># TASK: '+esc(t[0])+'</div>'+
     s.lines.map(l=>'<div class="line '+l[1]+'">'+esc(l[0])+'</div>').join('')+
     '<div class="inrow"><span class="ok">alei@skillquest:~$</span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command"></div></div>'+
     '<div class="row" style="margin-top:12px"><button id="hint">Hint</button><button id="show">Show answer</button><button id="skip">Skip</button></div>';
@@ -563,12 +590,15 @@ function vSQL(){
 function startSQL(n, mission, lv, sk){
   current = 'sql'; header();
   let items;
-  if(sk){ items = []; for(let j=0;j<n;j++){ const g = genTask(SGEN, 0, sk==='*'?null:sk); if(g) items.push(g); } }
+  S.recent = S.recent || {};
+  if(sk) items = sqlSet(n, 0, sk==='*'?null:sk, S.recent.sql);
   else {
-    const pool = SQLT.map((q,i)=>i).filter(i=>!lv || SQLT[i][0]===lv), k = Math.floor(n/2);
-    const fresh = []; for(let j=0;j<k;j++){ const g = genTask(SGEN, lv||0); if(g) fresh.push(g); }
+    const pool = SQLT.map((q,i)=>i).filter(i=>!lv || SQLT[i][0]===lv);
+    const fresh = sqlSet(Math.floor(n/2), lv||0, null, S.recent.sql);
     items = shuffle(shuffle(pool).slice(0, n - fresh.length).concat(fresh));
   }
+  rememberRecent(S.recent, 'sql', items.filter(Array.isArray).map(sqlKey)); save();
+  if(!items.length){ toast('No SQL challenges for this yet'); return; }
   sqlStep({items, i:0, mission, lv, sk, right:0, hinted:false});
 }
 function sqlStep(s){
@@ -759,7 +789,7 @@ function vProgress(){
   $('#imp').onchange = e=>{ const f = e.target.files[0]; if(!f) return; const rd = new FileReader();
     rd.onload = ()=>{ try{
         const b = JSON.parse(rd.result); if(typeof b !== 'object' || b === null || !('xp' in b)) throw new Error('not a backup');
-        S = importMode === 'merge' ? mergeProgress(S, b) : Object.assign(structuredClone(DEFAULT), b);
+        S = importMode === 'merge' ? mergeProgress(S, b) : migrateTerm(Object.assign(structuredClone(DEFAULT), b));
         save(); header(); vProgress(); toast(importMode === 'merge' ? 'Backup merged in' : 'Backup restored');
       }catch(err){ toast('That file is not a SkillQuest backup'); } e.target.value = ''; };
     rd.readAsText(f); };

@@ -66,7 +66,9 @@ Tracks and Progress show the four counts behind it: Retained, Fading, Learning, 
 
 - Content shape, and that terminal answers accept valid variations and reject wrong commands.
 - ~125,000 generated quiz questions, with every computed answer re-derived independently (subnetting, chmod, cron, CVSS, priority, boundaries and more).
-- ~50,000 generated terminal and SQL tasks: patterns accept the model answer and reject other values.
+- ~330,000 generated terminal and SQL tasks: patterns accept the model answer and reject other values; common alternative answers are accepted too (`feature-terminal-alts`).
+- Terminal scenarios (multi-step, each step shows the last one's output) and read-the-output / fix-the-command tasks (`feature-chains`).
+- No repeats: Quiz, Terminal, SQL and Exams never show the same question twice in one set (`feature-fresh`).
 - Every SQL model answer run against a real SQLite copy of the practice database, rows compared with what the app shows.
 - Flashcards: known topics, no duplicate fronts, escaped HTML, at most one PowerShell line, no Bandit level references, and the retained / fading / learning / new rules above.
 - Append-only: every existing item in the five content arrays is still in the same position (`content-snapshot.json`).

@@ -4,21 +4,21 @@
    code = first 6 hex characters of sha256("skillquest-lab:" + id), uppercased (checked by tests). */
 const LAB_INSTALL = 'wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/install.sh';
 const LABS = [
- {id:'permissions', title:'Permission denied', level:'L1', code:'758EC9', skills:['term:linux:Permissions & ownership','quiz:linux:Permissions'],
+ {id:'permissions', title:'Permission denied', level:'L1', code:'758EC9', skills:['term:linux:Users, processes & privilege','quiz:linux:Permissions'],
   summary:'A backup script won\'t run and a secrets file is readable by everyone. Fix both with least privilege.'},
- {id:'config-hunt', title:'Find the bad setting', level:'L1', code:'CE41DB', skills:['term:linux:Searching','term:linux:Files & folders'],
+ {id:'config-hunt', title:'Find the bad setting', level:'L1', code:'CE41DB', skills:['term:linux:Filtering text','term:linux:Files & names'],
   summary:'"Too many connections": find the one config file with the wrong value among many, and change only that line.'},
- {id:'crlf', title:'Script edited on Windows won\'t run', level:'L1', code:'844001', skills:['term:linux:Files & folders'],
+ {id:'crlf', title:'Script edited on Windows won\'t run', level:'L1', code:'844001', skills:['term:linux:Files & names'],
   summary:'A script fails with "bad interpreter". Spot the hidden Windows line endings and fix them.'},
- {id:'disk-hog', title:'Disk filling up', level:'L2', code:'47770F', skills:['term:linux:Disk & archives','quiz:linux:Admin tools'],
+ {id:'disk-hog', title:'Disk filling up', level:'L2', code:'47770F', skills:['term:linux:Admin','quiz:linux:Admin tools'],
   summary:'Find the biggest file and free its space while a running app still has it open, without deleting it.'},
- {id:'log-hunt', title:'Who keeps failing to log in?', level:'L2', code:'34FBE5', skills:['term:linux:Searching'],
+ {id:'log-hunt', title:'Who keeps failing to log in?', level:'L2', code:'34FBE5', skills:['term:linux:Filtering text'],
   summary:'Analyze an SSH log and find the IP with the most failed logins, using a grep | sort | uniq pipeline.'},
- {id:'web-down', title:'The website is down', level:'L2', code:'75E861', skills:['term:linux:Services & logs','term:linux:Networking'],
+ {id:'web-down', title:'The website is down', level:'L2', code:'75E861', skills:['term:linux:Admin','term:linux:Networking'],
   summary:'Users can\'t reach the site. Test with curl, check listening ports, find the wrong port in the start script, bring it back.'},
- {id:'old-logs', title:'Archive old logs', level:'L2', code:'F84D57', skills:['term:linux:Disk & archives','term:linux:Searching'],
+ {id:'old-logs', title:'Archive old logs', level:'L2', code:'F84D57', skills:['term:linux:Archives','term:linux:Finding'],
   summary:'Archive only the logs older than 7 days into a tar.gz, delete them, and keep everything else.'},
- {id:'cron-fix', title:'The backup never runs', level:'L2', code:'2D0933', skills:['term:linux:Scheduling (cron)','quiz:linux:Scheduling (cron)'],
+ {id:'cron-fix', title:'The backup never runs', level:'L2', code:'2D0933', skills:['term:linux:Admin','quiz:linux:Scheduling (cron)'],
   summary:'A nightly backup never runs. Read the cron line, find the mistake, fix the schedule.'}
 ];
 function completeLab(lab){

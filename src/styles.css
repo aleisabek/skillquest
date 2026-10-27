@@ -172,3 +172,4 @@ input.typed.no{border-color:var(--bad)}
 /* In-page confirmation box */
 .ask{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(0,0,0,.6);padding:16px}
 .ask .card{max-width:420px;width:100%;border-color:var(--accent);box-shadow:var(--glow)}
+.term .line.outp{color:var(--muted);white-space:pre-wrap}
