@@ -104,6 +104,26 @@ function backupDue(){
 function cardId(i){ return 'c'+i; }
 function quizId(i){ return 'q'+i; }
 function cardDue(i){ const c = S.cards[cardId(i)]; return !c || c.due <= dayStr(); }
+/* Honest mastery: a card counts only while it is proven (box 3+) and not overdue by more than its own review gap;
+   a quiz question counts only if your latest answer to it was right. */
+function cardStatus(i){
+  const c = S.cards[cardId(i)];
+  if(!c) return 'new';
+  if(c.box < 3) return 'learning';
+  return addDays(c.due, BOX_DAYS[c.box]) < dayStr() ? 'fading' : 'retained';
+}
+function quizStatus(i){ const id = quizId(i); return S.miss[id] ? 'learning' : S.quiz[id] ? 'retained' : 'new'; }
+function levelStats(tid, lv){
+  const st = {retained:0, fading:0, learning:0, new:0, total:0};
+  QUIZ.forEach((q,i)=>{ if(q[0]===tid && q[1]===lv){ st[quizStatus(i)]++; st.total++; } });
+  CARDS.forEach((c,i)=>{ if(c[0]===tid && c[1]===lv){ st[cardStatus(i)]++; st.total++; } });
+  return st;
+}
+const STATUS = {retained:'Retained', fading:'Fading', learning:'Learning', new:'New'};
+function statsLine(st){
+  return '<div class="small mstats" title="Retained: proven and recent. Fading: proven, but overdue for review. Learning: seen, not proven yet. New: never seen.">'+
+    Object.keys(STATUS).map(k=>'<span class="st-'+k+'">'+STATUS[k]+' '+st[k]+'</span>').join(' · ')+'</div>';
+}
 
 /* ===================== DAILY MISSIONS ===================== */
 function missions(){
@@ -195,26 +215,20 @@ function vToday(){
   const bk = $('#bk'); if(bk) bk.onclick = ()=>{ downloadBackup(); vToday(); };
 }
 
-function mastery(tid, lv){
-  lv = lv || 1;
-  const qs = QUIZ.map((q,i)=>[q,i]).filter(([q])=>q[0]===tid && q[1]===lv);
-  const cs = CARDS.map((c,i)=>[c,i]).filter(([c])=>c[0]===tid && c[1]===lv);
-  if(!qs.length && !cs.length) return 0;
-  const got = qs.filter(([q,i])=>S.quiz[quizId(i)]).length + cs.filter(([c,i])=>(S.cards[cardId(i)]||{}).box>=3).length;
-  return Math.round(got / (qs.length + cs.length) * 100);
-}
-/* Suggest Level 2 once Level 1 of a track is 60% mastered */
+/* Mastery = share of a level's questions and cards that are retained right now (see cardStatus / quizStatus) */
+function mastery(tid, lv){ const st = levelStats(tid, lv || 1); return st.total ? Math.round(st.retained / st.total * 100) : 0; }
+/* Suggest Level 2 once 60% of Level 1 is retained */
 function levelFor(tid){ return mastery(tid,1) >= 60 && QUIZ.some(q=>q[0]===tid && q[1]===2) ? 2 : 1; }
 function vTracks(){
   const OPEN = 2;
-  view.innerHTML = '<h1>Tracks</h1><p class="sub">Each track has four levels, from basics to senior. Levels 1 and 2 are ready. Tip: get Level 1 to 60% before starting Level 2.</p>'+
+  view.innerHTML = '<h1>Tracks</h1><p class="sub">Each track has four levels, from basics to senior. Levels 1 and 2 are ready. The % is what you have <b>retained</b>: proven and reviewed on time. It drops when reviews go overdue or a question you knew is missed. Tip: get Level 1 to 60% before starting Level 2.</p>'+
     '<div class="grid">'+TRACKS.map(t=>{
       const lvRow = n=>{ const m = mastery(t.id, n);
         return '<div style="margin-top:12px"><div class="row" style="justify-content:space-between"><b>L'+n+' '+LEVELS[n-1].name+'</b><span class="small">'+m+'%</span></div>'+
-          '<div class="meter"><i style="width:'+m+'%"></i></div>'+
+          '<div class="meter"><i style="width:'+m+'%"></i></div>'+statsLine(levelStats(t.id, n))+
           '<div class="row" style="margin-top:8px"><button class="primary" data-q="'+t.id+'" data-lv="'+n+'">Quiz</button><button data-c="'+t.id+'" data-lv="'+n+'">Flashcards</button>'+
           (genFor(t.id, n).length ? '<button data-e="'+t.id+'" data-lv="'+n+'" title="Endless, freshly generated problems">∞ Drill</button>' : '')+'</div></div>'; };
-      return '<div class="card"><h3 style="margin:0">'+t.icon+' '+t.name+'</h3><p class="small">'+t.blurb+'</p>'+
+      return '<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">'+t.icon+' '+t.name+'</h3><button data-b="'+t.id+'" title="Search every card in this track, filter by topic, and study what you find">Browse</button></div><p class="small">'+t.blurb+'</p>'+
         '<div class="levels">'+LEVELS.map(l=>'<span class="lv '+(l.n<=OPEN?'open':'')+'" title="'+esc(l.desc)+'">L'+l.n+' '+l.name+(l.n>OPEN?' 🔒':'')+'</span>').join('')+'</div>'+
         lvRow(1)+lvRow(2)+
         (genSkills(t.id).length ? '<div class="small" style="margin-top:14px">∞ Drill one skill:</div><div class="chips">'+
@@ -224,6 +238,7 @@ function vTracks(){
     '<h2>What the levels mean</h2><div class="card">'+LEVELS.map(l=>'<p><b>L'+l.n+' '+l.name+':</b> '+l.desc+'</p>').join('')+'</div>';
   view.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>startQuiz(b.dataset.q, 10, null, null, +b.dataset.lv));
   view.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>startCards(b.dataset.c, 12, null, null, +b.dataset.lv));
+  view.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>vBrowse(b.dataset.b));
   view.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>startQuiz(b.dataset.e, 10, null, null, +b.dataset.lv, true));
   view.querySelectorAll('[data-sk]').forEach(b=>b.onclick=()=>startQuiz(b.dataset.trk, 10, null, null, 0, true, b.dataset.sk));
 }
@@ -313,22 +328,40 @@ function quizEnd(s){
 }
 
 /* ---------- Flashcards ---------- */
+/* At most this many never-seen cards a day (all tracks), so reviews don't pile up faster than you can learn them. */
+const NEW_PER_DAY = 10;
+function newToday(){ const d = dayStr(); return Object.values(S.cards).filter(c=>c.seen===d).length; }
 function startCards(tid, n, mission, list, lv){
   let pool = list || CARDS.map((c,i)=>i).filter(i=>CARDS[i][0]===tid && (!lv || CARDS[i][1]===lv));
   pool = shuffle(pool).sort((a,b)=>((S.cards[cardId(a)]||{box:0}).box)-((S.cards[cardId(b)]||{box:0}).box));
-  cardStep({items:pool.slice(0,n), i:0, flipped:false, mission, tid, good:0});
+  let left = Math.max(0, NEW_PER_DAY - newToday()), held = 0;
+  pool = pool.filter(i=>{ if(S.cards[cardId(i)]) return true; if(left > 0){ left--; return true; } held++; return false; });
+  if(!pool.length){
+    view.innerHTML = '<h1>Flashcards</h1><div class="card"><p>You have started '+NEW_PER_DAY+' new cards today, and nothing here is ready to review. New cards unlock again tomorrow; spreading them out is what makes them stick.</p><div class="row"><button class="primary" id="home">Back to Today</button></div></div>';
+    $('#home').onclick=()=>go('today'); return;
+  }
+  cardStep({items:pool.slice(0,n), i:0, flipped:false, mission, tid, good:0, missed:[], held: pool.length < n ? held : 0});
 }
+function psToggle(){ return '<button class="chip" id="psBtn" title="Show or hide the PowerShell line on Linux cards">PowerShell: '+(psOn()?'shown':'hidden')+'</button>'; }
+function bindPsToggle(){ const b = $('#psBtn'); if(b) b.onclick = ()=>{ setPref('skillquest-ps', psOn()?'off':'on'); applyPs(); b.textContent = 'PowerShell: '+(psOn()?'shown':'hidden'); }; }
 function cardStep(s){
   if(s.i >= s.items.length){
     if(s.mission) completeMission(s.mission);
-    view.innerHTML = '<h1>Cards done</h1><div class="card"><p class="q">'+s.good+' / '+s.items.length+' marked "Got it"</p><p>Cards you missed come back sooner. Cards you know come back later.</p><div class="row"><button class="primary" id="home">Back to Today</button></div></div>';
+    view.innerHTML = '<h1>Cards done</h1><div class="card"><p class="q">'+s.good+' / '+s.items.length+' marked "Got it"</p><p>Cards you missed come back tomorrow. Cards you know come back later, with longer gaps each time.</p>'+
+      (s.missed.length ? '<h3>Missed this round</h3><ul class="clean">'+s.missed.map(i=>'<li>'+CARDS[i][2]+'</li>').join('')+'</ul>' : '')+
+      (s.held ? '<p class="small">'+s.held+' more new card'+(s.held===1?'':'s')+' unlock tomorrow (limit '+NEW_PER_DAY+' new a day).</p>' : '')+
+      '<div class="row"><button class="primary" id="home">Back to Today</button></div></div>';
     $('#home').onclick=()=>go('today'); return;
   }
   const idx = s.items[s.i], c = CARDS[idx], t = track(c[0]);
+  const box = (S.cards[cardId(idx)]||{box:0}).box, nextGap = BOX_DAYS[Math.min(box+1, 5)];
+  const days = n=>n+' day'+(n===1?'':'s');
   view.innerHTML = '<h1>'+t.icon+' '+t.name+' flashcards</h1>'+
-    '<div class="progress"><span>Card '+(s.i+1)+' of '+s.items.length+'</span><span>Box '+((S.cards[cardId(idx)]||{box:0}).box)+' of 5</span></div>'+
-    '<div class="card flash '+(s.flipped?'back':'')+'" id="fc">'+(s.flipped?c[3]:'<div><div>'+c[2]+'</div><p class="small" style="margin-top:16px">Say the answer out loud, then click or press Space to flip.</p></div>')+'</div>'+
-    '<div class="row" style="margin-top:14px">'+(s.flipped?'<button id="again">↺ Again</button><button class="primary" id="good">✓ Got it</button>':'<button class="primary" id="flip">Flip</button>')+'</div>';
+    '<div class="progress"><span>Card '+(s.i+1)+' of '+s.items.length+(c[4] ? ' · '+CARD_TOPICS[c[4]] : '')+'</span><span>'+(box ? 'Last gap: '+days(BOX_DAYS[box]) : 'New card')+'</span></div>'+
+    '<div class="card flash '+(s.flipped?'back':'')+'" id="fc">'+(s.flipped?'<div>'+c[3]+'</div>':'<div><div>'+c[2]+'</div><p class="small" style="margin-top:16px">Say the answer out loud, then tap or press Space to flip.</p></div>')+'</div>'+
+    '<div class="row" style="margin-top:14px">'+(s.flipped?'<button id="again">↺ Again <span class="small">1 · back tomorrow</span></button><button class="primary" id="good">✓ Got it <span class="small">2 · next in '+days(nextGap)+'</span></button>':'<button class="primary" id="flip">Flip</button>')+
+    (c[3].includes('class="ps"') ? psToggle() : '')+'</div>';
+  bindPsToggle();
   const flip = ()=>{ s.flipped=true; cardStep(s); };
   $('#fc').onclick = s.flipped ? null : flip;
   if(!s.flipped) $('#flip').onclick = flip;
@@ -336,12 +369,50 @@ function cardStep(s){
     const rate = good=>{
       const id = cardId(idx), cur = S.cards[id] || {box:0};
       const box = good ? Math.min(cur.box+1, 5) : 1;
-      S.cards[id] = {box, due:addDays(dayStr(), BOX_DAYS[box])};
-      if(good){ s.good++; addXP(5); } else save();
+      S.cards[id] = {box, due:addDays(dayStr(), BOX_DAYS[box]), seen:cur.seen || dayStr()};
+      if(good){ s.good++; addXP(5); } else { s.missed.push(idx); save(); }
       s.i++; s.flipped=false; cardStep(s);
     };
     $('#again').onclick=()=>rate(false); $('#good').onclick=()=>rate(true);
   }
+}
+
+/* ---------- Browse: search a track's cards, filter by topic, study what you find ---------- */
+function vBrowse(tid, topic){
+  const t = track(tid);
+  const all = CARDS.map((c,i)=>i).filter(i=>CARDS[i][0]===tid);
+  const text = {}; all.forEach(i=>{ text[i] = plainText(CARDS[i][2]+' '+CARDS[i][3]).toLowerCase(); });
+  const topics = Object.keys(CARD_TOPICS).filter(k=>all.some(i=>CARDS[i][4]===k));
+  let hits = [];
+  view.innerHTML = '<h1>'+t.icon+' '+t.name+' cards</h1><p class="sub">Every card in this track. Search by command or by what you want to do ("hidden", "bytes", "decode"), then study the results as flashcards.</p>'+
+    '<div class="card"><div class="row"><input id="bq" class="typed" autocomplete="off" spellcheck="false" placeholder="Search cards" aria-label="Search cards">'+(tid==='linux' ? psToggle() : '')+'</div>'+
+    (topics.length ? '<div class="chips"><button class="chip" data-tp="">All</button>'+topics.map(k=>'<button class="chip" data-tp="'+k+'">'+CARD_TOPICS[k]+'</button>').join('')+'</div>' : '')+
+    '<div class="row" style="margin-top:10px;justify-content:space-between"><span class="small" id="bn"></span><span class="row"><button class="primary" id="bstudy">Study these</button><button id="bback">Back to Tracks</button></span></div></div>'+
+    (tid==='linux' ? '<details class="card"><summary>Bandit study guide</summary><p class="small">What to review, roughly in the order OverTheWire Bandit needs it. It names techniques only: no level answers, and never paste passwords anywhere. Stuck? Re-read the level page, then <code>man</code> the commands it suggests.</p><ol>'+
+      BANDIT_GUIDE.map(step=>'<li>'+step.map(k=>'<button class="chip" data-tp="'+k+'">'+CARD_TOPICS[k]+'</button>').join(' ')+'</li>').join('')+
+      '</ol><p class="small"><a href="https://overthewire.org/wargames/bandit/" target="_blank" rel="noopener">Open Bandit</a></p></details>' : '')+
+    '<div id="bres"></div>';
+  const draw = ()=>{
+    const words = $('#bq').value.toLowerCase().split(/\s+/).filter(Boolean);
+    hits = all.filter(i=>(!topic || CARDS[i][4]===topic) && words.every(w=>text[i].includes(w)));
+    view.querySelectorAll('[data-tp]').forEach(b=>b.classList.toggle('on', b.dataset.tp===(topic||'')));
+    $('#bn').textContent = hits.length+' of '+all.length+' cards';
+    $('#bstudy').disabled = !hits.length;
+    $('#bres').innerHTML = hits.map(i=>{ const c = CARDS[i], st = cardStatus(i);
+      return '<div class="card brow"><div class="bq">'+c[2]+'</div><div class="ba">'+c[3]+'</div>'+
+        '<div class="row small" style="margin-top:6px"><span class="pill st-'+st+'">'+STATUS[st]+'</span><span>L'+c[1]+(c[4] ? ' · '+CARD_TOPICS[c[4]] : '')+'</span>'+
+        (c[3].includes('<code>') ? '<button class="chip" data-cp="'+i+'">Copy command</button>' : '')+'</div></div>'; }).join('');
+    $('#bres').querySelectorAll('[data-cp]').forEach(b=>b.onclick=()=>{
+      const code = b.closest('.brow').querySelector('.ba code').textContent;
+      try{ navigator.clipboard.writeText(code).then(()=>toast('Copied: '+code), ()=>toast(code)); }catch(e){ toast(code); }
+    });
+  };
+  view.querySelectorAll('[data-tp]').forEach(b=>b.onclick=()=>{ topic = b.dataset.tp; draw(); });
+  $('#bq').oninput = draw;
+  $('#bstudy').onclick = ()=>startCards(null, Math.min(hits.length, 20), null, hits);
+  $('#bback').onclick = ()=>go('tracks');
+  bindPsToggle();
+  draw(); $('#bq').focus();
 }
 
 /* ---------- Terminal ---------- */
@@ -655,13 +726,14 @@ function vReview(){
 /* ---------- Progress ---------- */
 function vProgress(){
   const {r} = rankOf(S.xp);
-  const learned = Object.values(S.cards).filter(c=>c.box>=3).length;
+  const learned = CARDS.filter((c,i)=>cardStatus(i)==='retained').length;
+  const quizKept = QUIZ.filter((q,i)=>quizStatus(i)==='retained').length;
   const days = Object.keys(S.days).filter(d=>['quiz','skill','iv'].every(k=>S.days[d][k])).length;
   view.innerHTML = '<h1>Progress</h1><div class="grid">'+
-    '<div class="card"><h3 style="margin-top:0">Your numbers</h3><p>⭐ '+S.xp+' XP<br>🔥 Best streak: '+(S.best||0)+' days<br>📅 Full mission days: '+days+'<br>🃏 Cards learned (box 3+): '+learned+' of '+CARDS.length+'<br>✅ Quiz questions answered right: '+Object.keys(S.quiz).length+' of '+QUIZ.length+'<br>🐧 Terminal commands solved: '+Object.keys(S.term).length+' of '+TERM.length+'<br>🎤 Interview questions practiced: '+Object.keys(S.iv).length+' of '+IV.length+'<br>🎫 Ticket scenarios played: '+Object.keys(S.tickets||{}).length+' of '+SCEN.length+'<br>🗄️ SQL challenges solved: '+Object.keys(S.sql||{}).length+' of '+SQLT.length+
+    '<div class="card"><h3 style="margin-top:0">Your numbers</h3><p>⭐ '+S.xp+' XP<br>🔥 Best streak: '+(S.best||0)+' days<br>📅 Full mission days: '+days+'<br>🃏 Cards retained (proven, reviews on time): '+learned+' of '+CARDS.length+'<br>✅ Quiz questions whose latest answer was right: '+quizKept+' of '+QUIZ.length+'<br>🐧 Terminal commands solved: '+Object.keys(S.term).length+' of '+TERM.length+'<br>🎤 Interview questions practiced: '+Object.keys(S.iv).length+' of '+IV.length+'<br>🎫 Ticket scenarios played: '+Object.keys(S.tickets||{}).length+' of '+SCEN.length+'<br>🗄️ SQL challenges solved: '+Object.keys(S.sql||{}).length+' of '+SQLT.length+
     '<br>∞ Generated problems: '+Object.values(S.gen||{}).reduce((a,g)=>a+g.right,0)+' right of '+Object.values(S.gen||{}).reduce((a,g)=>a+g.total,0)+'</p></div>'+
     '<div class="card ladder"><h3 style="margin-top:0">Rank ladder</h3>'+RANKS.map(x=>'<div class="'+(x[1]===r[1]?'me':'')+'"><span>'+x[1]+'</span><span>'+x[0]+' XP</span></div>').join('')+'</div></div>'+
-    '<h2>Track mastery</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div></div>';}).join('')+'</div>'+
+    '<h2>Track mastery</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div>'+statsLine([1,2].map(n=>levelStats(t.id,n)).reduce((a,b)=>{ for(const k in a) a[k]+=b[k]; return a; }))+'</div>';}).join('')+'</div>'+
     '<h2>Backup</h2><div class="card"><p class="small">Progress is saved in this browser only. Clearing browser data or switching browsers loses it, so download a backup once a week. Last backup: <b>'+(S.lastBackup || 'never')+'</b>.</p>'+
     '<div class="row"><button class="primary" id="exp"'+(PHONE?' hidden':'')+'>Download backup file</button><button id="mrgb" title="Combine a backup file with the progress here. Nothing is lost.">Merge a backup file in</button><button id="impb" title="Throw away the progress here and use the backup instead">Replace with a backup file</button><input type="file" id="imp" accept=".json,application/json,text/plain" hidden><button id="reset">Reset everything</button></div>'+
     '<h3>Move progress between your PC and phone</h3>'+
@@ -700,6 +772,8 @@ function vGuide(){
     '<li><b>Exams tab:</b> timed Security+ and Network+ practice by official domain. Use it weekly to see which domain is weakest; aim for 85%+ on several attempts.</li>'+
     '<li><b>Watch the Skills tab.</b> Every skill has a mastery score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
     '<li><b>Then one real lab</b> from the list on the Today tab (TryHackMe, Bandit, SQLBolt or Microsoft Learn).</li>'+
+    '<li><b>Browse (Tracks tab):</b> search every card in a track, filter by topic, copy a command, then study just those cards. The Linux track has the full Bandit toolkit plus a Bandit study guide. Keys in flashcards: Space flips, 1 = Again, 2 = Got it. At most '+NEW_PER_DAY+' new cards a day.</li>'+
+    '<li><b>Honest numbers:</b> track % counts only what is retained right now. A card stops counting if its review is badly overdue, and a question stops counting if you miss it again. Expect it to go down sometimes; that is it telling you what to review.</li>'+
     '<li><b>Check the Review tab</b> whenever cards are due. Spaced review is what moves things into long-term memory.</li>'+
     '<li><b>Before any interview:</b> do every question in the Interview tab for that job type, out loud, with the timer.</li>'+
     '<li><b>Fridays:</b> go to Progress and download a backup.</li></ol>'+
@@ -720,6 +794,10 @@ function applyTheme(t){
   $('#themeName').textContent = t;
 }
 applyTheme(pref('skillquest-theme','matrix'));
+/* PowerShell line on Linux cards: shown unless turned off */
+function psOn(){ return pref('skillquest-ps','on') !== 'off'; }
+function applyPs(){ document.documentElement.classList.toggle('nops', !psOn()); }
+applyPs();
 $('#theme').onclick=()=>{
   const t = THEMES[(THEMES.indexOf(document.documentElement.dataset.theme)+1) % THEMES.length];
   applyTheme(t); setPref('skillquest-theme', t); toast('Color mode: '+t);
@@ -772,5 +850,11 @@ new MutationObserver(()=>{
   h.dataset.dc = 1;
   if(h.textContent !== lastTitle){ lastTitle = h.textContent; decrypt(h); }
 }).observe(view, {childList:true});
-document.addEventListener('keydown', e=>{ if(e.code==='Space' && $('#fc') && $('#flip')){ e.preventDefault(); $('#flip').click(); } });
+/* Flashcard keys: Space flips, 1 = Again, 2 = Got it */
+document.addEventListener('keydown', e=>{
+  if(!$('#fc') || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.ctrlKey || e.altKey || e.metaKey) return;
+  if(e.code==='Space' && $('#flip')){ e.preventDefault(); $('#flip').click(); }
+  else if(e.key==='1' && $('#again')){ e.preventDefault(); $('#again').click(); }
+  else if(e.key==='2' && $('#good')){ e.preventDefault(); $('#good').click(); }
+});
 header(); vToday();
