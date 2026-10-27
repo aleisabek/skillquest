@@ -24,7 +24,7 @@ if (!e.done || !S.quiz.q20) fail('correct on a second day should clear it and ma
 const q2 = T.QUIZ[21]; T.addMistake(q2, { kind: 'quiz', your: 'x' }); const e2 = T.journal()[0];
 T.journalResult(e2.id, true); today = '2026-10-27'; T.journalResult(e2.id, false); today = '2026-10-28'; T.journalResult(e2.id, true);
 if (e2.done) fail('a miss in between should reset progress');
-T.addNote('term', 'Restart nginx', 'sudo systemctl restart nginx', 'systemctl nginx', 'term:linux:Services & logs');
+T.addNote('term', 'Restart nginx', 'sudo systemctl restart nginx', 'systemctl nginx', 'term:linux:Admin');
 if (!T.isOpen(T.journal()[0])) fail('terminal note should be open while the skill is weak');
 if (JSON.parse(JSON.stringify(S.journal)).length !== S.journal.length) fail('journal must be JSON-serializable');
 

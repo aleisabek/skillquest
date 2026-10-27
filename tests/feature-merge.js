@@ -3,7 +3,7 @@ const fs = require('fs');
 const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const grab = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
 const defLine = js.slice(js.indexOf('const DEFAULT'), js.indexOf('\n', js.indexOf('const DEFAULT')));
-eval(defLine + ';' + grab('mergeProgress') + ';global.M = mergeProgress; global.D = DEFAULT;');
+eval(defLine + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 const pc = Object.assign(structuredClone(D), {
   xp: 500, best: 4, streak: 2, lastFull: '2026-10-20', lastBackup: '2026-10-19',
@@ -45,5 +45,24 @@ for (const [a, b, label] of [[pc, phone, 'pc+phone'], [phone, pc, 'phone+pc']]) 
   chk(JSON.stringify(a) === JSON.stringify(label === 'pc+phone' ? pc : phone), 'merge must not modify its inputs');
 }
 const same = M(pc, pc); if (JSON.stringify(same.quiz) !== JSON.stringify(pc.quiz) || same.xp !== pc.xp) fail('merging a backup with itself should change nothing');
+/* Terminal skill rename (2026-10-27): old progress moves to the deck-topic skills, nothing is lost */
+const old = Object.assign(structuredClone(D), {
+  mastery: { 'term:linux:Reading files': { s: 80, n: 6, right: 5, last: '2026-10-25' }, 'term:linux:Searching': { s: 50, n: 3, right: 2, last: '2026-10-24' },
+             'term:linux:Services & logs': { s: 40, n: 2, right: 1, last: '2026-10-20' }, 'term:linux:Scheduling (cron)': { s: 90, n: 9, right: 9, last: '2026-10-26' },
+             'term:linux:Networking': { s: 60, n: 4, right: 3, last: '2026-10-22' } },
+  lessons: { 'term:linux:Disk & archives': '2026-10-21' },
+  journal: [{ id: 'm9', key: 'term|x', at: '2026-10-20', hits: [], done: false, sid: 'term:linux:Permissions & ownership' }]
+});
+const mig = MT(structuredClone(old)), mm = mig.mastery;
+if (Object.keys(mm).some(k => /Reading files|Searching|Services & logs|Scheduling \(cron\)/.test(k))) fail('old terminal skill names left behind');
+if (!mm['term:linux:Reading & identifying'] || mm['term:linux:Reading & identifying'].n !== 6) fail('Reading files should move to Reading & identifying');
+if (!mm['term:linux:Finding'] || !mm['term:linux:Filtering text']) fail('Searching should move to Finding and Filtering text');
+if (!mm['term:linux:Admin'] || mm['term:linux:Admin'].n !== 9) fail('Admin should keep the most-practised record (cron, n=9)');
+if (mm['term:linux:Networking'].n !== 4) fail('Networking (unchanged name) must be untouched');
+if (mig.lessons['term:linux:Archives'] !== '2026-10-21' || mig.lessons['term:linux:Disk & archives']) fail('lesson dates should move');
+if (mig.journal[0].sid !== 'term:linux:Users, processes & privilege') fail('journal entries should point at the new skill');
+if (JSON.stringify(MT(structuredClone(mig))) !== JSON.stringify(mig)) fail('migration must be safe to run twice');
+const mergedOld = M(structuredClone(D), old);
+if (mergedOld.mastery['term:linux:Reading files'] || !mergedOld.mastery['term:linux:Reading & identifying']) fail('merging an old backup must migrate it');
 console.log('merge checks | problems', bad);
 process.exitCode = bad ? 1 : 0;

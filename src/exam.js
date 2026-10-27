@@ -36,14 +36,22 @@ function examPlan(cert, n){
   return plan;
 }
 function buildExam(cert, n){
-  const items = [];
+  const items = [], seen = new Set();
+  const gensOf = d=>d.gens.flatMap(([tid, sk])=>genFor(tid, 0, sk).map(f=>({f, tid, sk})));
+  const run = g=>{ const q = g.f(); if(q){ q.tid = g.tid; q.sk = g.sk; } return q; };
   for(const [d, k] of examPlan(cert, n)){
-    const fixed = shuffle(d.qs).slice(0, d.gens.length ? Math.ceil(k/2) : k);
+    const qs = shuffle(d.qs), fixed = qs.slice(0, d.gens.length ? Math.ceil(k/2) : k);
+    /* generated questions: no repeats inside one exam (same picker as Quiz, Terminal and SQL) */
+    const made = freshSet(gensOf(d), k - fixed.length, run, quizKey, null, seen);
+    /* if the generators run out of different questions, top up with more fixed ones */
+    fixed.push(...qs.slice(fixed.length, fixed.length + (k - fixed.length - made.length)));
     fixed.forEach(i=>items.push({d:QUIZ[i], qi:i, dom:d.n}));
-    for(let j=fixed.length; j<k; j++){
-      const [tid, sk] = pick(d.gens), g = makeGen(tid, 0, sk);
-      if(g) items.push({d:g.d, sid:skillIdFor('quiz', tid, sk), dom:d.n});
-    }
+    made.forEach(g=>items.push({d:g.d, sid:skillIdFor('quiz', g.tid, g.sk), dom:d.n}));
+  }
+  /* still short (a domain ran out of different questions): top up from the other domains, heaviest first */
+  for(const d of cert.domains.filter(d=>domCovered(d) && d.gens.length).sort((a,b)=>b.w-a.w)){
+    if(items.length >= n) break;
+    freshSet(gensOf(d), n - items.length, run, quizKey, null, seen).forEach(g=>items.push({d:g.d, sid:skillIdFor('quiz', g.tid, g.sk), dom:d.n}));
   }
   return shuffle(items).map(it=>Object.assign(it, {order:shuffle([0,1,2,3]), pick:null, flag:false}));
 }
