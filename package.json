@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node build.js",
     "install-app": "node build.js --install",
-    "test": "node tests/run-all.js"
+    "test": "node tests/run-all.js",
+    "export-deck": "node tools/export-deck.js"
   }
 }
