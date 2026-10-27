@@ -142,6 +142,17 @@ details summary{cursor:pointer;font-weight:600;margin:4px 0;color:var(--accent2)
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .chip{font-size:.74rem;padding:3px 9px;border-style:dashed}
 .chip .small{font-size:.66rem}
+.chip.on{border-style:solid;border-color:var(--accent);color:var(--accent)}
+/* PowerShell line on Linux cards (hidden with the toggle) */
+.ps{display:block;margin-top:10px;font-size:.85em;color:var(--muted)}
+.nops .ps{display:none}
+/* Retained / Fading / Learning / New */
+.mstats{margin-top:2px}
+button .small{color:inherit;opacity:.8;text-transform:none;letter-spacing:0;font-weight:400}
+.st-retained{color:var(--good)} .st-fading{color:var(--warn)} .st-learning{color:var(--accent2)} .st-new{color:var(--muted)}
+.brow{padding:12px 14px;margin-top:10px}
+.brow .bq{font-weight:700;margin-bottom:4px}
+.brow .ba code,.flash code{overflow-wrap:anywhere}
 .ritem{display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap}
 .ritem>span:first-child{flex:0 0 240px;font-size:.85rem}
 .ritem .meter{flex:1;min-width:80px;margin:0}
