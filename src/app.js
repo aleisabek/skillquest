@@ -7,7 +7,9 @@ const DEFAULT = {xp:0, streak:0, best:0, lastFull:null, days:{}, cards:{}, quiz:
 /* Progress safety: saved data that can't be read is copied aside and never saved over (saveBlocked) until you decide
    what to do on Today; a save the browser refuses (storage full or blocked) is reported instead of silently lost. */
 let saveBlocked = false, saveFailed = false, saveWarned = false;
+const QUIZ_FADE = 30;   /* days a right quiz answer stays retained (load's migration uses it, so it lives up here) */
 let S = load();
+if(!saveBlocked) save();   /* store upgrades made while loading (quiz dates, streak recount) right away */
 function load(){
   let raw = null;
   try{ raw = localStorage.getItem(KEY); }catch(e){ saveFailed = true; }
@@ -19,7 +21,7 @@ function load(){
     saveBlocked = true;
     return structuredClone(DEFAULT);
   }
-  try{ recountStreak(st); }catch(e){}   /* repairs a streak shortened by an older merge; never blocks loading */
+  try{ migrateQuiz(st); recountStreak(st); }catch(e){}   /* upgrades old quiz answers and repairs a streak shortened by an older merge; never blocks loading */
   return st;
 }
 function save(){
@@ -35,7 +37,7 @@ function prevSnapshot(){ try{ const p = JSON.parse(localStorage.getItem(PREV)); 
 function undoLast(){
   const p = prevSnapshot();
   if(!p){ toast('Nothing to undo'); return false; }
-  S = migrateTerm(Object.assign(structuredClone(DEFAULT), p.S)); saveBlocked = false;
+  S = recountStreak(migrateQuiz(migrateTerm(Object.assign(structuredClone(DEFAULT), p.S)))); saveBlocked = false;
   try{ localStorage.removeItem(PREV); }catch(e){}
   save(); header(); toast('Undone: progress is back to how it was before the '+p.what);
   return true;
@@ -122,6 +124,7 @@ function mergeProgress(a, b){
       if(o === undefined) m[k][x] = v;
       else if(k === 'notes') m[k][x] = String(v).length > String(o).length ? v : o;   /* keep the longer note */
       else if(typeof o === 'string' && typeof v === 'string') m[k][x] = later(o, v);   /* dates: keep the latest */
+      else if(o === true && typeof v === 'string') m[k][x] = v;   /* a real date beats an old "done" flag */
     }
   }
   for(const k of ['iv','tickets']){ m[k] = Object.assign({}, a[k]||{}); for(const [x,v] of Object.entries(b[k]||{})) m[k][x] = Math.max(m[k][x]||0, v); }
@@ -129,7 +132,9 @@ function mergeProgress(a, b){
      the miss clears when the question is answered right again. */
   m.miss = Object.assign({}, a.miss||{}, b.miss||{});
   /* days: union of completed missions */
-  m.days = structuredClone(a.days||{}); for(const [d,v] of Object.entries(b.days||{})) m.days[d] = Object.assign({}, m.days[d]||{}, v);
+  m.days = structuredClone(a.days||{});
+  for(const [d,v] of Object.entries(b.days||{})){ const md = m.days[d] = Object.assign({}, m.days[d]||{});
+    for(const [k,x] of Object.entries(v||{})) md[k] = typeof x === 'number' ? Math.max(md[k]||0, x) : (md[k] === true || x === true) ? true : x; }
   /* flashcards: keep the most recently reviewed record (review day = due minus its gap), so a lapse on one device
      isn't erased by an older, higher box from the other; on a tie keep the higher box */
   const reviewed = c=>addDays(c.due, -(BOX_DAYS[c.box] || 0));
@@ -146,7 +151,7 @@ function mergeProgress(a, b){
   const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]) E.set(e.cert+e.date+e.pct+e.n+e.secs, e);
   m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date)).slice(0, 50);
   if(a.typed === false && b.typed === false) m.typed = false; else delete m.typed;
-  return recountStreak(migrateTerm(m));
+  return recountStreak(migrateQuiz(migrateTerm(m)));
 }
 /* Imported backups are untrusted text: keep only known fields with the right types, so a damaged or tampered file
    can't break a tab or inject markup. Older backups (missing newer fields) still restore. null = not a SkillQuest backup. */
@@ -167,7 +172,7 @@ function sanitizeBackup(b){
   const flag = x=>x === true ? true : undefined;
   const s = {xp:clampNum(b.xp, 0, 1e9), best:clampNum(b.best, 0, 1e5), streak:clampNum(b.streak, 0, 1e5), lastFull:okDate(b.lastFull)};
   if(okDate(b.lastBackup)) s.lastBackup = b.lastBackup;
-  s.days = cleanMap(b.days, (v, k)=>DATE_RE.test(k) ? cleanMap(v, flag) : undefined);
+  s.days = cleanMap(b.days, (v, k)=>DATE_RE.test(k) ? cleanMap(v, (x, f)=>f === 'reviews' ? clampNum(x, 0, 1e5) : (x === true || x === false) ? x : undefined) : undefined);
   s.cards = cleanMap(b.cards, v=>{ if(!isObj(v) || !okDate(v.due)) return; const c = {box:Math.round(clampNum(v.box, 1, 5)), due:v.due}; if(okDate(v.seen)) c.seen = v.seen; return c; });
   s.quiz = cleanMap(b.quiz, v=>v === true || okDate(v) ? v : undefined);
   for(const k of ['miss','term','sql']) s[k] = cleanMap(b[k], flag);
@@ -192,6 +197,7 @@ function cleanEntry(e){
     at:okDate(e.at) || dayStr(), count:Math.round(clampNum(e.count, 1, 1e4)), hits:(Array.isArray(e.hits) ? e.hits : []).filter(okDate).slice(0, 10),
     done:e.done === true, why:WHY.some(w=>w[0]===e.why) ? e.why : null, your:typeof e.your === 'string' ? e.your.slice(0, 2000) : '', sid:typeof e.sid === 'string' ? e.sid.slice(0, 200) : null};
   if(okDate(e.doneAt)) x.doneAt = e.doneAt;
+  if(okDate(e.tried)) x.tried = e.tried;
   if(e.kind !== 'quiz'){ x.task = String(e.task||'').slice(0, 2000); x.model = String(e.model||'').slice(0, 2000); return x; }
   if(Number.isInteger(e.qi) && QUIZ[e.qi]){ x.qi = e.qi; x.d = QUIZ[e.qi].slice(0, 6); }
   else {
@@ -214,10 +220,20 @@ function safeHTML(h){
     return '<'+close+tag+(cls ? ' class="'+cls[1]+'"' : '')+'>';
   });
 }
+/* Quiz answers store the day they were answered right (they used to be true). An old true gets today's date once,
+   so nothing you know drops at the switch; it starts fading QUIZ_FADE days later unless you answer it again. */
+function migrateQuiz(st){
+  for(const k of Object.keys(st.quiz||{})) if(st.quiz[k] === true){
+    /* spread over the fade window by key, so old answers don't all fade on the same day */
+    let h = 0; for(const c of k) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+    st.quiz[k] = addDays(dayStr(), -(h % QUIZ_FADE));
+  }
+  return st;
+}
 /* Rebuild streak and best from the full-mission days themselves (a full day = all 3 missions). Only ever raises them,
    or moves lastFull to a later full day, so it is safe on load and after merges. */
 function recountStreak(st){
-  const full = Object.keys(st.days||{}).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d) && st.days[d] && ['quiz','skill','iv'].every(k=>st.days[d][k])).sort();
+  const full = Object.keys(st.days||{}).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d) && st.days[d] && ['quiz','skill','iv'].every(k=>st.days[d][k]) && st.days[d].rev !== false).sort();
   if(!full.length) return st;
   let run = 1, best = 1;
   for(let i=1;i<full.length;i++){ run = full[i-1] === addDays(full[i], -1) ? run+1 : 1; best = Math.max(best, run); }
@@ -236,14 +252,22 @@ function cardId(i){ return 'c'+i; }
 function quizId(i){ return 'q'+i; }
 function cardDue(i){ const c = S.cards[cardId(i)]; return !c || c.due <= dayStr(); }
 /* Honest mastery: a card counts only while it is proven (box 3+) and not overdue by more than its own review gap;
-   a quiz question counts only if your latest answer to it was right. */
+   a quiz question counts only if your latest answer to it was right and under QUIZ_FADE days old (see quizStatus). */
 function cardStatus(i){
   const c = S.cards[cardId(i)];
   if(!c) return 'new';
   if(c.box < 3) return 'learning';
   return addDays(c.due, BOX_DAYS[c.box]) < dayStr() ? 'fading' : 'retained';
 }
-function quizStatus(i){ const id = quizId(i); return S.miss[id] ? 'learning' : S.quiz[id] ? 'retained' : 'new'; }
+/* A quiz question counts while your latest answer was right and that answer is under QUIZ_FADE days old (defined
+   at the top); after that it shows as Fading until you answer it right again (Review → Fading quiz questions). */
+function quizStatus(i){
+  const id = quizId(i), v = S.quiz[id];
+  if(S.miss[id]) return 'learning';
+  if(!v) return 'new';
+  return typeof v === 'string' && addDays(v, QUIZ_FADE) < dayStr() ? 'fading' : 'retained';
+}
+function fadingQuiz(){ return QUIZ.map((q,i)=>i).filter(i=>quizStatus(i)==='fading'); }
 function levelStats(tid, lv){
   const st = {retained:0, fading:0, learning:0, new:0, total:0};
   QUIZ.forEach((q,i)=>{ if(q[0]===tid && q[1]===lv){ st[quizStatus(i)]++; st.total++; } });
@@ -287,12 +311,32 @@ function completeMission(key){
   const d = dayStr(); S.days[d] = S.days[d] || {};
   if(S.days[d][key]) return;
   S.days[d][key] = true;
-  const all = ['quiz','skill','iv'].every(k=>S.days[d][k]);
-  if(all){
+  checkReviews();
+  checkFullDay();
+}
+/* Reviews count toward the streak: a day is full when all 3 missions are done AND reviews are handled, meaning nothing
+   is due (cards, mistakes, fading quiz questions) or you reviewed REVIEW_CAP items that day, so a backlog can't block it.
+   day.rev: true = handled, false = not yet. Days saved before this rule have no rev and still count. */
+const REVIEW_CAP = 20;
+const isFullDay = day=>!!day && ['quiz','skill','iv'].every(k=>day[k]) && day.rev !== false;
+function dueReviewCount(){ return CARDS.filter((c,i)=>S.cards[cardId(i)] && cardDue(i)).length + journal().filter(isDue).length + fadingQuiz().length; }
+const reviewsOk = day=>!!(day && day.rev === true) || dueReviewCount() === 0 || ((day||{}).reviews||0) >= REVIEW_CAP;
+function checkReviews(){
+  if(saveBlocked) return;
+  const d = dayStr(), day = S.days[d];
+  if(day && day.rev === true) return;
+  if(reviewsOk(day)){ S.days[d] = Object.assign(day || {}, {rev:true}); checkFullDay(); }
+  else if(day && ['quiz','skill','iv'].some(k=>day[k])) day.rev = false;   /* "not yet" is only stored once a mission is done */
+}
+/* one due item reviewed (a due card, a mistake retry or a fading quiz question) */
+function noteReview(){ const day = S.days[dayStr()] = S.days[dayStr()] || {}; day.reviews = (day.reviews||0) + 1; checkReviews(); save(); }
+function checkFullDay(){
+  const d = dayStr();
+  if(S.lastFull !== d && isFullDay(S.days[d])){
     S.streak = (S.lastFull === addDays(d,-1)) ? S.streak+1 : 1;
     S.best = Math.max(S.best||0, S.streak);
     S.lastFull = d; save();
-    addXP(50, 'All 3 missions done! Streak ' + S.streak);
+    addXP(50, 'Full day: missions and reviews done! Streak ' + S.streak);
   } else save();
   header();
 }
@@ -308,8 +352,19 @@ function header(){
   $('#xpfill').style.width = pct + '%';
   const live = (S.lastFull === dayStr() || S.lastFull === addDays(dayStr(),-1)) ? S.streak : 0;
   $('#streak').textContent = live;
-  $('#nav').innerHTML = TABS.map(([k,l])=>'<button class="'+(k===current?'on':'')+'"'+(k===current?' aria-current="page"':'')+' data-tab="'+k+'">'+l+'</button>').join('');
+  const g = groupOf(current), sub = g[1].length > 1;
+  lastIn[g[0]] = current;
+  $('#nav').innerHTML = '<div class="tabs">'+GROUPS.map(([name, ks])=>{ const on = name === g[0];
+      return '<button class="'+(on?'on':'')+'"'+(on ? ' aria-current="'+(sub?'true':'page')+'"' : '')+' data-tab="'+(lastIn[name] || ks[0])+'">'+name+'</button>'; }).join('')+'</div>'+
+    (sub ? '<div class="subtabs" role="group" aria-label="'+g[0]+' sections">'+g[1].map(k=>'<button class="'+(k===current?'on':'')+'"'+(k===current?' aria-current="page"':'')+' data-tab="'+k+'">'+tabLabel(k)+'</button>').join('')+'</div>' : '');
 }
+/* Six top tabs, each grouping existing screens; a group with more than one screen shows them as sub-tabs.
+   Screen keys are unchanged, so go('sql'), go('ready') and the rest still work everywhere. */
+const GROUPS = [['Today',['today']], ['Study',['skills','tracks']], ['Hands-on',['terminal','sql','labs']],
+  ['Job prep',['interview','tickets','exams','ready']], ['Review',['review','progress']], ['Guide',['guide','practice']]];
+const lastIn = {};   /* the screen you were last on in each group, so a top tab returns you there */
+function groupOf(k){ return GROUPS.find(g=>g[1].includes(k)) || GROUPS[0]; }
+function tabLabel(k){ const t = TABS.find(t=>t[0]===k); return t ? t[1] : k; }
 $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.tab); });
 function go(tab){
   if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
@@ -318,20 +373,23 @@ function go(tab){
 
 /* ===================== VIEWS ===================== */
 function vToday(){
+  checkReviews();
   const d = S.days[dayStr()] || {};
   const ms = missions();
   const done = ms.filter(m=>d[m.key]).length;
   const tip = STRATEGIES[dayNum() % STRATEGIES.length];
   const due = CARDS.filter((c,i)=>S.cards[cardId(i)] && cardDue(i)).length;
   const jdue = journal().filter(isDue).length;
-  const reviewBits = [due ? due+' flashcard'+(due>1?'s':'') : '', jdue ? jdue+' mistake'+(jdue>1?'s':'')+' to retry' : ''].filter(Boolean);
+  const fq = fadingQuiz().length;
+  const reviewBits = [due ? due+' flashcard'+(due>1?'s':'') : '', jdue ? jdue+' mistake'+(jdue>1?'s':'')+' to retry' : '', fq ? fq+' fading quiz question'+(fq>1?'s':'') : ''].filter(Boolean);
   view.innerHTML =
     (saveBlocked ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Your saved progress could not be read.</b> A copy was kept in this browser, and nothing will be saved over it until you choose. '+
       'Best: restore your latest backup. Or start fresh (the unreadable copy stays in browser storage).<div class="row" style="margin-top:10px"><button class="primary" id="fixRestore">Restore a backup</button><button id="fixFresh">Start fresh</button></div></div>' : '')+
     (!saveBlocked && saveFailed ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Progress is not being saved.</b> This browser is refusing to store data (storage full, blocked, or private mode). Download a backup before closing.<div class="row" style="margin-top:10px"><button class="primary" id="fixBackup">Download backup</button></div></div>' : '')+
     (!saveBlocked && !hasProgress() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup here so your progress and review schedule follow you.</span><button id="fixMerge">Merge a backup</button></div>' : '')+
     (backupDue() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>💾 '+(S.lastBackup ? 'Your last backup was on '+esc(S.lastBackup)+'.' : 'You haven\'t backed up your progress yet.')+' A backup protects your progress if browser data gets cleared.</span><button class="primary" id="bk">'+(PHONE?'Copy backup':'Download backup')+'</button></div>' : '')+
-    '<h1>Today\'s missions</h1><p class="sub">'+done+' of 3 done. Finish all three for +50 XP and to keep your streak.</p>'+
+    '<h1>Today\'s missions</h1><p class="sub">'+done+' of 3 done. Finish all three and handle the reviews due today for +50 XP and to keep your streak.</p>'+
+    '<p class="small">'+(reviewsOk(d) ? '✓ Reviews handled for today.' : '🔁 Reviews: '+dueReviewCount()+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done today (clear them all, or do '+REVIEW_CAP+').')+'</p>'+
     '<div class="grid">'+ms.map((m,i)=>
       '<div class="card mission '+(d[m.key]?'done':'')+'"><div class="tag">'+m.tag+'</div><h3>'+m.title+'</h3><p>'+esc(m.text)+'</p>'+
       '<div><button class="'+(d[m.key]?'':'primary')+'" data-m="'+i+'">'+(d[m.key]?'✓ Done · do it again':'Start')+'</button></div></div>').join('')+'</div>'+
@@ -343,7 +401,7 @@ function vToday(){
       '<li><a href="https://sqlbolt.com" target="_blank" rel="noopener">SQLBolt</a>: one lesson. Employers keep asking for SQL.</li>'+
       '<li><a href="https://learn.microsoft.com/training/" target="_blank" rel="noopener">Microsoft Learn</a>: search "Microsoft 365 fundamentals."</li>'+
       '<li><a href="https://www.professormesser.com/security-plus/sy0-701/sy0-701-video/sy0-701-comptia-security-plus-course/" target="_blank" rel="noopener">Professor Messer Security+</a>: one free video.</li></ul>'+
-      '<p class="small">Many TryHackMe paths need a paid plan. <a href="#" id="toPractice">See the Free practice tab</a> for no-cost alternatives (picoCTF, Hack The Box Academy, Blue Team Labs, Cisco NetAcad and more).</p></div>';
+      '<p class="small">Many TryHackMe paths need a paid plan. <a href="#" id="toPractice">See Guide → Free practice</a> for no-cost alternatives (picoCTF, Hack The Box Academy, Blue Team Labs, Cisco NetAcad and more).</p></div>';
   view.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>ms[+b.dataset.m].go());
   const r = view.querySelector('[data-go]'); if(r) r.onclick=()=>go('review');
   $('#toPractice').onclick = e=>{ e.preventDefault(); go('practice'); };
@@ -417,15 +475,19 @@ function quizStep(s){
   const advance = ()=>{ s.i++; s.showChoices = false; s.usedChoices = false; quizStep(s); };
   const finish = (ok, viaChoice, your)=>{
     /* Mistake journal: retries update their entry; new misses are saved with your answer. */
-    if(idx.journal){ journalResult(idx.journal, ok); if(ok){ s.right++; addXP(10); } }
+    if(idx.journal){ if(journalResult(idx.journal, ok)) noteReview(); if(ok){ s.right++; addXP(10); } }
     else {
       if(!ok) addMistake(q, {kind:'quiz', your, sid, qi: isGen ? null : idx});
       if(isGen){
         const g = S.gen[q[0]] = S.gen[q[0]] || {right:0, total:0};
         g.total++; if(ok){ g.right++; s.right++; addXP(typed ? 15 : 10); } else save();
       }
-      else if(ok){ s.right++; S.quiz[quizId(idx)] = true; delete S.miss[quizId(idx)]; addXP(10); }
-      else { S.miss[quizId(idx)] = true; save(); }
+      else {
+        const fade = quizStatus(idx) === 'fading';
+        if(ok){ s.right++; S.quiz[quizId(idx)] = dayStr(); delete S.miss[quizId(idx)]; addXP(10); }
+        else { S.miss[quizId(idx)] = true; save(); }
+        if(fade) noteReview();   /* reviewing a fading question counts, right or wrong (wrong moves it to Learning) */
+      }
     }
     const nx = s.i+1 < s.items.length ? 'Next' : 'Finish';
     /* After a correct answer on a skill question, ask whether it was sure or a guess: guesses barely raise mastery. */
@@ -464,8 +526,8 @@ function quizEnd(s){
   view.innerHTML = '<h1>'+(s.journalRun?'Mistake retry done':'Quiz complete')+'</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' ('+pct+'%)</p><p>'+
     (s.journalRun ? 'Each mistake needs a correct answer on two different days to clear. The ones you got right today come back tomorrow for the second check.'
       : pct===100?'Perfect round. Try the flashcards next to lock it in.':pct>=70?'Solid. Your misses are saved in the mistake journal (Review tab).':'Good practice. Your misses are in the mistake journal (Review tab); retry them tomorrow.')+'</p>'+
-    '<div class="row"><button class="primary" id="again">'+(s.journalRun?'Open the journal':'Another round')+'</button><button id="home">Back to Today</button></div></div>';
-  $('#again').onclick=()=> s.journalRun ? vJournal() : startQuiz(s.tid, s.items.length, null, null, s.lv, s.endless, s.sk);
+    '<div class="row"><button class="primary" id="again">'+(s.journalRun?'Open the journal':!s.tid?'Back to Review':'Another round')+'</button><button id="home">Back to Today</button></div></div>';
+  $('#again').onclick=()=> s.journalRun ? vJournal() : !s.tid ? go('review') : startQuiz(s.tid, s.items.length, null, null, s.lv, s.endless, s.sk);
   $('#home').onclick=()=>go('today');
 }
 
@@ -520,8 +582,9 @@ function cardStep(s){
   if(!s.flipped) $('#flip').onclick = flip;
   else {
     const rate = good=>{
-      const next = rateCard(S.cards[cardId(idx)], good);
+      const prior = S.cards[cardId(idx)], next = rateCard(prior, good);
       if(next) S.cards[cardId(idx)] = next;
+      if(next && prior) noteReview();   /* a due card (not a brand-new one) counts toward today's reviews */
       if(good && !retry){ s.good++; if(next) addXP(5); else save(); }
       else save();
       /* a miss is asked once more at the end of this session (no box change: it is now due tomorrow) */
@@ -887,11 +950,14 @@ function vReview(){
   importOldMisses();
   const open = journal().filter(isOpen).length, jdue = journal().filter(isDue).length;
   const weak = IV.map((q,i)=>i).filter(i=>S.iv['i'+i]===1);
+  const fq = fadingQuiz();
   view.innerHTML = '<h1>Review</h1><p class="sub">This is where learning sticks. Come here whenever something is due.</p><div class="grid">'+
     '<div class="card mission"><h3>🃏 Due flashcards</h3><p>'+due.length+' card'+(due.length===1?'':'s')+' due today.</p><div><button class="primary" id="rc" '+(due.length?'':'disabled')+'>Review cards</button></div></div>'+
+    '<div class="card mission"><h3>🔁 Fading quiz questions</h3><p>'+fq.length+' question'+(fq.length===1?'':'s')+' you answered right over '+QUIZ_FADE+' days ago. Answer again to keep them counted.</p><div><button class="primary" id="rf" '+(fq.length?'':'disabled')+'>Review '+Math.min(fq.length,10)+'</button></div></div>'+
     '<div class="card mission"><h3>📓 Mistake journal</h3><p>'+open+' open mistake'+(open===1?'':'s')+', '+jdue+' due for a retry today.</p><div class="row"><button class="primary" id="rq" '+(jdue?'':'disabled')+'>Retry due</button><button id="rj">Open journal</button></div></div>'+
     '<div class="card mission"><h3>🎤 Weak interview answers</h3><p>'+weak.length+' marked "Need work."</p><div><button class="primary" id="ri" '+(weak.length?'':'disabled')+'>Practice one</button></div></div></div>';
   if(due.length) $('#rc').onclick=()=>startCards(null, 20, null, due);
+  if(fq.length) $('#rf').onclick=()=>startQuiz(null, 10, null, fq);
   if(jdue) $('#rq').onclick = retryMistakes;
   $('#rj').onclick = vJournal;
   if(weak.length) $('#ri').onclick=()=>startIV(weak[0], null);
@@ -902,9 +968,9 @@ function vProgress(){
   const {r} = rankOf(S.xp);
   const learned = CARDS.filter((c,i)=>cardStatus(i)==='retained').length;
   const quizKept = QUIZ.filter((q,i)=>quizStatus(i)==='retained').length;
-  const days = Object.keys(S.days).filter(d=>['quiz','skill','iv'].every(k=>S.days[d][k])).length;
+  const days = Object.keys(S.days).filter(d=>isFullDay(S.days[d])).length;
   view.innerHTML = '<h1>Progress</h1><div class="grid">'+
-    '<div class="card"><h3 style="margin-top:0">Your numbers</h3><p>⭐ '+S.xp+' XP<br>🔥 Best streak: '+(S.best||0)+' days<br>📅 Full mission days: '+days+'<br>🃏 Cards retained (proven, reviews on time): '+learned+' of '+CARDS.length+'<br>✅ Quiz questions whose latest answer was right: '+quizKept+' of '+QUIZ.length+'<br>🐧 Terminal commands solved: '+Object.keys(S.term).length+' of '+TERM.length+'<br>🎤 Interview questions practiced: '+Object.keys(S.iv).length+' of '+IV.length+'<br>🎫 Ticket scenarios played: '+Object.keys(S.tickets||{}).length+' of '+SCEN.length+'<br>🗄️ SQL challenges solved: '+Object.keys(S.sql||{}).length+' of '+SQLT.length+
+    '<div class="card"><h3 style="margin-top:0">Your numbers</h3><p>⭐ '+S.xp+' XP<br>🔥 Best streak: '+(S.best||0)+' days<br>📅 Full days (missions + reviews): '+days+'<br>🃏 Cards retained (proven, reviews on time): '+learned+' of '+CARDS.length+'<br>✅ Quiz questions retained (latest answer right, within 30 days): '+quizKept+' of '+QUIZ.length+'<br>🐧 Terminal commands solved: '+Object.keys(S.term).length+' of '+TERM.length+'<br>🎤 Interview questions practiced: '+Object.keys(S.iv).length+' of '+IV.length+'<br>🎫 Ticket scenarios played: '+Object.keys(S.tickets||{}).length+' of '+SCEN.length+'<br>🗄️ SQL challenges solved: '+Object.keys(S.sql||{}).length+' of '+SQLT.length+
     '<br>∞ Generated problems: '+Object.values(S.gen||{}).reduce((a,g)=>a+g.right,0)+' right of '+Object.values(S.gen||{}).reduce((a,g)=>a+g.total,0)+'</p></div>'+
     '<div class="card ladder"><h3 style="margin-top:0">Rank ladder</h3>'+RANKS.map(x=>'<div class="'+(x[1]===r[1]?'me':'')+'"><span>'+x[1]+'</span><span>'+x[0]+' XP</span></div>').join('')+'</div></div>'+
     '<h2>Track mastery</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div>'+statsLine([1,2].map(n=>levelStats(t.id,n)).reduce((a,b)=>{ for(const k in a) a[k]+=b[k]; return a; }))+'</div>';}).join('')+'</div>'+
@@ -941,7 +1007,7 @@ function importBackup(raw, mode){
   try{ b = sanitizeBackup(JSON.parse(raw)); }catch(e){}
   if(!b) return false;
   snapshot(mode === 'merge' ? 'merge' : 'restore');
-  S = mode === 'merge' ? mergeProgress(S, b) : migrateTerm(Object.assign(structuredClone(DEFAULT), b));
+  S = mode === 'merge' ? mergeProgress(S, b) : recountStreak(migrateQuiz(migrateTerm(Object.assign(structuredClone(DEFAULT), b))));
   saveBlocked = false; save(); header();
   return true;
 }
@@ -949,19 +1015,19 @@ function importBackup(raw, mode){
 /* ---------- Guide ---------- */
 function vGuide(){
   view.innerHTML = '<h1>How to use SkillQuest</h1><div class="card"><ol>'+
-    '<li><b>Every day (20 to 30 minutes):</b> open the Today tab and finish all 3 missions. That keeps your 🔥 streak. Mission 1 always targets your weakest skill: read its 2-minute lesson the first time, then practice.</li>'+
+    '<li><b>Every day (20 to 30 minutes):</b> open Today, finish all 3 missions and handle your due reviews (clear them, or do 20). That keeps your 🔥 streak. Mission 1 always targets your weakest skill: read its 2-minute lesson the first time, then practice.</li>'+
     '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward mastery.</li>'+
     '<li><b>Mistake journal (Review tab):</b> every miss is saved with the right answer. Tag why you missed it, and retry what is due each day. A mistake clears only after you get it right on two different days.</li>'+
-    '<li><b>Labs tab:</b> real break-and-fix problems in your WSL Ubuntu. Do one or two a week; they are your best interview stories.</li>'+
-    '<li><b>Exams tab:</b> timed Security+ and Network+ practice by official domain. Use it weekly to see which domain is weakest; aim for 85%+ on several attempts.</li>'+
-    '<li><b>Watch the Skills tab.</b> Every skill has a mastery score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
+    '<li><b>Labs (Hands-on):</b> real break-and-fix problems in your WSL Ubuntu. Do one or two a week; they are your best interview stories.</li>'+
+    '<li><b>Exams (Job prep):</b> timed Security+ and Network+ practice by official domain. Use it weekly to see which domain is weakest; aim for 85%+ on several attempts.</li>'+
+    '<li><b>Watch Study → Skills.</b> Every skill has a mastery score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
     '<li><b>Then one real lab</b> from the list on the Today tab (TryHackMe, Bandit, SQLBolt or Microsoft Learn).</li>'+
-    '<li><b>Browse (Tracks tab):</b> search every card in a track, filter by topic, copy a command, then study just those cards. The Linux track has the full Bandit toolkit plus a Bandit study guide. Keys in flashcards: Space flips, 1 = Again, 2 = Got it. At most '+NEW_PER_DAY+' new cards a day.</li>'+
+    '<li><b>Browse (Study → Tracks):</b> search every card in a track, filter by topic, copy a command, then study just those cards. The Linux track has the full Bandit toolkit plus a Bandit study guide. Keys in flashcards: Space flips, 1 = Again, 2 = Got it. At most '+NEW_PER_DAY+' new cards a day.</li>'+
     '<li><b>Honest numbers:</b> track % counts only what is retained right now. A card stops counting if its review is badly overdue, and a question stops counting if you miss it again. Expect it to go down sometimes; that is it telling you what to review.</li>'+
     '<li><b>Check the Review tab</b> whenever cards are due. Spaced review is what moves things into long-term memory.</li>'+
-    '<li><b>Before any interview:</b> do every question in the Interview tab for that job type, out loud, with the timer.</li>'+
+    '<li><b>Before any interview:</b> do every question in the Job prep → Interview for that job type, out loud, with the timer.</li>'+
     '<li><b>Fridays:</b> go to Progress and download a backup.</li></ol>'+
-    '<p><b>Scoring:</b> quiz +10, flashcard +5, terminal and SQL +15 (+8 with a hint, 0 once the answer is shown), interview rep +10 to +25, all 3 missions +50.</p>'+
+    '<p><b>Scoring:</b> quiz +10, flashcard +5, terminal and SQL +15 (+8 with a hint, 0 once the answer is shown), interview rep +10 to +25, full day (3 missions + reviews) +50.</p>'+
     '<p><b>Levels:</b> Levels 1 (Foundations) and 2 (Job-ready) are ready now. Levels 3 and 4 (Mid-level, Senior) come in a later phase.</p>'+
     '<p><b>Look and feel:</b> the ◐ button switches between three color modes (matrix, cyber, amber). The ⁂ rain button turns the background code rain on or off.</p>'+
     '<p class="small">Your progress stays on this computer. When you are online, the fonts load from Google Fonts; offline, it uses your built-in coding font.</p></div>';

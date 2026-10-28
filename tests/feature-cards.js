@@ -5,7 +5,7 @@ const content = js.split('/* ===================== STATE')[0];
 const grab = n => { const i = js.indexOf('function ' + n + '('); if (i < 0) throw new Error('missing ' + n); return js.slice(i, js.indexOf('\n}', i) + 2); };
 const line = n => { const i = js.indexOf(n); return js.slice(i, js.indexOf('\n', i)); };
 let TODAY = '2026-10-27';
-eval(content + ';' + ['dayStr', 'addDays', 'cardId', 'quizId', 'cardStatus', 'quizStatus', 'levelStats', 'mastery'].map(n =>
+eval(content + ';' + line('const QUIZ_FADE') + ';' + ['dayStr', 'addDays', 'cardId', 'quizId', 'cardStatus', 'quizStatus', 'levelStats', 'mastery'].map(n =>
   n === 'dayStr' ? line('function dayStr(').replace('d = d || new Date();', 'if(!d) return TODAY;') : ['cardId', 'quizId', 'addDays'].includes(n) ? line('function ' + n + '(') : grab(n)).join('\n') +
   ';global.X={CARDS,QUIZ,CARD_TOPICS,BANDIT_GUIDE,cardStatus,quizStatus,levelStats,mastery,setS:v=>{S=v}}; var S;');
 const { CARDS, QUIZ, CARD_TOPICS, BANDIT_GUIDE } = X;
@@ -48,6 +48,11 @@ chk(base(), () => X.quizStatus(qi), 'new');
 chk(Object.assign(base(), { quiz: { ['q' + qi]: true } }), () => X.quizStatus(qi), 'retained');
 chk(Object.assign(base(), { quiz: { ['q' + qi]: true }, miss: { ['q' + qi]: true } }), () => X.quizStatus(qi), 'learning');   // right once, missed later
 chk(Object.assign(base(), { miss: { ['q' + qi]: true } }), () => X.quizStatus(qi), 'learning');
+/* quiz answers fade 30 days after the last right answer (TODAY = 2026-10-27) */
+chk(Object.assign(base(), { quiz: { ['q' + qi]: '2026-10-20' } }), () => X.quizStatus(qi), 'retained');
+chk(Object.assign(base(), { quiz: { ['q' + qi]: '2026-09-27' } }), () => X.quizStatus(qi), 'retained');   // exactly 30 days
+chk(Object.assign(base(), { quiz: { ['q' + qi]: '2026-09-26' } }), () => X.quizStatus(qi), 'fading');
+chk(Object.assign(base(), { quiz: { ['q' + qi]: '2026-08-01' }, miss: { ['q' + qi]: true } }), () => X.quizStatus(qi), 'learning');
 /* the four counts always add up, and mastery = retained share */
 X.setS(Object.assign(base(), { cards: { ['c' + ci]: { box: 4, due: '2026-11-05' } }, quiz: { ['q' + qi]: true } }));
 const st = X.levelStats('linux', 1);

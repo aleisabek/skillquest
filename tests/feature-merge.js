@@ -4,7 +4,7 @@ const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const grab = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
 const defLine = js.slice(js.indexOf('const DEFAULT'), js.indexOf('\n', js.indexOf('const DEFAULT')));
 const line = n => { const i = js.indexOf(n); return js.slice(i, js.indexOf('\n', i)); };
-eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + grab('recountStreak') + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
+eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + line('const QUIZ_FADE') + ';' + grab('migrateQuiz') + ';' + grab('recountStreak') + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 const pc = Object.assign(structuredClone(D), {
   xp: 500, best: 4, streak: 2, lastFull: '2026-10-20', lastBackup: '2026-10-19',
@@ -60,7 +60,23 @@ for (const [a, b] of [[devA, devB], [devB, devA]]) {
 }
 const keep = Object.assign(structuredClone(D), { xp: 1, streak: 9, best: 12, lastFull: '2026-10-23', days: { '2026-10-23': full } });
 const kept = M(keep, structuredClone(D)); if (kept.streak !== 9 || kept.best !== 12) fail('a recount must never lower a streak or best it cannot see');
-const same = M(pc, pc); if (JSON.stringify(same.quiz) !== JSON.stringify(pc.quiz) || same.xp !== pc.xp) fail('merging a backup with itself should change nothing');
+/* old "true" quiz answers are upgraded to dates (so they can fade); otherwise merging with itself changes nothing */
+const same = M(pc, pc); if (JSON.stringify(Object.keys(same.quiz)) !== JSON.stringify(Object.keys(pc.quiz)) || same.xp !== pc.xp) fail('merging a backup with itself should change nothing');
+if (Object.values(same.quiz).some(v => v === true)) fail('old true quiz answers should be upgraded to a date');
+const dated = M(Object.assign(structuredClone(D), { xp: 1, quiz: { q1: true } }), Object.assign(structuredClone(D), { xp: 1, quiz: { q1: '2026-09-01' } }));
+if (dated.quiz.q1 !== '2026-09-01') fail('a real answer date should beat an old true flag, got', dated.quiz.q1);
+const later = M(Object.assign(structuredClone(D), { xp: 1, quiz: { q1: '2026-09-01' } }), Object.assign(structuredClone(D), { xp: 1, quiz: { q1: '2026-10-02' } }));
+if (later.quiz.q1 !== '2026-10-02') fail('the later answer date should win');
+/* review flags: done on either device stays done; review counts keep the larger */
+const dayA = Object.assign(structuredClone(D), { xp: 1, days: { '2026-10-24': { quiz: true, skill: true, iv: true, rev: false, reviews: 5 } } });
+const dayB = Object.assign(structuredClone(D), { xp: 1, days: { '2026-10-24': { rev: true, reviews: 12 } } });
+for (const [a, b] of [[dayA, dayB], [dayB, dayA]]) { const d = M(a, b).days['2026-10-24']; if (d.rev !== true || d.reviews !== 12 || !d.quiz) fail('day flags should OR and review counts take the max', JSON.stringify(d)); }
+const legacyDay = Object.assign(structuredClone(D), { xp: 1, days: { '2026-10-26': { quiz: true, skill: true, iv: true } } });
+const newDay = Object.assign(structuredClone(D), { xp: 1, days: { '2026-10-26': { quiz: true, rev: false } } });
+const sorted = o => JSON.stringify(Object.keys(o).sort().map(k => [k, o[k]]));
+if (sorted(M(legacyDay, newDay).days['2026-10-26']) !== sorted(M(newDay, legacyDay).days['2026-10-26'])) fail('merging a legacy day with a rev:false day should give the same result in both orders');
+const noRev = Object.assign(structuredClone(D), { xp: 1, days: { '2026-10-25': { quiz: true, skill: true, iv: true, rev: false } } });
+if (M(noRev, structuredClone(D)).lastFull === '2026-10-25') fail('a day with missions done but reviews not handled is not a full day');
 /* Terminal skill rename (2026-10-27): old progress moves to the deck-topic skills, nothing is lost */
 const old = Object.assign(structuredClone(D), {
   mastery: { 'term:linux:Reading files': { s: 80, n: 6, right: 5, last: '2026-10-25' }, 'term:linux:Searching': { s: 50, n: 3, right: 2, last: '2026-10-24' },
