@@ -72,6 +72,7 @@ Tracks and Progress show the four counts behind it: Retained, Fading, Learning, 
 - A fresh browser or profile shows a "merge a backup" card instead of silently looking like a new start.
 - Flashcards not yet due are practice only (no box change, no XP); missed cards are asked once more at the end of the session.
 - Merging keeps a quiz miss from either device, and for each card the most recently reviewed record.
+- Streak and best streak are recounted from the full-mission days (on load and after every merge), so days done on different devices add up. A recount only ever raises them.
 - Job readiness counts only measures that fade (track mastery); tickets, console tasks and interview reps are shown as practice done.
 
 ## What the tests check
@@ -84,6 +85,6 @@ Tracks and Progress show the four counts behind it: Retained, Fading, Learning, 
 - Every SQL model answer run against a real SQLite copy of the practice database, rows compared with what the app shows.
 - Flashcards: known topics, no duplicate fronts, escaped HTML, at most one PowerShell line, no Bandit level references, and the retained / fading / learning / new rules above.
 - Append-only: every existing item in the five content arrays is still in the same position (`content-snapshot.json`).
-- Public deck export: every Linux card exported unchanged, the page script parses, the logo is wired in, no job, interview or other-track content is included, and re-exporting unchanged cards gives a byte-identical page.
+- Public deck export: every Linux card exported unchanged, the page script parses, the logo is wired in, no job, interview or other-track content is included (the blocklist is read from `JOBS` and the ticket scenarios, so new employers are covered), and re-exporting unchanged cards gives a byte-identical page.
 - Progress safety (`feature-safety`): unreadable saves are never overwritten, failed saves are reported, tampered backups are cleaned (no live markup, no crash from unknown exam types, `__proto__` ignored), old backups restore, undo works, and early flashcard review can't raise a box.
 - Checks run in parallel (the SQLite check waits for the generator check that writes its cases).

@@ -18,7 +18,7 @@ vm.runInContext(before + '\n' + [
   grab('load'), grab('save'), line('function warnSave('), line('const PREV'), line('function snapshot('), line('function prevSnapshot('), grab('undoLast'), line('function hasProgress('),
   grab('migrateTerm'), line('function dayStr('), line('function addDays('), line('function esc('),
   line('const DATE_RE'), line('const isObj'), line('const clampNum'), line('const okDate'), grab('cleanMap'), grab('sanitizeBackup'), grab('cleanEntry'), line('const SAFE_TAGS'), grab('safeHTML'),
-  grab('rateCard'), grab('mergeProgress'),
+  grab('rateCard'), grab('recountStreak'), grab('mergeProgress'),
   'globalThis.T = { load, save, snapshot, undoLast, sanitizeBackup, safeHTML, rateCard, mergeProgress, dayStr, addDays, KEY, PREV, DEFAULT, QUIZ, CERTS,',
   '  get S(){ return S; }, set S(v){ S = v; }, get blocked(){ return saveBlocked; }, get failed(){ return saveFailed; }, reset(){ saveBlocked = saveFailed = saveWarned = false; } };'
 ].join('\n'), ctx);
@@ -34,6 +34,13 @@ if (!Object.keys(store).some(k => k.startsWith(T.KEY + '.corrupt-') && store[k] 
 T.S.xp = 99; T.save();
 if (store[T.KEY] !== '{"xp": 5, broken') fail('save() must not overwrite unreadable progress');
 if (!toasts.some(t => /Not saved/.test(t))) fail('blocked save should warn');
+
+/* 1b. a valid save loads normally, and loading repairs a streak an older merge cut short */
+clear(); const fullDay = { quiz: true, skill: true, iv: true };
+store[T.KEY] = JSON.stringify(Object.assign(structuredClone(T.DEFAULT), { xp: 40, streak: 1, best: 1, lastFull: '2026-10-22', days: { '2026-10-20': fullDay, '2026-10-21': fullDay, '2026-10-22': fullDay } }));
+T.S = T.load();
+if (T.blocked || T.S.xp !== 40) fail('a valid save must load without being flagged unreadable');
+if (T.S.streak !== 3 || T.S.best !== 3) fail('loading should recount the streak from mission days, got', T.S.streak, T.S.best);
 
 /* 2. a save the browser refuses is reported */
 clear(); T.S = Object.assign(structuredClone(T.DEFAULT), { xp: 5 }); ctx.full = true; T.save();

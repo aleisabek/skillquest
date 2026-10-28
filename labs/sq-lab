@@ -24,7 +24,8 @@ code_for() { printf 'skillquest-lab:%s' "$1" | sha256sum | cut -c1-6 | tr a-f A-
 
 load_lab() {
   local name="${1:-}"
-  if [ -z "$name" ] || [ ! -f "$LABS_HOME/labs/$name/lab.sh" ]; then
+  # plain lab names only, so a typo like ../x can never point resets outside ~/sq-labs
+  if ! [[ "$name" =~ ^[a-z0-9-]+$ ]] || [ ! -f "$LABS_HOME/labs/$name/lab.sh" ]; then
     echo "${R}Unknown lab:${N} ${name:-(none)}. Run ${B}sq-lab${N} to see the list."; exit 1
   fi
   LAB="$name"; DIR="$LAB_ROOT/$name"

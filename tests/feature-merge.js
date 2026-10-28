@@ -4,7 +4,7 @@ const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const grab = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
 const defLine = js.slice(js.indexOf('const DEFAULT'), js.indexOf('\n', js.indexOf('const DEFAULT')));
 const line = n => { const i = js.indexOf(n); return js.slice(i, js.indexOf('\n', i)); };
-eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
+eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + grab('recountStreak') + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 const pc = Object.assign(structuredClone(D), {
   xp: 500, best: 4, streak: 2, lastFull: '2026-10-20', lastBackup: '2026-10-19',
@@ -50,6 +50,16 @@ const self = M(pc, pc); if (!self.miss.q2 || !self.miss.q3) fail('merging a stat
 const oldHigh = Object.assign(structuredClone(D), { xp: 1, cards: { c5: { box: 4, due: '2026-10-20' } } });   // reviewed 2026-10-13
 const newLapse = Object.assign(structuredClone(D), { xp: 1, cards: { c5: { box: 1, due: '2026-10-26' } } });  // reviewed 2026-10-25
 for (const [a, b] of [[oldHigh, newLapse], [newLapse, oldHigh]]) if (M(a, b).cards.c5.box !== 1) fail('the more recent review (a lapse) should win over an older higher box');
+/* streak is recounted from the combined full-mission days, so alternating devices add up */
+const full = { quiz: true, skill: true, iv: true };
+const devA = Object.assign(structuredClone(D), { xp: 1, streak: 1, best: 1, lastFull: '2026-10-23', days: { '2026-10-20': full, '2026-10-22': full, '2026-10-23': full } });
+const devB = Object.assign(structuredClone(D), { xp: 1, streak: 1, best: 2, lastFull: '2026-10-21', days: { '2026-10-21': full, '2026-10-19': { quiz: true } } });
+for (const [a, b] of [[devA, devB], [devB, devA]]) {
+  const m = M(a, b);
+  if (m.streak !== 4 || m.lastFull !== '2026-10-23' || m.best !== 4) fail('merged streak should be 4 days ending 2026-10-23, got', m.streak, m.lastFull, 'best', m.best);
+}
+const keep = Object.assign(structuredClone(D), { xp: 1, streak: 9, best: 12, lastFull: '2026-10-23', days: { '2026-10-23': full } });
+const kept = M(keep, structuredClone(D)); if (kept.streak !== 9 || kept.best !== 12) fail('a recount must never lower a streak or best it cannot see');
 const same = M(pc, pc); if (JSON.stringify(same.quiz) !== JSON.stringify(pc.quiz) || same.xp !== pc.xp) fail('merging a backup with itself should change nothing');
 /* Terminal skill rename (2026-10-27): old progress moves to the deck-topic skills, nothing is lost */
 const old = Object.assign(structuredClone(D), {
