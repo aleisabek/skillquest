@@ -4,12 +4,40 @@
 const PHONE = false;
 const KEY = 'skillquest-v1';
 const DEFAULT = {xp:0, streak:0, best:0, lastFull:null, days:{}, cards:{}, quiz:{}, miss:{}, term:{}, iv:{}, notes:{}, tickets:{}, sql:{}, gen:{}, mastery:{}, lessons:{}, recent:{}};
+/* Progress safety: saved data that can't be read is copied aside and never saved over (saveBlocked) until you decide
+   what to do on Today; a save the browser refuses (storage full or blocked) is reported instead of silently lost. */
+let saveBlocked = false, saveFailed = false, saveWarned = false;
 let S = load();
 function load(){
-  try{ const raw = localStorage.getItem(KEY); if(raw) return migrateTerm(Object.assign(structuredClone(DEFAULT), JSON.parse(raw))); }catch(e){}
-  return structuredClone(DEFAULT);
+  let raw = null;
+  try{ raw = localStorage.getItem(KEY); }catch(e){ saveFailed = true; }
+  if(!raw) return structuredClone(DEFAULT);
+  try{ return migrateTerm(Object.assign(structuredClone(DEFAULT), JSON.parse(raw))); }
+  catch(e){
+    try{ localStorage.setItem(KEY+'.corrupt-'+Date.now(), raw); }catch(e2){}
+    saveBlocked = true;
+    return structuredClone(DEFAULT);
+  }
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function save(){
+  if(saveBlocked) return warnSave('Not saved: your earlier progress could not be read. Open Today to choose what to do.');
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); saveFailed = false; }
+  catch(e){ saveFailed = true; warnSave('Progress NOT saved: browser storage is full or blocked. Download a backup from Progress now.'); }
+}
+function warnSave(msg){ if(saveWarned) return; saveWarned = true; try{ toast(msg); }catch(e){} }
+/* Before anything that replaces progress (restore, merge, erase), keep the current state so it can be undone once. */
+const PREV = KEY+'.prev';
+function snapshot(what){ try{ localStorage.setItem(PREV, JSON.stringify({at:dayStr(), what, S})); return true; }catch(e){ return false; } }
+function prevSnapshot(){ try{ const p = JSON.parse(localStorage.getItem(PREV)); return p && p.S ? p : null; }catch(e){ return null; } }
+function undoLast(){
+  const p = prevSnapshot();
+  if(!p){ toast('Nothing to undo'); return false; }
+  S = migrateTerm(Object.assign(structuredClone(DEFAULT), p.S)); saveBlocked = false;
+  try{ localStorage.removeItem(PREV); }catch(e){}
+  save(); header(); toast('Undone: progress is back to how it was before the '+p.what);
+  return true;
+}
+function hasProgress(st){ st = st || S; return st.xp > 0 || Object.keys(st.mastery||{}).length > 0 || Object.keys(st.cards||{}).length > 0; }
 /* 2026-10-27: Terminal skills were renamed to match the flashcard deck's topics. Progress under an old name
    moves to the new skill(s); where two old skills land on one new skill, the record with more practice wins.
    Safe to run any number of times (old backups are migrated when merged or restored). */
@@ -93,28 +121,97 @@ function mergeProgress(a, b){
     }
   }
   for(const k of ['iv','tickets']){ m[k] = Object.assign({}, a[k]||{}); for(const [x,v] of Object.entries(b[k]||{})) m[k][x] = Math.max(m[k][x]||0, v); }
-  /* misses: keep only those not answered right on either device */
-  m.miss = Object.assign({}, a.miss||{}, b.miss||{}); for(const x of Object.keys(m.miss)) if(m.quiz[x]) delete m.miss[x];
+  /* misses: keep a miss from either device. S.quiz stays true once a question was ever right, so it can't clear a miss;
+     the miss clears when the question is answered right again. */
+  m.miss = Object.assign({}, a.miss||{}, b.miss||{});
   /* days: union of completed missions */
   m.days = structuredClone(a.days||{}); for(const [d,v] of Object.entries(b.days||{})) m.days[d] = Object.assign({}, m.days[d]||{}, v);
-  /* flashcards: keep the higher box (and its due date) */
-  m.cards = Object.assign({}, a.cards||{}); for(const [x,v] of Object.entries(b.cards||{})) if(!m.cards[x] || v.box > m.cards[x].box) m.cards[x] = v;
+  /* flashcards: keep the most recently reviewed record (review day = due minus its gap), so a lapse on one device
+     isn't erased by an older, higher box from the other; on a tie keep the higher box */
+  const reviewed = c=>addDays(c.due, -(BOX_DAYS[c.box] || 0));
+  m.cards = Object.assign({}, a.cards||{});
+  for(const [x,v] of Object.entries(b.cards||{})){ const o = m.cards[x]; if(!o || reviewed(v) > reviewed(o) || (reviewed(v) === reviewed(o) && v.box > o.box)) m.cards[x] = v; }
   /* skill mastery: keep the record with more practice, or the more recent one */
   m.mastery = Object.assign({}, a.mastery||{}); for(const [x,v] of Object.entries(b.mastery||{})){ const o = m.mastery[x]; if(!o || v.n > o.n || (v.n===o.n && (v.last||'') > (o.last||''))) m.mastery[x] = v; }
   /* generated-problem counters: keep the larger totals */
   m.gen = Object.assign({}, a.gen||{}); for(const [x,v] of Object.entries(b.gen||{})) if(!m.gen[x] || v.total > m.gen[x].total) m.gen[x] = v;
   /* journal: union by question; a mistake cleared on either device stays cleared */
   const J = new Map(); for(const e of [...(a.journal||[]), ...(b.journal||[])]){ const o = J.get(e.key+'|'+e.at); if(!o || (e.done && !o.done) || (e.hits||[]).length > (o.hits||[]).length) J.set(e.key+'|'+e.at, e); }
-  m.journal = [...J.values()].sort((x,y)=>(y.at||'').localeCompare(x.at||'')).slice(0, 300);
+  m.journal = [...J.values()].sort((x,y)=>(y.at||'').localeCompare(x.at||'')).slice(0, JOURNAL_MAX);
   /* exam history: union, newest first */
   const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]) E.set(e.cert+e.date+e.pct+e.n+e.secs, e);
   m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date)).slice(0, 50);
   if(a.typed === false && b.typed === false) m.typed = false; else delete m.typed;
   return migrateTerm(m);
 }
+/* Imported backups are untrusted text: keep only known fields with the right types, so a damaged or tampered file
+   can't break a tab or inject markup. Older backups (missing newer fields) still restore. null = not a SkillQuest backup. */
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const isObj = v=>!!v && typeof v === 'object' && !Array.isArray(v);
+const clampNum = (v, lo, hi)=>{ v = Number(v); return Number.isFinite(v) ? Math.min(Math.max(v, lo), hi) : lo; };
+const okDate = v=>typeof v === 'string' && DATE_RE.test(v) ? v : null;
+function cleanMap(v, fix){
+  const o = {};
+  if(isObj(v)) for(const [k, x] of Object.entries(v)){
+    if(k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+    const y = fix(x, k); if(y !== undefined && y !== null) o[k] = y;
+  }
+  return o;
+}
+function sanitizeBackup(b){
+  if(!isObj(b) || !('xp' in b)) return null;
+  const flag = x=>x === true ? true : undefined;
+  const s = {xp:clampNum(b.xp, 0, 1e9), best:clampNum(b.best, 0, 1e5), streak:clampNum(b.streak, 0, 1e5), lastFull:okDate(b.lastFull)};
+  if(okDate(b.lastBackup)) s.lastBackup = b.lastBackup;
+  s.days = cleanMap(b.days, (v, k)=>DATE_RE.test(k) ? cleanMap(v, flag) : undefined);
+  s.cards = cleanMap(b.cards, v=>{ if(!isObj(v) || !okDate(v.due)) return; const c = {box:Math.round(clampNum(v.box, 1, 5)), due:v.due}; if(okDate(v.seen)) c.seen = v.seen; return c; });
+  s.quiz = cleanMap(b.quiz, v=>v === true || okDate(v) ? v : undefined);
+  for(const k of ['miss','term','sql']) s[k] = cleanMap(b[k], flag);
+  s.iv = cleanMap(b.iv, v=>clampNum(v, 0, 3));
+  s.tickets = cleanMap(b.tickets, v=>clampNum(v, 0, 100));
+  s.notes = cleanMap(b.notes, v=>typeof v === 'string' ? v.slice(0, 20000) : undefined);
+  for(const k of ['lessons','labs','practice']) s[k] = cleanMap(b[k], okDate);
+  s.gen = cleanMap(b.gen, v=>isObj(v) ? {right:clampNum(v.right, 0, 1e7), total:clampNum(v.total, 0, 1e7)} : undefined);
+  s.mastery = cleanMap(b.mastery, v=>isObj(v) ? {s:clampNum(v.s, 0, 100), n:clampNum(v.n, 0, 1e7), right:clampNum(v.right, 0, 1e7), last:okDate(v.last)} : undefined);
+  s.recent = cleanMap(b.recent, v=>Array.isArray(v) ? v.filter(x=>typeof x === 'string').slice(-80) : undefined);
+  s.journal = (Array.isArray(b.journal) ? b.journal : []).map(cleanEntry).filter(Boolean).slice(0, JOURNAL_MAX);
+  const certs = CERTS.map(c=>c.id);
+  s.exams = (Array.isArray(b.exams) ? b.exams : []).filter(e=>isObj(e) && certs.includes(e.cert) && okDate(e.date))
+    .map(e=>({cert:e.cert, date:e.date, n:clampNum(e.n, 0, 1000), pct:clampNum(e.pct, 0, 100), secs:clampNum(e.secs, 0, 1e6), doms:cleanMap(e.doms, v=>clampNum(v, 0, 100))})).slice(0, 50);
+  if(b.typed === false) s.typed = false;
+  return s;
+}
+/* Journal entries from a backup: fixed questions are re-read from QUIZ (never trusted from the file); generated ones keep only safe markup. */
+function cleanEntry(e){
+  if(!isObj(e) || !['quiz','term','sql'].includes(e.kind)) return null;
+  const x = {id:/^[\w-]{1,40}$/.test(e.id) ? e.id : 'm'+Math.random().toString(36).slice(2, 10), kind:e.kind, key:String(e.key||'').slice(0, 2000),
+    at:okDate(e.at) || dayStr(), count:Math.round(clampNum(e.count, 1, 1e4)), hits:(Array.isArray(e.hits) ? e.hits : []).filter(okDate).slice(0, 10),
+    done:e.done === true, why:WHY.some(w=>w[0]===e.why) ? e.why : null, your:typeof e.your === 'string' ? e.your.slice(0, 2000) : '', sid:typeof e.sid === 'string' ? e.sid.slice(0, 200) : null};
+  if(okDate(e.doneAt)) x.doneAt = e.doneAt;
+  if(e.kind !== 'quiz'){ x.task = String(e.task||'').slice(0, 2000); x.model = String(e.model||'').slice(0, 2000); return x; }
+  if(Number.isInteger(e.qi) && QUIZ[e.qi]){ x.qi = e.qi; x.d = QUIZ[e.qi].slice(0, 6); }
+  else {
+    const d = e.d;
+    if(!Array.isArray(d) || !TRACKS.some(t=>t.id===d[0]) || !Array.isArray(d[3]) || !d[3].length) return null;
+    const opts = d[3].slice(0, 8).map(safeHTML);
+    x.qi = null; x.d = [d[0], Math.round(clampNum(d[1], 1, 4)), safeHTML(d[2]), opts, Math.round(clampNum(d[4], 0, opts.length-1)), safeHTML(d[5])];
+  }
+  x.key = 'quiz|'+x.d[2];
+  return x;
+}
+/* Keep only harmless formatting tags (attributes dropped, except a plain class) from imported HTML; escape everything else. */
+const SAFE_TAGS = /^(code|b|i|em|strong|br|p|ul|ol|li|span|div|table|thead|tbody|tr|td|th|pre|sub|sup)$/;
+function safeHTML(h){
+  return String(h == null ? '' : h).slice(0, 20000).replace(/<(\/?)([a-z][a-z0-9]*)([^<>]*)>|[<>]/gi, (m, close, tag, attrs)=>{
+    if(!tag) return m === '<' ? '&lt;' : '&gt;';
+    tag = tag.toLowerCase();
+    if(!SAFE_TAGS.test(tag)) return esc(m);
+    const cls = !close && /^\s*class="([\w -]*)"\s*\/?\s*$/.exec(attrs);
+    return '<'+close+tag+(cls ? ' class="'+cls[1]+'"' : '')+'>';
+  });
+}
 function backupDue(){
-  const hasProgress = S.xp > 0 || Object.keys(S.mastery||{}).length > 0;
-  if(!hasProgress) return false;
+  if(!hasProgress()) return false;
   if(!S.lastBackup) return true;
   return (new Date(dayStr()+'T12:00:00') - new Date(S.lastBackup+'T12:00:00')) / 86400000 > 7;
 }
@@ -212,7 +309,11 @@ function vToday(){
   const jdue = journal().filter(isDue).length;
   const reviewBits = [due ? due+' flashcard'+(due>1?'s':'') : '', jdue ? jdue+' mistake'+(jdue>1?'s':'')+' to retry' : ''].filter(Boolean);
   view.innerHTML =
-    (backupDue() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>💾 '+(S.lastBackup ? 'Your last backup was on '+S.lastBackup+'.' : 'You haven\'t backed up your progress yet.')+' A backup protects your progress if browser data gets cleared.</span><button class="primary" id="bk">'+(PHONE?'Copy backup':'Download backup')+'</button></div>' : '')+
+    (saveBlocked ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Your saved progress could not be read.</b> A copy was kept in this browser, and nothing will be saved over it until you choose. '+
+      'Best: restore your latest backup. Or start fresh (the unreadable copy stays in browser storage).<div class="row" style="margin-top:10px"><button class="primary" id="fixRestore">Restore a backup</button><button id="fixFresh">Start fresh</button></div></div>' : '')+
+    (!saveBlocked && saveFailed ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Progress is not being saved.</b> This browser is refusing to store data (storage full, blocked, or private mode). Download a backup before closing.<div class="row" style="margin-top:10px"><button class="primary" id="fixBackup">Download backup</button></div></div>' : '')+
+    (!saveBlocked && !hasProgress() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup here so your progress and review schedule follow you.</span><button id="fixMerge">Merge a backup</button></div>' : '')+
+    (backupDue() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>💾 '+(S.lastBackup ? 'Your last backup was on '+esc(S.lastBackup)+'.' : 'You haven\'t backed up your progress yet.')+' A backup protects your progress if browser data gets cleared.</span><button class="primary" id="bk">'+(PHONE?'Copy backup':'Download backup')+'</button></div>' : '')+
     '<h1>Today\'s missions</h1><p class="sub">'+done+' of 3 done. Finish all three for +50 XP and to keep your streak.</p>'+
     '<div class="grid">'+ms.map((m,i)=>
       '<div class="card mission '+(d[m.key]?'done':'')+'"><div class="tag">'+m.tag+'</div><h3>'+m.title+'</h3><p>'+esc(m.text)+'</p>'+
@@ -230,6 +331,11 @@ function vToday(){
   const r = view.querySelector('[data-go]'); if(r) r.onclick=()=>go('review');
   $('#toPractice').onclick = e=>{ e.preventDefault(); go('practice'); };
   const bk = $('#bk'); if(bk) bk.onclick = ()=>{ downloadBackup(); vToday(); };
+  const on = (id, f)=>{ const b = $(id); if(b) b.onclick = f; };
+  on('#fixRestore', ()=>go('progress'));
+  on('#fixMerge', ()=>go('progress'));
+  on('#fixBackup', ()=>{ downloadBackup(); });
+  on('#fixFresh', ()=>askConfirm('Start fresh? The unreadable copy stays in browser storage, but SkillQuest will begin saving new progress now.', 'Start fresh', ()=>{ saveBlocked = false; save(); vToday(); }));
 }
 
 /* Mastery = share of a level's questions and cards that are retained right now (see cardStatus / quizStatus) */
@@ -350,35 +456,46 @@ function quizEnd(s){
 /* At most this many never-seen cards a day (all tracks), so reviews don't pile up faster than you can learn them. */
 const NEW_PER_DAY = 10;
 function newToday(){ const d = dayStr(); return Object.values(S.cards).filter(c=>c.seen===d).length; }
+/* The card's next record after a rating, or null when it isn't due yet: early review is practice only,
+   so extra same-day runs can't push a card up the boxes (and count it as retained) without real spacing. */
+function rateCard(cur, good){
+  if(cur && cur.due > dayStr()) return null;
+  const box = good ? Math.min((cur ? cur.box : 0)+1, 5) : 1;
+  return {box, due:addDays(dayStr(), BOX_DAYS[box]), seen:(cur && cur.seen) || dayStr()};
+}
 function startCards(tid, n, mission, list, lv){
   let pool = list || CARDS.map((c,i)=>i).filter(i=>CARDS[i][0]===tid && (!lv || CARDS[i][1]===lv));
-  pool = shuffle(pool).sort((a,b)=>((S.cards[cardId(a)]||{box:0}).box)-((S.cards[cardId(b)]||{box:0}).box));
+  /* due and new cards first (lowest box first), then not-due cards as practice */
+  const order = i=>{ const c = S.cards[cardId(i)]; return (cardDue(i) ? 0 : 10) + (c ? c.box : 0); };
+  pool = shuffle(pool).sort((a,b)=>order(a)-order(b));
   let left = Math.max(0, NEW_PER_DAY - newToday()), held = 0;
   pool = pool.filter(i=>{ if(S.cards[cardId(i)]) return true; if(left > 0){ left--; return true; } held++; return false; });
   if(!pool.length){
     view.innerHTML = '<h1>Flashcards</h1><div class="card"><p>You have started '+NEW_PER_DAY+' new cards today, and nothing here is ready to review. New cards unlock again tomorrow; spreading them out is what makes them stick.</p><div class="row"><button class="primary" id="home">Back to Today</button></div></div>';
     $('#home').onclick=()=>go('today'); return;
   }
-  cardStep({items:pool.slice(0,n), i:0, flipped:false, mission, tid, good:0, missed:[], held: pool.length < n ? held : 0});
+  const items = pool.slice(0,n);
+  cardStep({items, first:items.length, i:0, flipped:false, mission, tid, good:0, missed:[], held: pool.length < n ? held : 0});
 }
 function psToggle(){ return '<button class="chip" id="psBtn" title="Show or hide the PowerShell line on Linux cards">PowerShell: '+(psOn()?'shown':'hidden')+'</button>'; }
 function bindPsToggle(){ const b = $('#psBtn'); if(b) b.onclick = ()=>{ setPref('skillquest-ps', psOn()?'off':'on'); applyPs(); b.textContent = 'PowerShell: '+(psOn()?'shown':'hidden'); }; }
 function cardStep(s){
   if(s.i >= s.items.length){
     if(s.mission) completeMission(s.mission);
-    view.innerHTML = '<h1>Cards done</h1><div class="card"><p class="q">'+s.good+' / '+s.items.length+' marked "Got it"</p><p>Cards you missed come back tomorrow. Cards you know come back later, with longer gaps each time.</p>'+
+    view.innerHTML = '<h1>Cards done</h1><div class="card"><p class="q">'+s.good+' / '+s.first+' marked "Got it" first time</p><p>Missed cards were asked again at the end and come back tomorrow. Cards you know come back later, with longer gaps each time. Cards not due yet were practice only, so their schedule stayed the same.</p>'+
       (s.missed.length ? '<h3>Missed this round</h3><ul class="clean">'+s.missed.map(i=>'<li>'+CARDS[i][2]+'</li>').join('')+'</ul>' : '')+
       (s.held ? '<p class="small">'+s.held+' more new card'+(s.held===1?'':'s')+' unlock tomorrow (limit '+NEW_PER_DAY+' new a day).</p>' : '')+
       '<div class="row"><button class="primary" id="home">Back to Today</button></div></div>';
     $('#home').onclick=()=>go('today'); return;
   }
   const idx = s.items[s.i], c = CARDS[idx], t = track(c[0]);
-  const box = (S.cards[cardId(idx)]||{box:0}).box, nextGap = BOX_DAYS[Math.min(box+1, 5)];
+  const cur = S.cards[cardId(idx)], box = (cur||{box:0}).box, nextGap = BOX_DAYS[Math.min(box+1, 5)];
+  const early = !!cur && cur.due > dayStr(), retry = s.i >= s.first;
   const days = n=>n+' day'+(n===1?'':'s');
   view.innerHTML = '<h1>'+t.icon+' '+t.name+' flashcards</h1>'+
-    '<div class="progress"><span>Card '+(s.i+1)+' of '+s.items.length+(c[4] ? ' · '+CARD_TOPICS[c[4]] : '')+'</span><span>'+(box ? 'Last gap: '+days(BOX_DAYS[box]) : 'New card')+'</span></div>'+
+    '<div class="progress"><span>Card '+(s.i+1)+' of '+s.items.length+(c[4] ? ' · '+CARD_TOPICS[c[4]] : '')+'</span><span>'+(retry ? 'Second try' : early ? 'Practice · due '+cur.due : box ? 'Last gap: '+days(BOX_DAYS[box]) : 'New card')+'</span></div>'+
     '<div class="card flash '+(s.flipped?'back':'')+'" id="fc">'+(s.flipped?'<div>'+c[3]+'</div>':'<div><div>'+c[2]+'</div><p class="small" style="margin-top:16px">Say the answer out loud, then tap or press Space to flip.</p></div>')+'</div>'+
-    '<div class="row" style="margin-top:14px">'+(s.flipped?'<button id="again">↺ Again <span class="small">1 · back tomorrow</span></button><button class="primary" id="good">✓ Got it <span class="small">2 · next in '+days(nextGap)+'</span></button>':'<button class="primary" id="flip">Flip</button>')+
+    '<div class="row" style="margin-top:14px">'+(s.flipped?'<button id="again">↺ Again <span class="small">1'+(early ? ' · practice' : ' · back tomorrow')+'</span></button><button class="primary" id="good">✓ Got it <span class="small">2'+(early ? ' · practice, schedule unchanged' : ' · next in '+days(nextGap))+'</span></button>':'<button class="primary" id="flip">Flip</button>')+
     (c[3].includes('class="ps"') ? psToggle() : '')+'</div>';
   bindPsToggle();
   const flip = ()=>{ s.flipped=true; cardStep(s); };
@@ -386,10 +503,12 @@ function cardStep(s){
   if(!s.flipped) $('#flip').onclick = flip;
   else {
     const rate = good=>{
-      const id = cardId(idx), cur = S.cards[id] || {box:0};
-      const box = good ? Math.min(cur.box+1, 5) : 1;
-      S.cards[id] = {box, due:addDays(dayStr(), BOX_DAYS[box]), seen:cur.seen || dayStr()};
-      if(good){ s.good++; addXP(5); } else { s.missed.push(idx); save(); }
+      const next = rateCard(S.cards[cardId(idx)], good);
+      if(next) S.cards[cardId(idx)] = next;
+      if(good && !retry){ s.good++; if(next) addXP(5); else save(); }
+      else save();
+      /* a miss is asked once more at the end of this session (no box change: it is now due tomorrow) */
+      if(!good && !retry){ s.missed.push(idx); s.items.push(idx); }
       s.i++; s.flipped=false; cardStep(s);
     };
     $('#again').onclick=()=>rate(false); $('#good').onclick=()=>rate(true);
@@ -654,8 +773,10 @@ function ivPct(cat){ const qs = IV.map((q,i)=>i).filter(i=>IV[i].c===cat); retur
 function termPct(){ return Math.round(TERM.filter(t=>S.term[t[2]]).length / TERM.length * 100); }
 function tkPct(id){ return (S.tickets||{})[id] || 0; }
 const scenIdx = id=>SCEN.findIndex(s=>s.id===id);
+/* Readiness items: [label, score(), practice(), fades]. Only items whose score fades without review (track mastery)
+   count toward a job's %; tickets, console tasks and interview reps are shown as practice done, since a best-ever score never drops. */
 const R = {
-  track:(tid,lv)=>[track(tid).icon+' '+track(tid).name+' L'+lv, ()=>mastery(tid,lv), ()=>startQuiz(tid,10,null,null,lv)],
+  track:(tid,lv)=>[track(tid).icon+' '+track(tid).name+' L'+lv, ()=>mastery(tid,lv), ()=>startQuiz(tid,10,null,null,lv), true],
   ticket:id=>['🎫 Ticket: '+SCEN[scenIdx(id)].title, ()=>tkPct(id), ()=>playTicket(scenIdx(id),null)],
   sql:lv=>['🗄️ SQL console L'+lv, ()=>sqlPct(lv), ()=>startSQL(8,null,lv)],
   term:()=>['🐧 Terminal commands', termPct, ()=>startTerm(8,null)],
@@ -673,17 +794,17 @@ const JOBS = [
   {name:'Future goal · Junior Security / SOC Analyst', status:'Needs Security+ first', items:[
     R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('net',2), R.track('linux',1)]}
 ];
-function jobScore(j){ return Math.round(j.items.reduce((a,it)=>a+it[1](),0) / j.items.length); }
+function jobScore(j){ const f = j.items.filter(it=>it[3]); return f.length ? Math.round(f.reduce((a,it)=>a+it[1](),0) / f.length) : 0; }
 function readyLabel(p){ return p>=90?'Strong':p>=70?'Interview-ready':p>=40?'Getting there':'Building'; }
 function vReady(){
-  view.innerHTML = '<h1>🎯 Job readiness</h1><p class="sub">How much of the practice for each job you have mastered here. It measures your practice, not a hiring decision, but 70% or more means you can talk about these topics with confidence.</p>'+
+  view.innerHTML = '<h1>🎯 Job readiness</h1><p class="sub">How much of the core knowledge for each job you have <b>retained right now</b> (track mastery, which drops when reviews go overdue). Tickets, terminal, SQL and interview reps are listed as practice done: useful, but a best-ever score never shows what you still remember. It measures your practice, not a hiring decision.</p>'+
     JOBS.map((j,ji)=>{
       const p = jobScore(j);
       const weakest = j.items.map((it,k)=>[it[1](),k]).sort((a,b)=>a[0]-b[0])[0];
       return '<div class="card" style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">'+esc(j.name)+'</h3><span class="pill">'+esc(j.status)+'</span></div>'+
         '<div class="row" style="margin-top:8px;gap:14px"><span class="q" style="margin:0">'+p+'%</span><span class="small">'+readyLabel(p)+'</span></div>'+
         '<div class="meter"><i style="width:'+p+'%"></i></div>'+
-        j.items.map((it,k)=>{ const v = it[1](); return '<div class="ritem"><span>'+it[0]+'</span><div class="meter"><i style="width:'+v+'%"></i></div><span class="small" style="width:40px;text-align:right">'+v+'%</span><button data-j="'+ji+'" data-k="'+k+'">Practice</button></div>'; }).join('')+
+        j.items.map((it,k)=>{ const v = it[1](); return '<div class="ritem"><span>'+it[0]+(it[3] ? '' : ' <span class="small">(practice done, not counted)</span>')+'</span><div class="meter"><i style="width:'+v+'%"></i></div><span class="small" style="width:40px;text-align:right">'+v+'%</span><button data-j="'+ji+'" data-k="'+k+'">Practice</button></div>'; }).join('')+
         (weakest[0] < 100 ? '<p class="small" style="margin-top:10px">👉 Next best step: <b>'+j.items[weakest[1]][0]+'</b></p>' : '<p class="small">✅ Everything here is mastered. Do the interview questions out loud before the real interview.</p>')+
       '</div>';
     }).join('');
@@ -770,8 +891,9 @@ function vProgress(){
     '<br>∞ Generated problems: '+Object.values(S.gen||{}).reduce((a,g)=>a+g.right,0)+' right of '+Object.values(S.gen||{}).reduce((a,g)=>a+g.total,0)+'</p></div>'+
     '<div class="card ladder"><h3 style="margin-top:0">Rank ladder</h3>'+RANKS.map(x=>'<div class="'+(x[1]===r[1]?'me':'')+'"><span>'+x[1]+'</span><span>'+x[0]+' XP</span></div>').join('')+'</div></div>'+
     '<h2>Track mastery</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div>'+statsLine([1,2].map(n=>levelStats(t.id,n)).reduce((a,b)=>{ for(const k in a) a[k]+=b[k]; return a; }))+'</div>';}).join('')+'</div>'+
-    '<h2>Backup</h2><div class="card"><p class="small">Progress is saved in this browser only. Clearing browser data or switching browsers loses it, so download a backup once a week. Last backup: <b>'+(S.lastBackup || 'never')+'</b>.</p>'+
-    '<div class="row"><button class="primary" id="exp"'+(PHONE?' hidden':'')+'>Download backup file</button><button id="mrgb" title="Combine a backup file with the progress here. Nothing is lost.">Merge a backup file in</button><button id="impb" title="Throw away the progress here and use the backup instead">Replace with a backup file</button><input type="file" id="imp" accept=".json,application/json,text/plain" hidden><button id="reset">Reset everything</button></div>'+
+    '<h2>Backup</h2><div class="card"><p class="small">Progress is saved in this browser only. Clearing browser data or switching browsers loses it, so download a backup once a week. Last backup: <b>'+esc(S.lastBackup || 'never')+'</b>.</p>'+
+    '<div class="row"><button class="primary" id="exp"'+(PHONE?' hidden':'')+'>Download backup file</button><button id="mrgb" title="Combine a backup file with the progress here. Nothing is lost.">Merge a backup file in</button><button id="impb" title="Throw away the progress here and use the backup instead">Replace with a backup file</button><input type="file" id="imp" accept=".json,application/json,text/plain" hidden><button id="reset">Reset everything</button>'+
+    (prevSnapshot() ? '<button id="undo" title="Go back to how progress was before the last merge, restore or reset">↺ Undo last '+esc(prevSnapshot().what)+' ('+esc(prevSnapshot().at)+')</button>' : '')+'</div>'+
     '<h3>Move progress between your PC and phone</h3>'+
     '<p class="small">Your PC and your phone each keep their own progress. To combine them: on one device tap <b>Copy backup</b>, send the text to yourself (email, OneDrive or a note), then on the other device paste it below and tap <b>Merge</b>. Merging keeps the best of both (higher scores, all missions, mistakes and exams) and never erases anything.</p>'+
     '<div class="row"><button class="primary" id="cpb">Copy backup</button></div>'+
@@ -781,21 +903,30 @@ function vProgress(){
   $('#exp').onclick=()=>{ downloadBackup(); vProgress(); };
   $('#cpb').onclick = copyBackupText;
   $('#pasteMerge').onclick = ()=>{
-    try{ const b = JSON.parse($('#pasteBk').value.trim()); if(typeof b !== 'object' || b === null || !('xp' in b)) throw new Error('not a backup');
-      S = mergeProgress(S, b); save(); header(); vProgress(); toast('Backup merged in. Nothing was lost.'); }
-    catch(e){ toast('That text isn\'t a complete SkillQuest backup. Copy it again on the other device and paste all of it.'); }
+    if(importBackup($('#pasteBk').value.trim(), 'merge')){ vProgress(); toast('Backup merged in. If it looks wrong, use Undo on this page.'); }
+    else toast('That text isn\'t a complete SkillQuest backup. Copy it again on the other device and paste all of it.');
   };
   let importMode = 'merge';
   $('#mrgb').onclick = ()=>{ importMode = 'merge'; $('#imp').click(); };
-  $('#impb').onclick = ()=>askConfirm('Replace ALL progress on this device with a backup file? Use "Merge" to keep both.', 'Choose file to replace with', ()=>{ importMode = 'replace'; $('#imp').click(); });
+  $('#impb').onclick = ()=>askConfirm('Replace ALL progress on this device with a backup file? Use "Merge" to keep both. (You can undo it afterwards.)', 'Choose file to replace with', ()=>{ importMode = 'replace'; $('#imp').click(); });
   $('#imp').onchange = e=>{ const f = e.target.files[0]; if(!f) return; const rd = new FileReader();
-    rd.onload = ()=>{ try{
-        const b = JSON.parse(rd.result); if(typeof b !== 'object' || b === null || !('xp' in b)) throw new Error('not a backup');
-        S = importMode === 'merge' ? mergeProgress(S, b) : migrateTerm(Object.assign(structuredClone(DEFAULT), b));
-        save(); header(); vProgress(); toast(importMode === 'merge' ? 'Backup merged in' : 'Backup restored');
-      }catch(err){ toast('That file is not a SkillQuest backup'); } e.target.value = ''; };
+    rd.onload = ()=>{
+      if(importBackup(rd.result, importMode)){ vProgress(); toast((importMode === 'merge' ? 'Backup merged in' : 'Backup restored')+'. Undo is on this page if it looks wrong.'); }
+      else toast('That file is not a SkillQuest backup');
+      e.target.value = ''; };
     rd.readAsText(f); };
-  $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device? This cannot be undone.', 'Erase everything', ()=>{ S=structuredClone(DEFAULT); save(); header(); vProgress(); });
+  $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device? You can undo it once from this page.', 'Erase everything', ()=>{ snapshot('reset'); S=structuredClone(DEFAULT); saveBlocked = false; save(); header(); vProgress(); });
+  const un = $('#undo'); if(un) un.onclick = ()=>{ undoLast(); vProgress(); };
+}
+/* Bring a backup in: clean it, keep an undo snapshot, then merge or replace. false = not a usable backup. */
+function importBackup(raw, mode){
+  let b = null;
+  try{ b = sanitizeBackup(JSON.parse(raw)); }catch(e){}
+  if(!b) return false;
+  snapshot(mode === 'merge' ? 'merge' : 'restore');
+  S = mode === 'merge' ? mergeProgress(S, b) : migrateTerm(Object.assign(structuredClone(DEFAULT), b));
+  saveBlocked = false; save(); header();
+  return true;
 }
 
 /* ---------- Guide ---------- */
@@ -893,4 +1024,6 @@ document.addEventListener('keydown', e=>{
   else if(e.key==='1' && $('#again')){ e.preventDefault(); $('#again').click(); }
   else if(e.key==='2' && $('#good')){ e.preventDefault(); $('#good').click(); }
 });
+/* Ask the browser not to clear SkillQuest's storage under disk pressure (silently ignored where unsupported). */
+try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{}); }catch(e){}
 header(); vToday();

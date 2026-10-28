@@ -125,7 +125,7 @@ function vExams(){
         c.domains.map(d=>'<div class="ritem"><span>'+d.n+'. '+esc(d.name)+' <span class="small">'+d.w+'%</span></span><span class="small">'+
           (!domCovered(d) ? '⚠ not covered yet' : (d.qs.length+' fixed questions'+(d.gens.length?' + endless generated ('+d.gens.map(g=>g[1]).join(', ')+')':'')))+'</span></div>').join('')+
         '<div class="row" style="margin-top:10px"><button class="primary" data-ex="'+c.id+'" data-n="20">Quick exam · 20 questions · 20 min</button><button data-ex="'+c.id+'" data-n="45">Full practice · 45 questions · 45 min</button></div></div>'; }).join('')+
-    (hist.length ? '<h2>History</h2><div class="card">'+hist.slice(0,10).map(h=>'<div class="ritem"><span>'+h.date+' · '+esc(CERTS.find(c=>c.id===h.cert).name)+' · '+h.n+' Q</span><div class="meter"><i style="width:'+h.pct+'%"></i></div><span class="small" style="width:50px;text-align:right">'+h.pct+'%</span></div>').join('')+'</div>' : '')+
+    (hist.length ? '<h2>History</h2><div class="card">'+hist.slice(0,10).map(h=>{ const pct = Math.round(Number(h.pct)||0), c = CERTS.find(c=>c.id===h.cert); return '<div class="ritem"><span>'+esc(h.date)+' · '+esc(c ? c.name : h.cert)+' · '+esc(h.n)+' Q</span><div class="meter"><i style="width:'+pct+'%"></i></div><span class="small" style="width:50px;text-align:right">'+pct+'%</span></div>'; }).join('')+'</div>' : '')+
     '<p class="small">Coverage is honest: domains marked "not covered yet" are left out of the exam and listed in your results, so you know what to study elsewhere (Professor Messer\'s free videos cover every domain).</p>';
   view.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>startExam(b.dataset.ex, +b.dataset.n));
 }

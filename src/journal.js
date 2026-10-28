@@ -66,7 +66,7 @@ function vJournal(){
     return '<details class="card" style="margin:8px 0"><summary>'+e.d[2].replace(/<table[\s\S]*?<\/table>/g,' [table] ')+(e.count>1?' <span class="lv" style="color:var(--bad);border-color:var(--bad)">missed ×'+e.count+'</span>':'')+'</summary>'+
       '<p>❌ You: <b>'+(e.your ? esc(e.your) : '(no answer)')+'</b><br>✅ Right: <b>'+right+'</b></p><div class="explain">'+e.d[5]+'</div>'+
       '<p class="small">Right on '+e.hits.length+' of 2 separate days needed.</p>'+
-      '<div class="small">Why did you miss it?</div><div class="chips">'+WHY.map(([k,l])=>'<button class="chip" data-why="'+k+'" data-id="'+e.id+'" style="'+(e.why===k?'border-color:var(--accent);color:var(--accent)':'')+'">'+l+'</button>').join('')+'</div>'+
+      '<div class="small">Why did you miss it?</div><div class="chips">'+WHY.map(([k,l])=>'<button class="chip" data-why="'+k+'" data-id="'+esc(e.id)+'" style="'+(e.why===k?'border-color:var(--accent);color:var(--accent)':'')+'">'+l+'</button>').join('')+'</div>'+
       (e.sid?'<div style="margin-top:8px"><button data-pr="'+esc(e.sid)+'">Practice this skill</button></div>':'')+'</details>';
   };
   view.innerHTML = '<h1>📓 Mistake journal</h1><p class="sub">Your misses, saved with the right answer and why. A mistake clears only after you get it right on two different days, so it really sticks.</p>'+

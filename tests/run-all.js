@@ -1,5 +1,5 @@
 // npm test: builds the app, then runs every check against the built file.
-const { execFileSync, spawnSync } = require('child_process');
+const { execFileSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -23,14 +23,30 @@ const runs = [
 ];
 for (const f of fs.readdirSync(__dirname).filter(f => /^feature-.*\.js$/.test(f)).sort()) runs.push([f.replace(/\.js$/, ''), process.execPath, [f]]);
 
-let failed = 0;
-for (const [name, cmd, args] of runs) {
-  const r = spawnSync(cmd, args, { cwd: __dirname, encoding: 'utf8' });
-  const out = ((r.stdout || '') + (r.stderr || '')).trim();
-  if (r.error && name.includes('SQLite')) { console.log('– skipped', name, '(Python not found)'); continue; }
-  const ok = r.status === 0;
-  if (!ok) failed++;
-  console.log((ok ? '✔ ' : '✘ ') + name + '\n   ' + out.split('\n').slice(-3).join('\n   '));
-}
-console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');
-process.exitCode = failed ? 1 : 0;
+// Checks run in parallel; results print in the order above. The SQLite check reads the cases the
+// terminal + SQL generator check writes, so it waits for that one.
+const run = ([name, cmd, args]) => new Promise(done => {
+  let out = '';
+  const p = spawn(cmd, args, { cwd: __dirname });
+  p.stdout.on('data', d => out += d); p.stderr.on('data', d => out += d);
+  p.on('error', error => done({ name, error, out }));
+  p.on('close', status => done({ name, status, out }));
+});
+const sqlGen = runs.find(r => r[0].startsWith('terminal')), sqlite = runs.find(r => r[0].includes('SQLite'));
+const jobs = new Map(runs.filter(r => r !== sqlGen && r !== sqlite).map(r => [r, run(r)]));
+const chained = run(sqlGen);
+jobs.set(sqlGen, chained);
+jobs.set(sqlite, chained.then(() => run(sqlite)));
+
+(async () => {
+  let failed = 0;
+  for (const r of runs) {
+    const { name, status, error, out } = await jobs.get(r);
+    if (error && name.includes('SQLite')) { console.log('– skipped', name, '(Python not found)'); continue; }
+    const ok = !error && status === 0;
+    if (!ok) failed++;
+    console.log((ok ? '✔ ' : '✘ ') + name + '\n   ' + (out || String(error || '')).trim().split('\n').slice(-3).join('\n   '));
+  }
+  console.log(failed ? `\n${failed} check(s) FAILED` : '\nAll checks passed');
+  process.exitCode = failed ? 1 : 0;
+})();

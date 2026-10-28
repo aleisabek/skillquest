@@ -18,7 +18,10 @@ const { CARDS, CARD_TOPICS, BANDIT_GUIDE } = vm.runInNewContext(
 const cards = CARDS.filter(c => c[0] === 'linux').map(c => ({ f: c[2], b: c[3], t: c[4] }));
 const used = Object.keys(CARD_TOPICS).filter(t => cards.some(c => c.t === t));
 const data = JSON.stringify({ cards, topics: used.map(t => [t, CARD_TOPICS[t]]), guide: BANDIT_GUIDE }).replace(/</g, '\\u003c');
-const today = new Date().toISOString().slice(0, 10);
+// The page's date only moves when the cards change, so re-exporting unchanged cards gives a byte-identical file (no empty commits).
+const prev = fs.existsSync(out) ? fs.readFileSync(out, 'utf8') : '';
+const prevDate = prev.includes('const D = ' + data + ';') && (prev.match(/updated <b>(\d{4}-\d{2}-\d{2})<\/b>/) || [])[1];
+const today = prevDate || new Date().toISOString().slice(0, 10);
 
 const html = `<!DOCTYPE html>
 <html lang="en" data-theme="matrix">
