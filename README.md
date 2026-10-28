@@ -7,7 +7,7 @@ An offline practice app for entry-level IT jobs: IT support & Microsoft 365, net
 | Command | What it does |
 |---|---|
 | `npm run build` | Builds `dist/SkillQuest.html` |
-| `npm run install-app` | Builds and copies it to `Documents\Job Search\SkillQuest.html`, where the Desktop shortcut points |
+| `npm run install-app` (or `npm run release`) | One-command release: runs every check and stops on a failure, keeps the old install as `SkillQuest.prev.html`, installs to `Documents\Job Search\SkillQuest.html` (where the Desktop shortcut points), regenerates the public deck and, only if its cards changed, shows the diff and asks before committing and pushing it. Ends with a reminder to republish the phone version. `--yes` publishes without asking; `--no-deck` skips the deck. |
 | `npm test` | Builds, then runs every check (see below) |
 | `npm run export-deck -- --out C:/Users/User/Desktop/flashcards-project/index.html` | Regenerates the public Linux & Bandit command deck (GitHub Pages: aleisabek/Linux-Cheat-sheet) from the Linux cards. `logo.svg` in that repo is its logo and tab icon. Commit and push that repo to update the live page. |
 
@@ -63,6 +63,17 @@ A track level's % is the share of its quiz questions and flashcards that are **r
 
 Tracks and Progress show the four counts behind it: Retained, Fading, Learning, New. New flashcards are limited to 10 a day across all tracks.
 
+## Progress safety
+
+- Saved data that can't be read is copied to `skillquest-v1.corrupt-<time>` and never saved over; Today asks whether to restore a backup or start fresh.
+- If the browser refuses to save (storage full or blocked), Today says so and offers a backup.
+- Merge, restore and reset keep a snapshot first, so the last one can be undone from Progress.
+- Imported backups are cleaned before use (`sanitizeBackup`): only known fields with the right types are kept, fixed journal questions are re-read from `QUIZ`, and other markup is reduced to safe formatting tags. Old backups still restore.
+- A fresh browser or profile shows a "merge a backup" card instead of silently looking like a new start.
+- Flashcards not yet due are practice only (no box change, no XP); missed cards are asked once more at the end of the session.
+- Merging keeps a quiz miss from either device, and for each card the most recently reviewed record.
+- Job readiness counts only measures that fade (track mastery); tickets, console tasks and interview reps are shown as practice done.
+
 ## What the tests check
 
 - Content shape, and that terminal answers accept valid variations and reject wrong commands.
@@ -73,4 +84,6 @@ Tracks and Progress show the four counts behind it: Retained, Fading, Learning, 
 - Every SQL model answer run against a real SQLite copy of the practice database, rows compared with what the app shows.
 - Flashcards: known topics, no duplicate fronts, escaped HTML, at most one PowerShell line, no Bandit level references, and the retained / fading / learning / new rules above.
 - Append-only: every existing item in the five content arrays is still in the same position (`content-snapshot.json`).
-- Public deck export: every Linux card exported unchanged, the page script parses, the logo is wired in, and no job, interview or other-track content is included.
+- Public deck export: every Linux card exported unchanged, the page script parses, the logo is wired in, no job, interview or other-track content is included, and re-exporting unchanged cards gives a byte-identical page.
+- Progress safety (`feature-safety`): unreadable saves are never overwritten, failed saves are reported, tampered backups are cleaned (no live markup, no crash from unknown exam types, `__proto__` ignored), old backups restore, undo works, and early flashcard review can't raise a box.
+- Checks run in parallel (the SQLite check waits for the generator check that writes its cases).

@@ -22,6 +22,9 @@ D.cards.forEach((c, i) => { if (c.f !== linux[i][2] || c.b !== linux[i][3]) fail
 for (const w of ['Restaurant group', 'Steakhouse', 'Healthcare billing', 'Energy company', 'NOC employer', 'Applied ', 'interview', 'skillquest-v1'])
   if (html.toLowerCase().includes(w.toLowerCase())) fail('public page mentions', w);
 if (!html.includes('rel="icon" href="logo.svg"') || !html.includes('src="logo.svg"')) fail('logo.svg should be the tab icon and the header mark');
+/* re-exporting unchanged cards must give a byte-identical page, so publishing never makes empty commits */
+execFileSync(process.execPath, [path.join(__dirname, '..', 'tools', 'export-deck.js'), '--out', out]);
+if (fs.readFileSync(out, 'utf8') !== html) fail('a second export of the same cards changed the page');
 
 console.log('export', D.cards.length, 'cards,', (html.length / 1024).toFixed(0), 'KB | problems', bad);
 process.exitCode = bad ? 1 : 0;

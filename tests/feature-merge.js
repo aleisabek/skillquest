@@ -3,7 +3,8 @@ const fs = require('fs');
 const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const grab = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
 const defLine = js.slice(js.indexOf('const DEFAULT'), js.indexOf('\n', js.indexOf('const DEFAULT')));
-eval(defLine + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
+const line = n => { const i = js.indexOf(n); return js.slice(i, js.indexOf('\n', i)); };
+eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 const pc = Object.assign(structuredClone(D), {
   xp: 500, best: 4, streak: 2, lastFull: '2026-10-20', lastBackup: '2026-10-19',
@@ -18,7 +19,7 @@ const phone = Object.assign(structuredClone(D), {
   xp: 300, best: 6, streak: 5, lastFull: '2026-10-25', lastBackup: '2026-10-24',
   quiz: { q2: true, q9: true }, miss: { q4: true }, iv: { i0: 3, i5: 1 }, tickets: { pos: 90, noc: 70 }, lessons: { a: '2026-10-24', b: '2026-10-24' },
   notes: { i0: 'a much longer note from the phone' }, days: { '2026-10-20': { iv: true }, '2026-10-25': { quiz: true, skill: true, iv: true } },
-  cards: { c1: { box: 4, due: '2026-11-01' }, c7: { box: 1, due: '2026-10-26' } },
+  cards: { c1: { box: 4, due: '2026-11-08' }, c7: { box: 1, due: '2026-10-26' } },
   mastery: { s1: { s: 60, n: 3, right: 2, last: '2026-10-25' }, s2: { s: 80, n: 6, right: 6, last: '2026-10-24' }, s3: { s: 40, n: 1, right: 1, last: '2026-10-24' } },
   gen: { net: { right: 9, total: 12 }, sec: { right: 1, total: 2 } },
   journal: [{ id: 'm1b', key: 'quiz|Q1', at: '2026-10-18', hits: ['2026-10-19', '2026-10-24'], done: true }, { id: 'm3', key: 'quiz|Q3', at: '2026-10-24', hits: [], done: false }],
@@ -30,7 +31,7 @@ for (const [a, b, label] of [[pc, phone, 'pc+phone'], [phone, pc, 'phone+pc']]) 
   chk(m.streak === 5 && m.lastFull === '2026-10-25', 'streak should come from the most recent full day');
   chk(m.lastBackup === '2026-10-24', 'latest backup date');
   chk(m.quiz.q1 && m.quiz.q2 && m.quiz.q9, 'answered questions from both');
-  chk(!m.miss.q2 && m.miss.q3 && m.miss.q4, 'misses answered on either device are dropped, others kept');
+  chk(m.miss.q2 && m.miss.q3 && m.miss.q4, 'a miss from either device is kept until the question is answered right again');
   chk(m.iv.i0 === 3 && m.iv.i5 === 1 && m.tickets.pos === 90 && m.tickets.noc === 70, 'best interview and ticket scores');
   chk(m.lessons.a === '2026-10-24' && m.lessons.b && m.labs.crlf, 'lessons/labs union with latest dates');
   chk(m.notes.i0 === 'a much longer note from the phone', 'longer note kept');
@@ -44,6 +45,11 @@ for (const [a, b, label] of [[pc, phone, 'pc+phone'], [phone, pc, 'phone+pc']]) 
   chk(m.exams.length === 2, 'exam history union without duplicates');
   chk(JSON.stringify(a) === JSON.stringify(label === 'pc+phone' ? pc : phone), 'merge must not modify its inputs');
 }
+/* honest merges: misses survive merging a state with itself, and the most recently reviewed card wins even with a lower box */
+const self = M(pc, pc); if (!self.miss.q2 || !self.miss.q3) fail('merging a state with itself must keep its misses');
+const oldHigh = Object.assign(structuredClone(D), { xp: 1, cards: { c5: { box: 4, due: '2026-10-20' } } });   // reviewed 2026-10-13
+const newLapse = Object.assign(structuredClone(D), { xp: 1, cards: { c5: { box: 1, due: '2026-10-26' } } });  // reviewed 2026-10-25
+for (const [a, b] of [[oldHigh, newLapse], [newLapse, oldHigh]]) if (M(a, b).cards.c5.box !== 1) fail('the more recent review (a lapse) should win over an older higher box');
 const same = M(pc, pc); if (JSON.stringify(same.quiz) !== JSON.stringify(pc.quiz) || same.xp !== pc.xp) fail('merging a backup with itself should change nothing');
 /* Terminal skill rename (2026-10-27): old progress moves to the deck-topic skills, nothing is lost */
 const old = Object.assign(structuredClone(D), {

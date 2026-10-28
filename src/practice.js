@@ -29,7 +29,7 @@ function vPractice(){
     '<h2>Suggested weekly routine</h2><div class="card">'+ROUTINE.map(r=>'<div class="ritem"><span><b>'+r[0]+'</b></span><span>'+esc(r[1])+'</span></div>').join('')+'</div>'+
     PRACTICE.map(g=>'<h2>'+g.group+'</h2><div class="grid">'+g.items.map(([name,url,note])=>{ const last = S.practice[name];
       return '<div class="card mission"><h3><a href="'+url+'" target="_blank" rel="noopener">'+esc(name)+' ↗</a></h3><p>'+esc(note)+'</p>'+
-        '<div class="row"><button data-used="'+esc(name)+'">✓ Used today</button><span class="small">'+(last ? 'Last used: '+last : 'Not used yet')+'</span></div></div>'; }).join('')+'</div>').join('')+
+        '<div class="row"><button data-used="'+esc(name)+'">✓ Used today</button><span class="small">'+(last ? 'Last used: '+esc(last) : 'Not used yet')+'</span></div></div>'; }).join('')+'</div>').join('')+
     '<p class="small">Free tiers change over time. If something here starts charging, tell Claude and swap it for another option.</p>';
   view.querySelectorAll('[data-used]').forEach(b=>b.onclick=()=>{ S.practice[b.dataset.used] = dayStr(); save(); toast('Logged: '+b.dataset.used); vPractice(); });
 }
