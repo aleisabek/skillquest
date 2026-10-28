@@ -9,6 +9,7 @@ An offline practice app for entry-level IT jobs: IT support & Microsoft 365, net
 | `npm run build` | Builds `dist/SkillQuest.html` |
 | `npm run install-app` | Builds and copies it to `Documents\Job Search\SkillQuest.html`, where the Desktop shortcut points |
 | `npm test` | Builds, then runs every check (see below) |
+| `npm run export-deck -- --out C:/Users/User/Desktop/flashcards-project/index.html` | Regenerates the public Linux & Bandit command deck (GitHub Pages: aleisabek/Linux-Cheat-sheet) from the Linux cards. `logo.svg` in that repo is its logo and tab icon. Commit and push that repo to update the live page. |
 
 ## Phone version
 
@@ -72,3 +73,4 @@ Tracks and Progress show the four counts behind it: Retained, Fading, Learning, 
 - Every SQL model answer run against a real SQLite copy of the practice database, rows compared with what the app shows.
 - Flashcards: known topics, no duplicate fronts, escaped HTML, at most one PowerShell line, no Bandit level references, and the retained / fading / learning / new rules above.
 - Append-only: every existing item in the five content arrays is still in the same position (`content-snapshot.json`).
+- Public deck export: every Linux card exported unchanged, the page script parses, the logo is wired in, and no job, interview or other-track content is included.

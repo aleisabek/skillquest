@@ -397,13 +397,15 @@ function cardStep(s){
 }
 
 /* ---------- Browse: search a track's cards, filter by topic, study what you find ---------- */
+/* Public, read-only copy of the Linux cards (npm run export-deck), handy on any device or to share */
+const PUBLIC_CARDS = 'https://aleisabek.github.io/Linux-Cheat-sheet/';
 function vBrowse(tid, topic){
   const t = track(tid);
   const all = CARDS.map((c,i)=>i).filter(i=>CARDS[i][0]===tid);
   const text = {}; all.forEach(i=>{ text[i] = plainText(CARDS[i][2]+' '+CARDS[i][3]).toLowerCase(); });
   const topics = Object.keys(CARD_TOPICS).filter(k=>all.some(i=>CARDS[i][4]===k));
   let hits = [];
-  view.innerHTML = '<h1>'+t.icon+' '+t.name+' cards</h1><p class="sub">Every card in this track. Search by command or by what you want to do ("hidden", "bytes", "decode"), then study the results as flashcards.</p>'+
+  view.innerHTML = '<h1>'+t.icon+' '+t.name+' cards</h1><p class="sub">Every card in this track. Search by command or by what you want to do ("hidden", "bytes", "decode"), then study the results as flashcards.'+(tid==='linux' ? ' Away from SkillQuest? The same cards are on the <a href="'+PUBLIC_CARDS+'" target="_blank" rel="noopener">public Linux &amp; Bandit command deck</a> (no progress tracking).' : '')+'</p>'+
     '<div class="card"><div class="row"><input id="bq" class="typed" autocomplete="off" spellcheck="false" placeholder="Search cards" aria-label="Search cards">'+(tid==='linux' ? psToggle() : '')+'</div>'+
     (topics.length ? '<div class="chips"><button class="chip" data-tp="">All</button>'+topics.map(k=>'<button class="chip" data-tp="'+k+'">'+CARD_TOPICS[k]+'</button>').join('')+'</div>' : '')+
     '<div class="row" style="margin-top:10px;justify-content:space-between"><span class="small" id="bn"></span><span class="row"><button class="primary" id="bstudy">Study these</button><button id="bback">Back to Tracks</button></span></div></div>'+

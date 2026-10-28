@@ -27,6 +27,7 @@ const html = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Linux & Bandit Command Deck</title>
 <meta name="description" content="${cards.length} Linux command flashcards for OverTheWire Bandit and everyday admin work, with PowerShell equivalents.">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=VT323&display=swap">
@@ -52,6 +53,7 @@ button.primary:hover{color:var(--on-accent);filter:brightness(1.1)}
 .top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:12px}
 .logo{font-family:"VT323",monospace;font-size:2rem;line-height:1;color:var(--accent);text-shadow:var(--glow);text-decoration:none}
 .logo small{font-family:"JetBrains Mono",monospace;font-size:.7rem;color:var(--muted);text-shadow:none;margin-left:6px}
+.logo .mark{vertical-align:middle;margin-right:10px;filter:drop-shadow(0 0 6px rgba(57,255,136,.35))}
 .tools{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
 .tools button,.tools .btn{padding:4px 10px}
 .btn{font-size:.85rem;border:1px solid var(--line);border-radius:4px;color:var(--text);text-decoration:none}
@@ -118,7 +120,7 @@ footer::before{content:"-- ";}
 <canvas id="rain" aria-hidden="true"></canvas>
 <div class="wrap">
 <div class="top">
-  <a class="logo" href="https://aleisabek.github.io">bandit.deck<small>v${today}</small></a>
+  <a class="logo" href="https://aleisabek.github.io"><img class="mark" src="logo.svg" alt="" width="44" height="44">bandit.deck<small>v${today}</small></a>
   <div class="tools">
     <button type="button" id="themeBtn" title="Switch color mode">◐ matrix</button>
     <button type="button" id="rainBtn" title="Background code rain on/off">⁂ rain</button>
