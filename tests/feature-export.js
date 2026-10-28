@@ -1,0 +1,27 @@
+// Checks the public Linux deck export (tools/export-deck.js): every Linux card, a script that parses, the logo, and nothing personal.
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+const { execFileSync } = require('child_process');
+const out = path.join(__dirname, '.tmp', 'public', 'index.html');
+execFileSync(process.execPath, [path.join(__dirname, '..', 'tools', 'export-deck.js'), '--out', out]);
+const html = fs.readFileSync(out, 'utf8');
+const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
+eval(js.split('/* ===================== STATE')[0] + ';global.T={CARDS}');
+let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
+
+const scripts = html.match(/<script>[\s\S]*?<\/script>/g) || [];
+if (scripts.length !== 1) fail('expected one inline script, found', scripts.length);
+const code = scripts[0].slice(8, -9);
+try { new vm.Script(code); } catch (e) { fail('page script does not parse:', e.message); }
+const D = vm.runInNewContext(code.slice(0, code.indexOf('\n', code.indexOf('const D ='))) + ';D');
+const linux = T.CARDS.filter(c => c[0] === 'linux');
+if (D.cards.length !== linux.length) fail('exported', D.cards.length, 'cards, expected', linux.length);
+D.cards.forEach((c, i) => { if (c.f !== linux[i][2] || c.b !== linux[i][3]) fail('card', i, 'differs from SkillQuest'); });
+/* only Linux cards are public: no job applications, interview stories or other tracks */
+for (const w of ['Restaurant group', 'Steakhouse', 'Healthcare billing', 'Energy company', 'NOC employer', 'Applied ', 'interview', 'skillquest-v1'])
+  if (html.toLowerCase().includes(w.toLowerCase())) fail('public page mentions', w);
+if (!html.includes('rel="icon" href="logo.svg"') || !html.includes('src="logo.svg"')) fail('logo.svg should be the tab icon and the header mark');
+
+console.log('export', D.cards.length, 'cards,', (html.length / 1024).toFixed(0), 'KB | problems', bad);
+process.exitCode = bad ? 1 : 0;
