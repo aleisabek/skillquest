@@ -3,7 +3,10 @@
 # Run from Windows: wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/test-labs.sh
 set -u
 SRC="$(cd "$(dirname "$0")" && pwd)"
-export HOME="$(mktemp -d)"
+# Throwaway HOME; refuse to go on unless it really is a fresh folder under /tmp (it is deleted at the end).
+T="$(mktemp -d)" || exit 1
+case "$T" in /tmp/?*) ;; *) echo "mktemp gave an unexpected path: $T"; exit 1;; esac
+export HOME="$T"
 bash "$SRC/install.sh" >/dev/null
 SQ="$HOME/.skillquest-labs/sq-lab"
 fails=0; pass(){ echo "  ok   $*"; }; fail(){ echo "  FAIL $*"; fails=$((fails+1)); }
@@ -30,6 +33,6 @@ run cron-fix "sed -i 's/^2 30 \\* \\* 1/30 2 * * */' backup.cron" "sed -i 's/^2 
 run config-hunt "sed -i 's/max_connections = .*/max_connections = 100/' config/*/*.conf; sed -i 's/workers = 4/workers = 8/' config/web/server.conf" "sed -i 's/^max_connections = 5\$/max_connections = 100/' config/db/pool.conf"
 pkill -f "http.server 8088 --bind 127.0.0.1" 2>/dev/null
 echo; bash "$SQ" list | head -3
-rm -rf "$HOME"
+rm -rf "$T"
 echo; [ $fails = 0 ] && echo "All labs passed their end-to-end test" || echo "$fails lab test(s) FAILED"
 exit $fails

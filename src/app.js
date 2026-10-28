@@ -12,12 +12,15 @@ function load(){
   let raw = null;
   try{ raw = localStorage.getItem(KEY); }catch(e){ saveFailed = true; }
   if(!raw) return structuredClone(DEFAULT);
-  try{ return migrateTerm(Object.assign(structuredClone(DEFAULT), JSON.parse(raw))); }
+  let st;
+  try{ st = migrateTerm(Object.assign(structuredClone(DEFAULT), JSON.parse(raw))); }
   catch(e){
     try{ localStorage.setItem(KEY+'.corrupt-'+Date.now(), raw); }catch(e2){}
     saveBlocked = true;
     return structuredClone(DEFAULT);
   }
+  try{ recountStreak(st); }catch(e){}   /* repairs a streak shortened by an older merge; never blocks loading */
+  return st;
 }
 function save(){
   if(saveBlocked) return warnSave('Not saved: your earlier progress could not be read. Open Today to choose what to do.');
@@ -107,7 +110,8 @@ function mergeProgress(a, b){
   const maxNum = k=>{ m[k] = Math.max(a[k]||0, b[k]||0); };
   ['xp','best'].forEach(maxNum);
   const later = (x,y)=>(x||'') >= (y||'') ? x : y;
-  /* streak: take it from whichever device finished all missions most recently */
+  /* streak: take it from whichever device finished all missions most recently, then recount it from the combined
+     mission days (after days are merged below), so days done on different devices add up */
   if((b.lastFull||'') > (a.lastFull||'')){ m.streak = b.streak; m.lastFull = b.lastFull; }
   m.lastBackup = later(a.lastBackup, b.lastBackup);
   /* simple maps: union; on conflict keep the "more done" value */
@@ -142,7 +146,7 @@ function mergeProgress(a, b){
   const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]) E.set(e.cert+e.date+e.pct+e.n+e.secs, e);
   m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date)).slice(0, 50);
   if(a.typed === false && b.typed === false) m.typed = false; else delete m.typed;
-  return migrateTerm(m);
+  return recountStreak(migrateTerm(m));
 }
 /* Imported backups are untrusted text: keep only known fields with the right types, so a damaged or tampered file
    can't break a tab or inject markup. Older backups (missing newer fields) still restore. null = not a SkillQuest backup. */
@@ -209,6 +213,19 @@ function safeHTML(h){
     const cls = !close && /^\s*class="([\w -]*)"\s*\/?\s*$/.exec(attrs);
     return '<'+close+tag+(cls ? ' class="'+cls[1]+'"' : '')+'>';
   });
+}
+/* Rebuild streak and best from the full-mission days themselves (a full day = all 3 missions). Only ever raises them,
+   or moves lastFull to a later full day, so it is safe on load and after merges. */
+function recountStreak(st){
+  const full = Object.keys(st.days||{}).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d) && st.days[d] && ['quiz','skill','iv'].every(k=>st.days[d][k])).sort();
+  if(!full.length) return st;
+  let run = 1, best = 1;
+  for(let i=1;i<full.length;i++){ run = full[i-1] === addDays(full[i], -1) ? run+1 : 1; best = Math.max(best, run); }
+  const last = full[full.length-1];
+  if(last > (st.lastFull||'')){ st.lastFull = last; st.streak = run; }
+  else if(last === st.lastFull) st.streak = Math.max(st.streak||0, run);
+  st.best = Math.max(st.best||0, best, st.streak||0);
+  return st;
 }
 function backupDue(){
   if(!hasProgress()) return false;
@@ -291,7 +308,7 @@ function header(){
   $('#xpfill').style.width = pct + '%';
   const live = (S.lastFull === dayStr() || S.lastFull === addDays(dayStr(),-1)) ? S.streak : 0;
   $('#streak').textContent = live;
-  $('#nav').innerHTML = TABS.map(([k,l])=>'<button class="'+(k===current?'on':'')+'" data-tab="'+k+'">'+l+'</button>').join('');
+  $('#nav').innerHTML = TABS.map(([k,l])=>'<button class="'+(k===current?'on':'')+'"'+(k===current?' aria-current="page"':'')+' data-tab="'+k+'">'+l+'</button>').join('');
 }
 $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.tab); });
 function go(tab){
@@ -494,7 +511,7 @@ function cardStep(s){
   const days = n=>n+' day'+(n===1?'':'s');
   view.innerHTML = '<h1>'+t.icon+' '+t.name+' flashcards</h1>'+
     '<div class="progress"><span>Card '+(s.i+1)+' of '+s.items.length+(c[4] ? ' · '+CARD_TOPICS[c[4]] : '')+'</span><span>'+(retry ? 'Second try' : early ? 'Practice · due '+cur.due : box ? 'Last gap: '+days(BOX_DAYS[box]) : 'New card')+'</span></div>'+
-    '<div class="card flash '+(s.flipped?'back':'')+'" id="fc">'+(s.flipped?'<div>'+c[3]+'</div>':'<div><div>'+c[2]+'</div><p class="small" style="margin-top:16px">Say the answer out loud, then tap or press Space to flip.</p></div>')+'</div>'+
+    '<div class="card flash '+(s.flipped?'back':'')+'" id="fc"'+(s.flipped?'':' role="button" tabindex="0"')+'>'+(s.flipped?'<div>'+c[3]+'</div>':'<div><div>'+c[2]+'</div><p class="small" style="margin-top:16px">Say the answer out loud, then tap or press Space to flip.</p></div>')+'</div>'+
     '<div class="row" style="margin-top:14px">'+(s.flipped?'<button id="again">↺ Again <span class="small">1'+(early ? ' · practice' : ' · back tomorrow')+'</span></button><button class="primary" id="good">✓ Got it <span class="small">2'+(early ? ' · practice, schedule unchanged' : ' · next in '+days(nextGap))+'</span></button>':'<button class="primary" id="flip">Flip</button>')+
     (c[3].includes('class="ps"') ? psToggle() : '')+'</div>';
   bindPsToggle();
@@ -1015,12 +1032,13 @@ let lastTitle = '';
 new MutationObserver(()=>{
   const h = view.querySelector('h1'); if(!h || h.dataset.dc) return;
   h.dataset.dc = 1;
+  h.setAttribute('aria-label', h.textContent);   /* screen readers read the real title, not the scramble effect */
   if(h.textContent !== lastTitle){ lastTitle = h.textContent; decrypt(h); }
 }).observe(view, {childList:true});
 /* Flashcard keys: Space flips, 1 = Again, 2 = Got it */
 document.addEventListener('keydown', e=>{
   if(!$('#fc') || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.ctrlKey || e.altKey || e.metaKey) return;
-  if(e.code==='Space' && $('#flip')){ e.preventDefault(); $('#flip').click(); }
+  if((e.code==='Space' || (e.key==='Enter' && e.target.id==='fc')) && $('#flip')){ e.preventDefault(); $('#flip').click(); }
   else if(e.key==='1' && $('#again')){ e.preventDefault(); $('#again').click(); }
   else if(e.key==='2' && $('#good')){ e.preventDefault(); $('#good').click(); }
 });
