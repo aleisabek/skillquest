@@ -11,7 +11,7 @@ const PRACTICE = [
   ['CyberDefenders', 'https://cyberdefenders.org', 'Free blue-team labs, close to real SOC analyst work.'],
   ['LetsDefend', 'https://letsdefend.io', 'A simulated SOC alert queue, with a free tier.']]},
  {group:'📚 Courses & certification prep', items:[
-  ['Professor Messer', 'https://www.professormesser.com', 'Free full video courses for A+, Network+ and Security+. Pair with the Exams tab.'],
+  ['Professor Messer', 'https://www.professormesser.com', 'Free full video courses for A+, Network+ and Security+. Pair with Job prep → Exams.'],
   ['Cisco Networking Academy', 'https://www.netacad.com', 'Free: Introduction to Cybersecurity, Networking Basics, Linux Unhatched, plus Packet Tracer.'],
   ['Microsoft Learn', 'https://learn.microsoft.com/training/', 'Free Microsoft 365, Entra ID and Intune training for IT support roles.']]},
  {group:'🗄️ SQL practice', items:[

@@ -27,16 +27,20 @@ function addNote(kind, task, model, your, sid){
   if(J.length > JOURNAL_MAX) J.length = JOURNAL_MAX;
   save();
 }
+/* Returns true for the first retry of this mistake today (that one counts as a review); later tries the same day don't. */
 function journalResult(id, ok){
-  const e = journal().find(x=>x.id===id); if(!e) return;
+  const e = journal().find(x=>x.id===id); if(!e) return false;
+  const first = e.tried !== dayStr(); e.tried = dayStr();
   if(ok){
     if(!e.hits.includes(dayStr())) e.hits.push(dayStr());
-    if(e.hits.length >= 2){ e.done = true; e.doneAt = dayStr(); if(e.qi!=null){ S.quiz[quizId(e.qi)] = true; delete S.miss[quizId(e.qi)]; } toast('Mistake cleared for good'); }
+    if(e.hits.length >= 2){ e.done = true; e.doneAt = dayStr(); if(e.qi!=null){ S.quiz[quizId(e.qi)] = dayStr(); delete S.miss[quizId(e.qi)]; } toast('Mistake cleared for good'); }
   } else e.hits = [];
   save();
+  return first;
 }
 const isOpen = e=>!e.done && (e.kind==='quiz' ? true : !(e.sid && skillScore(e.sid) >= 70));
-const isDue = e=>e.kind==='quiz' && !e.done && e.hits[e.hits.length-1] !== dayStr();
+/* due = a quiz mistake from an earlier day that you haven't retried today (a missed retry comes back tomorrow, like a card) */
+const isDue = e=>e.kind==='quiz' && !e.done && (e.at||'') < dayStr() && e.tried !== dayStr() && e.hits[e.hits.length-1] !== dayStr();
 const WHY = [['know',"Didn't know it"],['misread','Misread the question'],['mixed','Mixed up two things'],['careless','Careless slip']];
 
 /* Misses saved before the journal existed (S.miss) become journal entries once. */

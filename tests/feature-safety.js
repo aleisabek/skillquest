@@ -13,12 +13,12 @@ const ctx = { console, structuredClone, full: false, toasts };
 ctx.localStorage = { getItem: k => k in store ? store[k] : null, setItem: (k, v) => { if (ctx.full) throw new Error('QuotaExceeded'); store[k] = String(v); }, removeItem: k => { delete store[k]; } };
 vm.createContext(ctx);
 vm.runInContext(before + '\n' + [
-  line('const KEY'), line('const DEFAULT'), line('let saveBlocked'), 'var S;',
+  line('const KEY'), line('const DEFAULT'), line('let saveBlocked'), line('const QUIZ_FADE'), 'var S;',
   'function toast(m){ toasts.push(m); } function header(){}',
   grab('load'), grab('save'), line('function warnSave('), line('const PREV'), line('function snapshot('), line('function prevSnapshot('), grab('undoLast'), line('function hasProgress('),
   grab('migrateTerm'), line('function dayStr('), line('function addDays('), line('function esc('),
   line('const DATE_RE'), line('const isObj'), line('const clampNum'), line('const okDate'), grab('cleanMap'), grab('sanitizeBackup'), grab('cleanEntry'), line('const SAFE_TAGS'), grab('safeHTML'),
-  grab('rateCard'), grab('recountStreak'), grab('mergeProgress'),
+  grab('rateCard'), grab('migrateQuiz'), grab('recountStreak'), grab('mergeProgress'),
   'globalThis.T = { load, save, snapshot, undoLast, sanitizeBackup, safeHTML, rateCard, mergeProgress, dayStr, addDays, KEY, PREV, DEFAULT, QUIZ, CERTS,',
   '  get S(){ return S; }, set S(v){ S = v; }, get blocked(){ return saveBlocked; }, get failed(){ return saveFailed; }, reset(){ saveBlocked = saveFailed = saveWarned = false; } };'
 ].join('\n'), ctx);

@@ -55,12 +55,17 @@ header{position:sticky;top:0;z-index:10;background:linear-gradient(var(--bg),rgb
 .xpbar{width:120px;height:8px;border:1px solid var(--line);background:var(--panel)}
 .xpbar i{display:block;height:100%;background:repeating-linear-gradient(90deg,var(--xp) 0 6px,transparent 6px 8px);box-shadow:0 0 8px var(--xp)}
 .top button{padding:4px 10px}
-nav{max-width:980px;margin:0 auto;padding:0 16px 8px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:thin}
-nav::-webkit-scrollbar{height:4px}
-nav::-webkit-scrollbar-thumb{background:var(--line)}
+nav{max-width:980px;margin:0 auto;padding:0 16px 8px;display:flex;flex-direction:column;gap:4px}
+nav .tabs,nav .subtabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:thin}
+nav .tabs::-webkit-scrollbar,nav .subtabs::-webkit-scrollbar{height:4px}
+nav .tabs::-webkit-scrollbar-thumb,nav .subtabs::-webkit-scrollbar-thumb{background:var(--line)}
+nav .subtabs{padding-left:10px;border-left:1px solid var(--line);margin-left:4px}
+nav .subtabs button{font-size:.78rem;padding:3px 9px}
+nav .subtabs button::before{content:"› "}
 nav button{border:1px solid transparent;background:transparent;padding:6px 10px;color:var(--muted);white-space:nowrap;text-transform:lowercase;font-size:.85rem}
 nav button::before{content:"./";opacity:.55}
 nav button.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);box-shadow:var(--glow)}
+@media (max-width:600px){ nav .tabs,nav .subtabs{flex-wrap:wrap;overflow-x:visible} nav button{padding:5px 8px} }
 h1{font-family:"VT323",monospace;font-weight:400;font-size:2.4rem;line-height:1.1;margin:26px 0 6px;color:var(--accent);text-shadow:var(--glow)}
 h1::before{content:"root@sq:~# ";color:var(--muted);text-shadow:none;font-size:.7em}
 h1::after{content:"█";margin-left:6px;font-size:.8em;animation:blink 1s steps(1) infinite}

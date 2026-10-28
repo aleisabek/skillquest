@@ -59,9 +59,19 @@ Each lab is `labs/labs/NAME/lab.sh` with `TITLE`, `LEVEL`, `LESSON`, `HINTS`, an
 A track level's % is the share of its quiz questions and flashcards that are **retained right now**:
 
 - a card counts while it is at box 3+ and not overdue by more than its own review gap (it shows as *Fading* after that);
-- a quiz question counts only if your latest answer to it was right.
+- a quiz question counts only if your latest answer to it was right and that answer is under 30 days old (`S.quiz` stores the day; it shows as *Fading* after that, and Review offers "Fading quiz questions"). Old `true` values from earlier versions become the day they were first loaded or merged.
 
 Tracks and Progress show the four counts behind it: Retained, Fading, Learning, New. New flashcards are limited to 10 a day across all tracks.
+
+## Streak
+
+A day is **full** when all 3 missions are done **and** reviews are handled: nothing due (cards, mistake retries, fading quiz questions), or 20 reviewed that day so a backlog can't block it. `S.days[day].rev` records it (`false` = not yet); days saved before this rule have no `rev` and still count. Today shows the review status under the missions.
+
+What counts as one review: a due flashcard rated (Again or Got it; new, early and second-try cards don't count), the first retry of a mistake each day (a mistake is due from the day after it was made; a missed retry comes back tomorrow), and any answer to a fading quiz question. Reviews count toward the day they're done, so finishing yesterday's reviews after midnight doesn't save yesterday. When devices merge, a day's review count keeps the larger of the two, not the sum.
+
+## Navigation
+
+Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) · Hands-on (Terminal, SQL, Labs) · Job prep (Interview, Tickets, Exams, Job readiness) · Review (Review, Progress) · Guide (How to use, Free practice). Screen keys are unchanged, so `go('sql')` etc. still work; a top tab returns to the sub-tab you last used.
 
 ## Progress safety
 
