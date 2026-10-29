@@ -407,7 +407,7 @@ function checkFullDay(){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['practice','Free practice'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['practice','Free resources'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
@@ -475,9 +475,9 @@ function vToday(){
       step(4, 'Reviews', st.reviewed, st.reviewed ? 'handled for today' : dueN+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done (clear them, or do '+REVIEW_CAP+')', st.reviewed ? '' : '<div class="chips"><button class="chip" data-go="review">Open Review</button></div>')+
       '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<span class="small">All four steps done. Extra practice is in Study and Hands-on.</span>')+'</div></div>'+
     stripHTML()+
-    (lab ? '<div class="card"><b>🧪 Real lab for today</b> <span class="small">· fits today\'s '+esc(track(lab.tid).name)+' lesson</span>'+
+    (lab ? '<div class="card"><b>🌐 Outside practice (free)</b> <span class="small">· fits today\'s '+esc(track(lab.tid).name)+' lesson</span>'+
       '<p style="margin:8px 0"><a href="'+lab.url+'" target="_blank" rel="noopener">'+esc(lab.name)+' ↗</a> <span class="small">'+esc(lab.note)+'</span></p>'+
-      '<div class="row"><button id="labUsed"'+(lab.usedToday?' disabled':'')+'>'+(lab.usedToday?'✓ Used today':'✓ Mark used today')+'</button><a href="#" id="moreLabs" class="small">More free labs →</a></div></div>' : '')+
+      '<div class="row"><button id="labUsed"'+(lab.usedToday?' disabled':'')+'>'+(lab.usedToday?'✓ Used today':'✓ Mark used today')+'</button><a href="#" id="moreLabs" class="small">More free resources →</a></div></div>' : '')+
     (()=>{ const tip = STRATEGIES[dayNum() % STRATEGIES.length]; return '<details class="tipline"><summary>💡 Tip: <b>'+tip[0]+'</b></summary><p class="small">'+tip[1]+'</p></details>'; })();
   const on = (sel, f)=>{ const b = $(sel); if(b) b.onclick = f; };
   view.querySelectorAll('[data-lesson]').forEach(b=>b.onclick=()=>vLesson(plan.ids[+b.dataset.lesson], 'p'+b.dataset.lesson));

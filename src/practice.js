@@ -21,11 +21,11 @@ const PRACTICE = [
   ['GitHub Student Developer Pack', 'https://education.github.com/pack', 'Free tools and cloud credits with your UHD student email.'],
   ['Your public library', 'https://www.linkedin.com/learning/', 'Many library cards include LinkedIn Learning for free. Also ask UHD\'s cyber program or club about free TryHackMe / Hack The Box educational access.']]}
 ];
-const ROUTINE = [['Daily','SkillQuest missions, plus one OverTheWire Bandit level'],['2× a week','One Professor Messer video, then drill the matching exam domain in SkillQuest'],['1× a week','One picoCTF or Blue Team Labs challenge, plus one sq-lab lab']];
+const ROUTINE = [['Daily','The SkillQuest daily loop, plus one OverTheWire Bandit level'],['2× a week','One Professor Messer video, then drill the matching exam domain in SkillQuest'],['1× a week','One picoCTF or Blue Team Labs challenge, plus one sq-lab lab']];
 function vPractice(){
   current = 'practice'; header();
   S.practice = S.practice || {};
-  view.innerHTML = '<h1>🆓 Free practice</h1><p class="sub">Outside practice that costs nothing, grouped by goal. Mark what you used; the date is saved so you can see what you\'ve been neglecting.</p>'+
+  view.innerHTML = '<h1>🆓 Free resources</h1><p class="sub">Outside practice that costs nothing, grouped by goal. Mark what you used; the date is saved so you can see what you\'ve been neglecting.</p>'+
     '<h2>Suggested weekly routine</h2><div class="card">'+ROUTINE.map(r=>'<div class="ritem"><span><b>'+r[0]+'</b></span><span>'+esc(r[1])+'</span></div>').join('')+'</div>'+
     PRACTICE.map(g=>'<h2>'+g.group+'</h2><div class="grid">'+g.items.map(([name,url,note])=>{ const last = S.practice[name];
       return '<div class="card mission"><h3><a href="'+url+'" target="_blank" rel="noopener">'+esc(name)+' ↗</a></h3><p>'+esc(note)+'</p>'+
