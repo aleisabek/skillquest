@@ -85,8 +85,10 @@ function vLesson(id, mission){
   view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · mastery '+v+'% ('+st+') · about 2 minutes</p>'+
     '<div class="card"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+
     '<h2>The core idea</h2>'+L.idea+
+    (L.seen ? '<h2>You\'ll see this as</h2><div class="model">'+L.seen+'</div>' : '')+
     '<h2>Worked example</h2><div class="model">'+L.example+'</div>'+
     '<h2>Common mistakes</h2><ul class="clean">'+L.mistakes.map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
+    (L.spot ? '<h2>Spot the problem</h2><p>'+L.spot.q+'</p><details><summary>Show the answer</summary><p>'+L.spot.a+'</p></details>' : '')+
     '<h2>Say it in an interview</h2><div class="explain">"'+L.say+'"</div>'+
     '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: '+(fromPlan ? PRACTICE_N+' exercises (today’s plan)' : '6 fresh problems')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div>';
   $('#prac').onclick = ()=>{ markRead(); startSkill(s, fromPlan ? PRACTICE_N : 6, mission || null); };

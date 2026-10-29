@@ -259,7 +259,7 @@ const SECRET_ACTIONS = ['Revoke and rotate it first, then remove it from the cod
 const SECRETS = [
   ['A teammate finds a live API key that was committed to GitHub last week.', 0],
   ['An access token was pasted into a public chat by mistake.', 0],
-  ['You download a trading script from a forum and want to know what it does.', 1],
+  ['You download a script from a forum and want to know what it does.', 1],
   ['Someone sends you a "quick fix" script to run on the server.', 1],
   ['Your app needs an API key to run. Where should the key live?', 2],
   ['Where should the production database password be stored?', 2],
@@ -287,6 +287,98 @@ GEN.qa[2].push(
 GEN.sec[2].push(
   sk('Secrets & untrusted code', ()=>{ const [s,v] = pick(SECRETS); return mcq('sec',2,'"'+s+'" What is the right move?', SECRET_ACTIONS[v], SECRET_ACTIONS,
       ['Once a secret is exposed, deleting it is not enough: anyone may have copied it. Revoke and rotate first, then clean the code and history.','Untrusted code is read and reviewed before it ever runs; running it is how malware gets in.','Secrets live outside the code (environment variables or a secrets manager), so the repo never holds them.','Catch it before it is committed: stop, move the secret out, and only then commit.'][v]); }, {lookup:true})
+);
+
+/* ---- Security foundations: access control, attack types, firewalls, incident response ---- */
+const ACM = [
+  ['Everyone in the "Nurses" group gets the same chart access because of their job.', 'RBAC (role-based)'],
+  ['A new hire in Support is added to the Support group and gets the support tools automatically.', 'RBAC (role-based)'],
+  ['Payroll can be opened only by Finance staff, on a company laptop, during work hours.', 'ABAC (attribute-based)'],
+  ['The HR app allows access only from a managed device located in the US.', 'ABAC (attribute-based)'],
+  ['The owner of a shared folder decides who else can open it.', 'DAC (discretionary)'],
+  ['You share your own document with a coworker from its Share menu.', 'DAC (discretionary)'],
+  ['Files carry labels like Secret and Top Secret; only matching clearances can read them, and users cannot change the labels.', 'MAC (mandatory)']
+];
+const ACM_ALL = ['RBAC (role-based)','ABAC (attribute-based)','DAC (discretionary)','MAC (mandatory)'];
+const PRINC = [
+  ['One employee can both add a new vendor and approve payments to it.', 'Separation of duties'],
+  ['An admin writes a firewall change and approves it themselves.', 'Separation of duties'],
+  ['A new intern gets domain admin "so they won\'t need to ask."', 'Least privilege'],
+  ['The backup app\'s service account is a full admin on every server.', 'Least privilege'],
+  ['The only protection is the perimeter firewall: no MFA, no endpoint protection, no backups.', 'Defense in depth'],
+  ['Five techs share one admin login, so nobody can tell who made a change.', 'Accountability']
+];
+const PRINC_ALL = ['Least privilege','Separation of duties','Defense in depth','Accountability'];
+const ATK = [
+  ['A text message says a package is held and links to a fake delivery site.', 'Smishing'],
+  ['A caller claiming to be the help desk asks for your MFA code.', 'Vishing'],
+  ['An email that looks like it\'s from the CEO urgently asks you to buy gift cards.', 'Phishing'],
+  ['Files on a shared drive are renamed *.locked and a note demands payment.', 'Ransomware'],
+  ['A website goes down as traffic floods in from thousands of machines at once.', 'DDoS'],
+  ['On public Wi-Fi, an attacker relays and reads traffic between a laptop and a website.', 'On-path (man-in-the-middle)'],
+  ['A free "PDF converter" download also installs a hidden remote-access tool.', 'Trojan'],
+  ['A login form passes user input straight into a database query, so input can change the query.', 'SQL injection'],
+  ['A comment box saves text that later runs as script in other visitors\' browsers.', 'Cross-site scripting (XSS)']
+];
+const ATK_ALL = ATK.map(a=>a[1]).filter((v,i,a)=>a.indexOf(v)===i);
+const LOGIN_CAUSE = {brute:'Brute force', spray:'Password spraying', stuff:'Credential stuffing', typo:'A user mistyping their password'};
+const LOGIN_WHY = {
+  brute:'One account, many passwords: brute force. Defense: account lockout or throttling, MFA, strong passwords.',
+  spray:'Many accounts, one password: password spraying. It stays under per-account lockout limits, so count distinct accounts per source.',
+  stuff:'Many accounts, each tried once with its own password: credential stuffing with pairs leaked elsewhere. Defense: MFA and blocking breached passwords.',
+  typo:'A couple of failures on one account is normal: someone mistyping. No incident, but watch for it repeating.'
+};
+const ipNum = s=>s.split('.').reduce((a,b)=>a*256 + +b, 0);
+function inCidr(ip, cidr){ const [n,b] = cidr.split('/'), m = +b === 0 ? 0 : (0xFFFFFFFF << (32 - +b)) >>> 0; return ((ipNum(ip) & m) >>> 0) === ((ipNum(n) & m) >>> 0); }
+const FW_STATEFUL = ['Lets reply traffic back in automatically because it tracks connections.', 'Keeps a table of active connections and checks packets against it.', 'Most cloud security groups: responses to allowed requests return without an extra rule.'];
+const FW_STATELESS = ['Judges every packet on its own, so return traffic needs its own rule.', 'A basic router ACL (access control list) that checks only each packet\'s header.', 'An AWS network ACL, which needs rules for traffic in both directions.'];
+const IR_STEPS = ['Preparation','Detection','Analysis','Containment','Eradication','Recovery','Lessons learned'];
+const IR_ACTS = [
+  ['Writing the incident response plan and call list before anything happens', 'Preparation'],
+  ['Making sure logging is on and backups are tested', 'Preparation'],
+  ['An EDR alert fires for unusual mass file encryption', 'Detection'],
+  ['A user reports a pop-up demanding payment', 'Detection'],
+  ['Checking whether the alert is real and how many machines are affected', 'Analysis'],
+  ['Disconnecting the infected laptop from the network', 'Containment'],
+  ['Disabling a compromised account while you investigate', 'Containment'],
+  ['Removing the malware and closing the hole it came in through', 'Eradication'],
+  ['Restoring files from a clean backup and watching for signs of return', 'Recovery'],
+  ['Meeting afterward to decide what to change so it doesn\'t happen again', 'Lessons learned']
+];
+GEN.sec[1].push(
+  sk('Least privilege & access control', ()=>{ const [s,a] = pick(ACM); return mcq('sec',1,'"'+s+'" Which access control model is this?', a, ACM_ALL,
+      'RBAC = by job role. ABAC = by attributes (department, device, time, location). DAC = the owner decides. MAC = labels set by policy that users cannot change. Here: '+a+'.'); }, {lookup:true}),
+  sk('Least privilege & access control', ()=>{ const [s,a] = pick(PRINC); return mcq('sec',1,'"'+s+'" Which principle does this break?', a, PRINC_ALL,
+      {'Separation of duties':'Risky work should need two people, so one person can\'t both do and approve it.', 'Least privilege':'Give only the access the job needs, for as long as it is needed.',
+       'Defense in depth':'Layer several controls so one failure isn\'t fatal.', 'Accountability':'Individual accounts and logs show who did what; shared logins hide it.'}[a]); }, {lookup:true, noType:true}),
+  sk('Attack types', ()=>{ const [s,a] = pick(ATK); return mcq('sec',1,'"'+s+'" What kind of attack is this?', a, ATK_ALL,
+      a+'. Recognizing the attack tells you the first move: report and block phishing, isolate for ransomware, fix input handling for injection.'); }, {lookup:true, noType:true}),
+  sk('Attack types', ()=>{ const kind = pick(Object.keys(LOGIN_CAUSE)); let fails, users, pws;
+      if(kind==='brute'){ users = 1; fails = rnd(25,90); pws = fails; }
+      else if(kind==='spray'){ users = rnd(15,80); fails = users; pws = 1; }
+      else if(kind==='stuff'){ users = rnd(15,80); fails = users; pws = users; }
+      else { users = 1; fails = rnd(2,3); pws = rnd(1,2); }
+      return mcq('sec',1,'In 10 minutes from one IP address: <b>'+fails+'</b> failed logins, across <b>'+users+'</b> account'+(users>1?'s':'')+', using <b>'+pws+'</b> '+(pws>1?'different passwords':'password')+'. What is the most likely cause?',
+        LOGIN_CAUSE[kind], Object.values(LOGIN_CAUSE), LOGIN_WHY[kind]); }),
+  sk('Firewalls', ()=>{ const admin = '10.'+rnd(0,9)+'.'+rnd(0,255)+'.0/24', svc = pick([22,3389,3306,445]), web = pick([80,443]);
+      const rules = [['allow', admin, svc], ['deny', 'any', svc], ['allow', 'any', web], ['deny', 'any', 'any']];
+      if(Math.random() < .35){ const t = rules[0]; rules[0] = rules[1]; rules[1] = t; }   /* sometimes the deny sits first and blocks the admins too */
+      const insider = admin.replace('.0/24', '.'+rnd(2,250)), outsider = pick(['198.51.100.','203.0.113.'])+rnd(2,250);
+      const src = pick([insider, outsider]), port = pick([svc, svc, web, 8080]);
+      const hit = rules.findIndex(r=>(r[1]==='any' || inCidr(src, r[1])) && (r[2]==='any' || r[2]===port));
+      const say = i=>(rules[i][0]==='allow' ? 'Allowed' : 'Denied')+' by rule '+(i+1);
+      return mcq('sec',1,'Firewall rules (checked top to bottom, first match wins):'+tableHTML(['#','Action','Source','Port'], rules.map((r,i)=>[i+1, r[0], r[1], r[2]]))+
+        'A packet from <code>'+src+'</code> to port <code>'+port+'</code> arrives. What happens?', say(hit), rules.map((r,i)=>say(i)),
+        'Rule '+(hit+1)+' is the first one that matches source '+src+' and port '+port+', so the packet is '+(rules[hit][0]==='allow'?'allowed':'denied')+'. Rules below it never run.'); }),
+  sk('Firewalls', ()=>{ const stateful = Math.random() < .5, right = pick(stateful ? FW_STATEFUL : FW_STATELESS);
+      return mcq('sec',1,'Which statement describes a <b>'+(stateful?'stateful':'stateless')+'</b> firewall?', right, stateful ? FW_STATELESS : FW_STATEFUL,
+        'Stateful firewalls track connections, so replies to allowed traffic come back in. Stateless ones judge each packet alone and need rules for both directions.'); }, {lookup:true})
+);
+GEN.sec[2].push(
+  sk('Incident response', ()=>{ const [s,a] = pick(IR_ACTS); return mcq('sec',2,'"'+s+'." Which incident response step is this?', a, IR_STEPS,
+      'Preparation, Detection, Analysis, Containment, Eradication, Recovery, Lessons learned. This one is '+a+'.'); }, {lookup:true}),
+  sk('Incident response', ()=>{ const i = rnd(0, IR_STEPS.length-2); return mcq('sec',2,'In incident response, what comes right after "'+IR_STEPS[i]+'"?', IR_STEPS[i+1], IR_STEPS,
+      'The order: '+IR_STEPS.join(' → ')+'. Contain before you eradicate, and recover only once the cause is gone.'); })
 );
 
 /* SQL generators use a fresh random tickets table every time */

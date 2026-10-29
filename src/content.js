@@ -374,7 +374,17 @@ const CARDS = [
  ['linux',2,'Check and open the Ubuntu firewall','<code>sudo ufw status</code> and <code>sudo ufw allow 22/tcp</code><span class="ps">PowerShell: <code>Get-NetFirewallRule</code></span>','admin'],
  ['linux',2,'See who is logged in and recent logins','<code>who</code> now; <code>last</code> history','admin'],
  ['linux',2,'Show the kernel and Linux version','<code>uname -a</code> and <code>cat /etc/os-release</code><span class="ps">PowerShell: <code>Get-ComputerInfo</code></span>','admin'],
- ['linux',2,'Show which DNS servers the system uses','<code>resolvectl status</code> (or <code>cat /etc/resolv.conf</code>)<span class="ps">PowerShell: <code>Get-DnsClientServerAddress</code></span>','admin']
+ ['linux',2,'Show which DNS servers the system uses','<code>resolvectl status</code> (or <code>cat /etc/resolv.conf</code>)<span class="ps">PowerShell: <code>Get-DnsClientServerAddress</code></span>','admin'],
+ /* ---- Security foundations (Phase 2) ---- */
+ ['sec',1,'Access control models','<b>RBAC</b> (role-based access control): access by job role. <b>ABAC</b> (attribute-based): rules on department, device, time. <b>DAC</b> (discretionary): the owner shares. <b>MAC</b> (mandatory): labels set by policy that users can\'t change.','s-core'],
+ ['sec',1,'Separation of duties','Split risky tasks so one person can\'t do them alone: one person adds a vendor, another approves its payments.','s-core'],
+ ['sec',1,'Firewall rule order','Rules are checked top to bottom and the <b>first match wins</b>. Put specific rules above broad ones; a final deny-all blocks the rest.','s-defense'],
+ ['sec',1,'Stateful vs stateless firewall','Stateful tracks connections, so replies to allowed traffic come back in automatically. Stateless judges each packet alone, so return traffic needs its own rule.','s-defense'],
+ ['sec',1,'Social engineering types','Phishing (email), smishing (text), vishing (phone call), pretexting (a made-up story to get information). Defense: training, verifying requests through a known channel, reporting.','s-threats'],
+ ['sec',1,'Credential stuffing','Username and password pairs leaked from another site are tried here. It works because people reuse passwords. Defense: MFA, blocking breached passwords, unique passwords.','s-threats'],
+ ['sec',2,'Containment vs eradication','Containment stops the spread now (isolate the device, disable the account). Eradication removes the cause (malware, attacker access, the weakness used). Contain first.','s-ops'],
+ ['sec',2,'Lessons learned','The last incident response step: what happened, what worked, what to change. Update the plan, controls and training so it doesn\'t repeat.','s-ops'],
+ ['sec',2,'Just-in-time access','Admin rights granted only when needed: requested, approved, time-limited and logged, instead of permanent admin accounts.','s-core']
 ];
 
 /* Quiz: [track, level, question, options, correctIndex, explanation] */
@@ -517,7 +527,11 @@ const QUIZ = [
  ['sql',2,'<code>ROLLBACK</code> does what?',['Undoes the changes made in the current transaction','Deletes the table','Restores last week\'s backup','Repeats the last query'],0,'COMMIT saves; ROLLBACK cancels.'],
  ['sql',2,'An index on a column mainly:',['Makes searches on that column faster','Encrypts the column','Prevents duplicates in every case','Deletes old rows'],0,'Only a UNIQUE index blocks duplicates. Indexes cost a little storage and write speed.'],
  ['sql',2,'An INNER JOIN of tickets to users on assigned_to = id leaves out:',['Tickets with no assigned user','Users with tickets','All high-priority tickets','Nothing'],0,'Rows without a match on both sides are dropped.'],
- ['sql',2,'A safe habit before running a DELETE is to:',['Run the same WHERE as a SELECT and check the rows','Delete everything and restore later','Remove the WHERE to be thorough','Run it twice'],0,'Seeing exactly what will be removed prevents disasters.']
+ ['sql',2,'A safe habit before running a DELETE is to:',['Run the same WHERE as a SELECT and check the rows','Delete everything and restore later','Remove the WHERE to be thorough','Run it twice'],0,'Seeing exactly what will be removed prevents disasters.'],
+ ['sec',1,'Which access control model gives permissions based on a person\'s job role?',['RBAC (role-based access control)','DAC (discretionary access control)','MAC (mandatory access control)','ABAC (attribute-based access control)'],0,'RBAC grants access by role, so a new hire in a role gets exactly that role\'s permissions.'],
+ ['sec',1,'A firewall following good practice checks rules top to bottom. What happens to traffic that matches none of the rules?',['It is blocked by the implicit (default) deny','It is allowed','It is logged and allowed','It is passed to the next firewall'],0,'Good practice (and Security+) assumes an implicit deny: anything not explicitly allowed is blocked. Not every product defaults this way, which is why rule sets end with an explicit deny-all.'],
+ ['sec',2,'Ransomware is found on one laptop. What should happen first?',['Isolate the laptop from the network','Restore the files from backup','Reimage the laptop right away','Email all staff about it'],0,'Containment comes before eradication and recovery: stop the spread first, and keep the evidence.'],
+ ['sec',2,'Dozens of accounts each get one failed login, all with the same password. What is this?',['Password spraying','Brute force','Credential stuffing','A DDoS attack'],0,'Spraying tries one common password across many accounts to stay under lockout limits.']
 ];
 
 /* Terminal challenges: task, accepted patterns (after normalizing), model answer, hint */
@@ -856,6 +870,33 @@ const SCEN = [
    ['Check it by hand every morning.',3,'Not reliable. Automate it.'],
    ['Buy a bigger disk.',4,'Might help for a while, but without rotation the log fills that one too.'],
    ['Turn off the app\'s logging completely.',1,'You lose the information you need for troubleshooting.']]}
+ ]},
+ {id:'phish', title:'Suspicious invoice email', role:'IT support / junior SOC analyst', job:'Security path', steps:[
+  {s:'A user forwards an "overdue invoice" email with a link and asks if they should open it. It shows as from <b>"Accounts Payable" &lt;billing@yourcompany.com&gt;</b>. First move?', c:[
+   ['Tell them not to click, have them report it with the Report button, and grab the full message with headers.',10,'Stop the click, keep the evidence, and use the reporting path so the security tools see it.'],
+   ['Ask them to click the link so you can see where it goes.',1,'Opening it on their machine is exactly what the attacker wants.'],
+   ['Tell them to delete it and forget about it.',4,'Safe for them, but others may have received it and nobody can investigate.'],
+   ['Reply to the sender asking if it is real.',2,'Replying confirms the address is live and talks to the attacker.']]},
+  {s:'The headers show: From <code>billing@yourcompany.com</code>, Return-Path <code>bounce@mail-invoices.example</code>, SPF fail, DMARC fail. What does that tell you?', c:[
+   ['It is not from your company: SPF failed for the sending (envelope) domain, and DMARC failed because the From domain doesn\'t line up with an authenticated sender. Treat it as phishing.',10,'SPF checks the Return-Path (envelope) domain; DMARC checks that the visible From domain aligns with SPF or DKIM. A different Return-Path alone is normal for bulk mail; the failed DMARC is the strong sign.'],
+   ['It is fine, because the display name says Accounts Payable.',1,'Display names are free text; anyone can type "Accounts Payable."'],
+   ['SPF failing just means the email is old.',2,'SPF checks whether the sending server is allowed for the envelope domain, not the email\'s age.'],
+   ['It is spam, so no action is needed.',3,'A spoofed invoice with a link is phishing, which needs follow-up.']]},
+  {s:'The user admits they clicked earlier and typed their password into the page. What now?', c:[
+   ['Reset the password, revoke their active sessions, and check their MFA methods, inbox forwarding rules and recent sign-ins.',10,'Contain the account: a new password alone does not end sessions, remove an MFA method the attacker added, or delete a forwarding rule they set up.'],
+   ['Tell them to keep an eye out for weird emails.',2,'The account may already be in use by the attacker.'],
+   ['Reimage their laptop and leave the account alone.',4,'The stolen thing is the password; the account is the priority.'],
+   ['Nothing, since they have MFA.',1,'MFA can be bypassed or the attacker may have added their own method; check.']]},
+  {s:'Others got the same email. How do you limit the damage?', c:[
+   ['Search mailboxes for the message, remove it, and block the sender domain and link; check whether anyone else clicked.',10,'Scope the whole campaign, not just one inbox.'],
+   ['Send an all-staff email with the link so people know what to avoid.',2,'Spreading the live link invites more clicks.'],
+   ['Wait for more reports to come in.',2,'Every hour waiting gives the attacker more chances.'],
+   ['Block only the one user\'s email.',3,'The campaign reached others.']]},
+  {s:'Things are under control. What closes this out?', c:[
+   ['Write ticket notes with the timeline, the sender, link and indicators, the actions taken, and notify security per policy.',10,'Good notes let the next person continue and feed lessons learned.'],
+   ['Close the ticket with "handled."',2,'Nobody can learn from or audit that.'],
+   ['Post the user\'s name in the team chat as a warning.',1,'Blaming users discourages reporting.'],
+   ['Delete the evidence so it can\'t spread.',2,'Keep the evidence for the investigation and lessons learned.']]}
  ]}
 ];
 
