@@ -15,7 +15,7 @@ An offline practice app for entry-level IT jobs: IT support & Microsoft 365, net
 
 `npm run build` also writes `dist/SkillQuest-phone.html`: the same app with `PHONE = true` (no file downloads or microphone; backups move by copy/paste), shaped for the claude.ai artifact viewer. It is published as a **private** artifact at:
 
-**https://claude.ai/artifact/94UVR69nmwKTGZRyYr7pb2**
+**https://claude.ai/artifact/GEJcWUxJjXUbdr8Mz9Mzrq** (since 2026-10-28; the earlier link, .../94UVR69nmwKTGZRyYr7pb2, holds the old build. Move phone progress with Copy backup there and Merge pasted backup here.)
 
 Always republish to that same URL so progress saved on the phone survives updates. PC and phone keep separate progress; combine them with Progress → Copy backup on one device and "Merge pasted backup" on the other.
 
