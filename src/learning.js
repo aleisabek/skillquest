@@ -32,6 +32,8 @@ function recordSkill(id, correct, sure){
   const m = S.mastery[id] = S.mastery[id] || {s:0, n:0, right:0, last:null};
   m.s = correct ? cur + (100-cur)*(sure ? 0.3 : 0.12) : cur*0.65;
   m.n++; if(correct) m.right++; m.last = dayStr();
+  /* misses per skill per day: 2+ in a day brings its lesson back in the daily plan (see lessonNeeded) */
+  if(!correct){ S.slip = S.slip || {}; const sl = S.slip[id]; S.slip[id] = sl && sl.day === dayStr() ? {day:sl.day, n:sl.n+1} : {day:dayStr(), n:1}; }
   save();
 }
 function skillStatus(id){
@@ -72,7 +74,10 @@ function vLesson(id, mission){
   const s = skillById(id), L = lessonFor(id);
   if(!s || !L){ toast('No lesson for this skill yet'); return; }
   current = 'skills'; header();
-  S.lessons = S.lessons || {}; S.lessons[id] = dayStr(); save();
+  /* a lesson counts as read when you finish it (Practice or Back), not when it opens. From today's plan (mission
+     'p0'..'p2') that can complete the Learn step, and its practice is that slot's exercises. */
+  const fromPlan = /^p[0-2]$/.test(mission||'');
+  const markRead = ()=>{ S.lessons = S.lessons || {}; S.lessons[id] = dayStr(); S.days[dayStr()] = S.days[dayStr()] || {}; afterStep(); save(); };
   const v = skillScore(id), [st, cls] = skillStatus(id);
   view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · mastery '+v+'% ('+st+') · about 2 minutes</p>'+
     '<div class="card"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+
@@ -80,9 +85,9 @@ function vLesson(id, mission){
     '<h2>Worked example</h2><div class="model">'+L.example+'</div>'+
     '<h2>Common mistakes</h2><ul class="clean">'+L.mistakes.map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
     '<h2>Say it in an interview</h2><div class="explain">"'+L.say+'"</div>'+
-    '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: 6 fresh problems</button><button id="back">Skills map</button></div></div>';
-  $('#prac').onclick = ()=>startSkill(s, 6, mission || null);
-  $('#back').onclick = ()=>go('skills');
+    '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: '+(fromPlan ? PRACTICE_N+' exercises (today’s plan)' : '6 fresh problems')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div>';
+  $('#prac').onclick = ()=>{ markRead(); startSkill(s, fromPlan ? PRACTICE_N : 6, mission || null); };
+  $('#back').onclick = ()=>{ markRead(); go(fromPlan ? 'today' : 'skills'); };
 }
 
 /* ---- Skills map view ---- */

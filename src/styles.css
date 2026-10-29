@@ -178,3 +178,22 @@ input.typed.no{border-color:var(--bad)}
 .ask{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:rgba(0,0,0,.6);padding:16px}
 .ask .card{max-width:420px;width:100%;border-color:var(--accent);box-shadow:var(--glow)}
 .term .line.outp{color:var(--muted);white-space:pre-wrap}
+/* Today: loop checklist, 14-day strip, slim notices, one-line tip */
+.today .step{display:flex;gap:12px;padding:10px 0;border-top:1px dashed var(--line)}
+.today .chk{flex:0 0 18px;color:var(--muted);font-weight:700}
+.today .step.ok .chk{color:var(--good)}
+.today .step.ok b{color:var(--good)}
+.strip{margin-top:14px}
+.sqs{display:flex;gap:4px;flex-wrap:wrap;margin:10px 0 6px}
+.sq{display:inline-block;width:16px;height:16px;border:1px solid var(--line);vertical-align:middle}
+.sq.full{background:var(--good);border-color:var(--good)}
+.sq.part{background:var(--warn);border-color:var(--warn);opacity:.75}
+.sq.today{border-color:var(--accent);box-shadow:var(--glow)}
+.strip .small .sq{width:10px;height:10px;margin:0 2px 0 8px}
+.slim{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-top:14px;padding:6px 12px;border:1px solid var(--line);border-left:3px solid var(--xp);font-size:.85rem;background:var(--panel)}
+.slim button{padding:3px 10px;font-size:.8rem}
+.tipline{margin-top:14px;font-size:.88rem}
+.tipline summary{color:var(--muted);font-weight:400}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.today .row + .step{margin-top:8px}
+@media (max-width:600px){ .chip{min-height:36px} }

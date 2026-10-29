@@ -63,9 +63,18 @@ A track level's % is the share of its quiz questions and flashcards that are **r
 
 Tracks and Progress show the four counts behind it: Retained, Fading, Learning, New. New flashcards are limited to 10 a day across all tracks.
 
+## Daily learning loop (Today)
+
+Each day: **Learn** 3 two-minute lessons → **Practice** 4 typed exercises from each of those skills → **Apply** one ticket or interview rep in the main skill's area → **Reviews**. Today shows it as a 4-step checklist with a **Next up** button, the last 14 days, one suggested free lab (matched to today's skills, rotating away from ones used this week) and a one-line tip.
+
+- **Path:** cloud security + red team, foundations first (`PATH` in app.js). Every beginner skill stays; the path only orders them. Per track, Level 1 comes first and Level 2 opens once the track's Level 1 skills average 70%. Weights: Linux, networking, security 3; code and SQL 2; IT support 1; Software Testing is not on the path (still in Study). Cloud Security and Offensive Security tracks are the planned next stage.
+- **Today's 3 skills** (`dailyPlan`, fixed for the day in `S.plan`): two path skills from different tracks (started-but-weak first, then new ones by weight and level) plus one slipping skill you've started (or a third track when none is slipping).
+- **Lessons come back** when a skill you've read drops under 50% or you miss 2+ of its exercises in a day (`S.slip`); otherwise a read lesson is skipped as healthy.
+- **Day flags:** `p0`–`p2` per practice slot, `practice` when all three are done, `learn` when no needed lesson is left (once something was actually done), `apply`, and `rev`.
+
 ## Streak
 
-A day is **full** when all 3 missions are done **and** reviews are handled: nothing due (cards, mistake retries, fading quiz questions), or 20 reviewed that day so a backlog can't block it. `S.days[day].rev` records it (`false` = not yet); days saved before this rule have no `rev` and still count. Today shows the review status under the missions.
+A day is **full** when the loop (learn, practice, apply) is done **and** reviews are handled; days from before the loop count with the old three missions. Reviews are handled when there is: nothing due (cards, mistake retries, fading quiz questions), or 20 reviewed that day so a backlog can't block it. `S.days[day].rev` records it (`false` = not yet); days saved before this rule have no `rev` and still count. Today shows it as step 4 of the checklist.
 
 What counts as one review: a due flashcard rated (Again or Got it; new, early and second-try cards don't count), the first retry of a mistake each day (a mistake is due from the day after it was made; a missed retry comes back tomorrow), and any answer to a fading quiz question. Reviews count toward the day they're done, so finishing yesterday's reviews after midnight doesn't save yesterday. When devices merge, a day's review count keeps the larger of the two, not the sum.
 
