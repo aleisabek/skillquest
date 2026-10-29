@@ -327,7 +327,7 @@ function dailyPlan(){
   return S.plan;
 }
 /* The rep for today: a ticket scenario in the main skill's area while its best score is under 90, otherwise an interview question. */
-const SCEN_TRACK = {disk:'linux', noc:'net', pos:'support', lockout:'support', regression:'qa'};
+const SCEN_TRACK = {disk:'linux', noc:'net', pos:'support', lockout:'support', regression:'qa', phish:'sec'};
 function applyRep(id){
   const s = id && skillById(id), tid = s ? s.tid : 'linux';
   const sc = SCEN.findIndex(x=>SCEN_TRACK[x.id] === tid && ((S.tickets||{})[x.id]||0) < 90);

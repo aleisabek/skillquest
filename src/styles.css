@@ -197,3 +197,5 @@ input.typed.no{border-color:var(--bad)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .today .row + .step{margin-top:8px}
 @media (max-width:600px){ .chip{min-height:36px} }
+/* lesson snippets ("You'll see this as"): log lines and rule tables keep their columns and scroll sideways on phones */
+.model pre{margin:0 0 6px;white-space:pre;overflow-x:auto;font:inherit;font-size:.85em;color:var(--term-text)}

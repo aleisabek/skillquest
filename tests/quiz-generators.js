@@ -51,7 +51,7 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
     const lo = +m[1], hi = +m[2], g = v => v < lo ? 'too low' : v > hi ? 'too high' : 'valid';
     if (g(+A) !== m[3]) fail('partA', q); O.slice(1).forEach(o => { if (g(+o) === m[3]) fail('partW', q); }); }
   else if ((m = Q.match(/what comes right after "(.+?)"\?/))) {
-    const lists = [['Identify the problem','Establish a theory of probable cause','Test the theory','Make a plan of action','Implement the fix or escalate','Verify it works and prevent repeats','Document everything'], ['Requirement analysis','Test planning','Test case design','Test environment setup','Test execution','Test closure']];
+    const lists = [['Preparation','Detection','Analysis','Containment','Eradication','Recovery','Lessons learned'],['Identify the problem','Establish a theory of probable cause','Test the theory','Make a plan of action','Implement the fix or escalate','Verify it works and prevent repeats','Document everything'], ['Requirement analysis','Test planning','Test case design','Test environment setup','Test execution','Test closure']];
     const L = lists.find(l => l.includes(m[1])); if (!L || A !== L[L.indexOf(m[1]) + 1]) fail('order', q); }
   else if ((m = Q.match(/a bug is in (\w+)\. What is the next state/))) { const F = ['New','Assigned','Open','Fixed','Retest','Verified','Closed']; if (A !== F[F.indexOf(m[1]) + 1]) fail('bugflow', q); }
   else if (/true multi-factor authentication/.test(Q)) {
@@ -67,6 +67,16 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
     const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     let mo = MON.indexOf(m[1]) - (+m[3] - 1), y = +m[2]; while (mo < 0) { mo += 12; y--; }
     if (A !== MON[mo] + ' ' + y) fail('sealed month ' + MON[mo] + ' ' + y, q); }
+  else if ((m = Q.match(/: (\d+) failed logins, across (\d+) accounts?, using (\d+) (?:different passwords|password)\./))) {
+    const f = +m[1], u = +m[2], p = +m[3];
+    const e = u === 1 && f <= 3 ? 'A user mistyping their password' : u === 1 ? 'Brute force' : p === 1 ? 'Password spraying' : p === u ? 'Credential stuffing' : null;
+    if (!e || A !== e) fail('login pattern ' + e, q); }
+  else if ((m = Q.match(/A packet from (\d+\.\d+\.\d+\.\d+) to port (\d+) arrives/))) {
+    const num = ip => ip.split('.').reduce((a, b) => a * 256 + +b, 0);
+    const inNet = (ip, c) => { const [n, b] = c.split('/'); const size = 2 ** (32 - +b); return Math.floor(num(ip) / size) === Math.floor(num(n) / size); };
+    const rules = [...q[2].matchAll(/<tr><td>(\d+)<\/td><td>(allow|deny)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><\/tr>/g)].map(x => ({ n: +x[1], act: x[2], src: x[3], port: x[4] }));
+    const hit = rules.find(r => (r.src === 'any' || inNet(m[1], r.src)) && (r.port === 'any' || +r.port === +m[2]));
+    if (rules.length < 3 || !hit || A !== (hit.act === 'allow' ? 'Allowed' : 'Denied') + ' by rule ' + hit.n) fail('firewall first match', q); }
   else if (G[tid][lv][gi].lookup) unchecked[tid + lv + ':' + gi] = Q.slice(0, 50);
   else { notVerified[G[tid][lv][gi].sk] = Q.slice(0, 70); }
 }
