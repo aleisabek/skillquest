@@ -81,7 +81,7 @@ What counts as one review: a due flashcard rated (Again or Got it; new, early an
 
 ## Navigation
 
-Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) · Hands-on (Terminal, SQL, Labs) · Job prep (Interview, Tickets, Exams, Job readiness) · Review (Review, Progress) · Guide (How to use, Free practice). Screen keys are unchanged, so `go('sql')` etc. still work; a top tab returns to the sub-tab you last used.
+Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) · Hands-on (Terminal, SQL, Labs) · Job prep (Interview, Tickets, Exams, Job readiness) · Review (Review, Progress) · Guide (How to use, Free resources). Screen keys are unchanged, so `go('sql')` etc. still work; a top tab returns to the sub-tab you last used.
 
 ## Progress safety
 

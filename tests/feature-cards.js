@@ -17,7 +17,7 @@ const fronts = new Map();
 CARDS.forEach((c, i) => {
   if (c.length !== 4 && c.length !== 5) fail('card', i, 'should have 4 or 5 fields');
   if (c[4] !== undefined && !CARD_TOPICS[c[4]]) fail('card', i, 'unknown topic', c[4]);
-  if (c[0] === 'linux' && !c[4]) fail('linux card', i, 'needs a topic so Browse can filter it');
+  if (!c[4]) fail('card', i, 'needs a topic so Browse can filter it');
   const f = c[0] + '|' + strip(c[2]);
   if (fronts.has(f)) fail('duplicate front:', c[2], '(cards', fronts.get(f), 'and', i + ')');
   fronts.set(f, i);

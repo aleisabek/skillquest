@@ -4,11 +4,14 @@
 
 /* Every skill you can practice: quiz skills per track, plus Terminal and SQL console skills.
    id = 'kind:track:skill name' (used as the key for mastery and lessons). */
+/* Display-only area overrides: these trading-research skills live in the Software Testing generators (so their ids,
+   and the progress saved under them, stay 'quiz:qa:...') but belong with research and data work. */
+const AREA_OF = {'quiz:qa:Pre-registration':'Research & data', 'quiz:qa:Walk-forward testing':'Research & data', 'quiz:qa:Holdout data':'Research & data'};
 function allSkills(){
   if(allSkills.cache) return allSkills.cache;
   const lvsOf = (list, sk)=>[...new Set(list.filter(g=>g.sk===sk).map(g=>g.lv))].sort();
   const list = [];
-  TRACKS.forEach(t=>genSkills(t.id).forEach(([sk,lvs])=>list.push({id:'quiz:'+t.id+':'+sk, kind:'quiz', tid:t.id, sk, lvs, icon:t.icon, area:t.name})));
+  TRACKS.forEach(t=>genSkills(t.id).forEach(([sk,lvs])=>list.push({id:'quiz:'+t.id+':'+sk, kind:'quiz', tid:t.id, sk, lvs, icon:t.icon, area:AREA_OF['quiz:'+t.id+':'+sk] || t.name})));
   skillsOf(TGEN).forEach(sk=>list.push({id:'term:linux:'+sk, kind:'term', tid:'linux', sk, lvs:lvsOf(TGEN, sk), icon:'⌨️', area:'Terminal (type commands)'}));
   skillsOf(SGEN).forEach(sk=>list.push({id:'sql:sql:'+sk, kind:'sql', tid:'sql', sk, lvs:lvsOf(SGEN, sk), icon:'🗄️', area:'SQL console (write queries)'}));
   return allSkills.cache = list;
@@ -100,9 +103,16 @@ function skillRow(s){
     '<button data-drill="'+esc(s.id)+'">Drill</button>'+
     (m ? '<span class="small" title="Practiced '+m.n+' times, '+m.right+' right">'+m.right+'/'+m.n+'</span>' : '')+'</div>';
 }
+/* The Skills map follows the career path: foundations (Level 1), then job-ready (Level 2), then everything off the path.
+   A skill spanning both levels counts as a foundation. */
+const onPath = s=>!!PATH.weights[s.tid] && !AREA_OF[s.id];
+const STAGES = [
+  ['Path · Foundations (Level 1)', 'Where the daily plan starts. Get these to 70% and each track opens its Level 2 skills.', s=>onPath(s) && Math.min(...s.lvs) === 1],
+  ['Path · Job-ready (Level 2)', 'Opens per track once its foundations average 70%. Cloud Security and Offensive Security come after this stage.', s=>onPath(s) && Math.min(...s.lvs) === 2],
+  ['Off the path', 'Still here for practice and your current applications; the daily plan does not assign them.', s=>!onPath(s)]
+];
 function vSkills(){
   const rec = recommend(3), skills = allSkills();
-  const areas = [...new Set(skills.map(s=>s.area))];
   const strong = skills.filter(s=>skillScore(s.id)>=85).length, started = skills.filter(s=>(S.mastery||{})[s.id]).length;
   view.innerHTML = '<h1>🧠 Skills map</h1><p class="sub">Every skill has a mastery score. Sure, correct answers raise it; misses and time lower it, so old skills come back for review before you forget them.</p>'+
     '<div class="row" style="margin-bottom:6px"><span class="pill">'+skills.length+' skills</span><span class="pill">'+started+' started</span><span class="pill">'+strong+' strong (85%+)</span>'+
@@ -110,7 +120,9 @@ function vSkills(){
     '<h2>Recommended now</h2><div class="grid">'+rec.map(s=>{ const [st] = skillStatus(s.id);
       return '<div class="card mission"><div class="tag">'+esc(s.area)+'</div><h3>'+s.icon+' '+esc(s.sk)+'</h3><p>'+st+' · mastery '+skillScore(s.id)+'%</p><div class="row">'+
         (lessonFor(s.id) ? '<button class="primary" data-learn="'+esc(s.id)+'">📖 Learn + practice</button>' : '')+'<button data-drill="'+esc(s.id)+'">Drill</button></div></div>'; }).join('')+'</div>'+
-    areas.map(a=>'<h2>'+esc(a)+'</h2><div class="card">'+skills.filter(s=>s.area===a).map(skillRow).join('')+'</div>').join('');
+    STAGES.map(([name, note, test])=>{ const inStage = skills.filter(test); if(!inStage.length) return '';
+      return '<h2>'+esc(name)+'</h2><p class="small">'+note+'</p>'+[...new Set(inStage.map(s=>s.area))].map(a=>
+        '<h3 class="area">'+esc(a)+'</h3><div class="card">'+inStage.filter(s=>s.area===a).map(skillRow).join('')+'</div>').join(''); }).join('');
   view.querySelectorAll('[data-learn]').forEach(b=>b.onclick=()=>vLesson(b.dataset.learn));
   view.querySelectorAll('[data-drill]').forEach(b=>b.onclick=()=>startSkill(skillById(b.dataset.drill), 8, null));
   $('#typedT').onclick = ()=>{ S.typed = !typedOn(); save(); vSkills(); toast('Typed answers '+(typedOn()?'on':'off')); };
