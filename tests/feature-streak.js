@@ -15,7 +15,7 @@ vm.runInContext(before + '\n' + [
   'function toast(){} function header(){} function save(){} function addXP(n){ S.xp += n; awards.push(n); }',
   line('function dayStr(').replace('d = d || new Date();', 'if(!d) return TODAY;'), line('function addDays('), line('function esc('),
   line('function cardId('), line('function quizId('), line('function cardDue('), grab('quizStatus'), line('function fadingQuiz('),
-  grab('rateCard'), grab('migrateQuiz'), grab('completeMission'), line('const REVIEW_CAP'), line('const isFullDay'), line('function dueReviewCount('),
+  grab('rateCard'), grab('migrateQuiz'), grab('completeMission'), line('const REVIEW_CAP'), line('const STEP_KEYS'), grab('isFullDay'), 'function syncPlanFlags(){}', line('function afterStep('), line('function dueReviewCount('),
   line('const reviewsOk'), grab('checkReviews'), line('function noteReview('), grab('checkFullDay'),
   line('const DATE_RE'), line('const isObj'), line('const clampNum'), line('const okDate'), grab('cleanMap'), grab('sanitizeBackup'), grab('cleanEntry'), line('const SAFE_TAGS'), grab('safeHTML'),
   'globalThis.T = { completeMission, checkReviews, noteReview, checkFullDay, rateCard, isFullDay, dueReviewCount, migrateQuiz, sanitizeBackup, addMistake, journalResult, isDue, addDays, QUIZ, DEFAULT,',

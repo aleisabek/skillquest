@@ -72,7 +72,7 @@ function track(id){ return TRACKS.find(t=>t.id===id); }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function rankOf(xp){ let r = RANKS[0], next = null; for(let i=0;i<RANKS.length;i++){ if(xp>=RANKS[i][0]){ r=RANKS[i]; next=RANKS[i+1]||null; } } return {r, next}; }
 let toastT;
-function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),1800); }
+function toast(msg, ms){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'), ms || 1800); }
 function addXP(n, why){
   const before = rankOf(S.xp).r[1];
   S.xp += n; save(); header();
@@ -112,8 +112,8 @@ function mergeProgress(a, b){
   const maxNum = k=>{ m[k] = Math.max(a[k]||0, b[k]||0); };
   ['xp','best'].forEach(maxNum);
   const later = (x,y)=>(x||'') >= (y||'') ? x : y;
-  /* streak: take it from whichever device finished all missions most recently, then recount it from the combined
-     mission days (after days are merged below), so days done on different devices add up */
+  /* streak: take it from whichever device had a full day most recently, then recount it from the combined
+     days (after days are merged below), so days done on different devices add up */
   if((b.lastFull||'') > (a.lastFull||'')){ m.streak = b.streak; m.lastFull = b.lastFull; }
   m.lastBackup = later(a.lastBackup, b.lastBackup);
   /* simple maps: union; on conflict keep the "more done" value */
@@ -131,7 +131,7 @@ function mergeProgress(a, b){
   /* misses: keep a miss from either device. S.quiz stays true once a question was ever right, so it can't clear a miss;
      the miss clears when the question is answered right again. */
   m.miss = Object.assign({}, a.miss||{}, b.miss||{});
-  /* days: union of completed missions */
+  /* days: union of completed steps (a flag set on either device stays set) */
   m.days = structuredClone(a.days||{});
   for(const [d,v] of Object.entries(b.days||{})){ const md = m.days[d] = Object.assign({}, m.days[d]||{});
     for(const [k,x] of Object.entries(v||{})) md[k] = typeof x === 'number' ? Math.max(md[k]||0, x) : (md[k] === true || x === true) ? true : x; }
@@ -230,10 +230,10 @@ function migrateQuiz(st){
   }
   return st;
 }
-/* Rebuild streak and best from the full-mission days themselves (a full day = all 3 missions). Only ever raises them,
+/* Rebuild streak and best from the full days themselves (see isFullDay). Only ever raises them,
    or moves lastFull to a later full day, so it is safe on load and after merges. */
 function recountStreak(st){
-  const full = Object.keys(st.days||{}).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d) && st.days[d] && ['quiz','skill','iv'].every(k=>st.days[d][k]) && st.days[d].rev !== false).sort();
+  const full = Object.keys(st.days||{}).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d) && isFullDay(st.days[d])).sort();
   if(!full.length) return st;
   let run = 1, best = 1;
   for(let i=1;i<full.length;i++){ run = full[i-1] === addDays(full[i], -1) ? run+1 : 1; best = Math.max(best, run); }
@@ -280,45 +280,110 @@ function statsLine(st){
     Object.keys(STATUS).map(k=>'<span class="st-'+k+'">'+STATUS[k]+' '+st[k]+'</span>').join(' · ')+'</div>';
 }
 
-/* ===================== DAILY MISSIONS ===================== */
-function missions(){
-  const n = dayNum();
-  const QT = TRACKS.filter(t=>QUIZ.some(q=>q[0]===t.id));
-  const qt = QT[n % QT.length];
-  const ft = TRACKS[(n+3) % TRACKS.length];
-  const qlv = levelFor(qt.id), flv = levelFor(ft.id);
-  const kind = n % 4;
-  const sc = n % SCEN.length;
-  const ivIdx = n % IV.length;
-  /* Mission 1 targets your weakest (or next new) skill: lesson first if you haven't read it, then fresh problems. */
-  const focus = recommend(1)[0];
-  const fresh = focus && lessonFor(focus.id) && !(S.lessons||{})[focus.id];
-  return [
-    focus
-      ? {key:'quiz', tag:'Mission 1 · Focus skill', title:focus.icon+' '+focus.sk, text:(skillStatus(focus.id)[0]==='New' ? 'A new skill for you. ' : 'Your weakest skill right now ('+skillScore(focus.id)+'%). ')+(fresh ? 'Read the 2-minute lesson, then 6 fresh problems.' : '6 fresh problems. Type your answers.'),
-         go:()=> fresh ? vLesson(focus.id, 'quiz') : startSkill(focus, 6, 'quiz')}
-      : {key:'quiz', tag:'Mission 1 · Quiz', title:qt.icon+' '+qt.name+' quiz (L'+qlv+')', text:'5 questions. Read every explanation, even when you get it right.', go:()=>startQuiz(qt.id, 5, 'quiz', null, qlv)},
-    [
-      {key:'skill', tag:'Mission 2 · Hands-on', title:'🐧 Terminal challenge', text:'5 real Linux tasks. Type the command like you would on a server.', go:()=>startTerm(5,'skill',levelFor('linux'))},
-      {key:'skill', tag:'Mission 2 · Memory', title:ft.icon+' '+ft.name+' flashcards (L'+flv+')', text:'8 cards. Say each answer out loud before you flip.', go:()=>startCards(ft.id, 8, 'skill', null, flv)},
-      {key:'skill', tag:'Mission 2 · Ticket simulator', title:'🎫 '+SCEN[sc].title, text:'Your role: '+SCEN[sc].role+'. Make the calls a real tech would make.', go:()=>playTicket(sc,'skill')},
-      {key:'skill', tag:'Mission 2 · SQL console', title:'🗄️ SQL challenge (L'+levelFor('sql')+')', text:'4 queries against a help-desk ticket database.', go:()=>startSQL(4,'skill',levelFor('sql'))}
-    ][kind],
-    {key:'iv', tag:'Mission 3 · Interview rep', title:'🎤 One interview question', text:'"'+IV[ivIdx].q+'" Answer out loud, then compare.', go:()=>startIV(ivIdx,'iv')}
-  ];
+/* ===================== DAILY LEARNING LOOP =====================
+   Every day: LEARN 3 lessons → PRACTICE 4 exercises from each of those skills → APPLY one ticket or interview rep
+   in the same area → REVIEWS. The lessons are the input, the exercises and the rep are the output.
+
+   Career path: cloud security and red team, foundations first. Every beginner skill stays; the path only orders them.
+   Per track, Level 1 skills come first and its Level 2 skills open once the Level 1 ones average PATH.solid.
+   Weights say how central a track is to both paths (Software Testing is not on it; it stays in Study).
+   Cloud Security and Offensive Security tracks are planned as the next stage. */
+const PATH = {name:'Cloud security + Red team', weights:{linux:3, net:3, sec:3, code:2, sql:2, support:1}, solid:70};
+const PRACTICE_N = 4;
+function pathSkills(){ return allSkills().filter(s=>PATH.weights[s.tid] && lessonFor(s.id)); }
+const skillLevel = s=>Math.min(...s.lvs);
+function trackL1Avg(tid){
+  const l1 = pathSkills().filter(s=>s.tid===tid && skillLevel(s)===1);
+  return l1.length ? l1.reduce((a,s)=>a+skillScore(s.id),0) / l1.length : 100;
+}
+function hashStr(t){ let h = 0; for(const c of t) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
+/* Today's 3 skills, fixed for the day: two path skills from different tracks (started-but-weak first, then new ones by
+   track weight and level), plus one "weakest" slot for a started path skill that is slipping. */
+function dailyPlan(){
+  const d = dayStr();
+  if(S.plan && S.plan.day === d && S.plan.ids.length && S.plan.ids.every(skillById)) return S.plan;
+  /* how many days in a row each skill has held a slot; a skill that has held one 3 days running steps aside for a new one */
+  const prev = S.plan && S.plan.day === addDays(d, -1) ? S.plan : null, runs0 = (prev && prev.runs) || {};
+  const run = s=>prev && prev.ids.includes(s.id) ? (runs0[s.id] || 1) : 0;
+  const M = S.mastery||{}, tie = s=>hashStr(s.id+d);
+  const pool = pathSkills().filter(s=>skillLevel(s)===1 || trackL1Avg(s.tid) >= PATH.solid);
+  const key = s=>M[s.id] ? [0, skillScore(s.id), 0, tie(s)] : [1, -PATH.weights[s.tid], skillLevel(s), tie(s)];
+  const cmp = (a,b)=>{ const x = key(a), y = key(b); for(let i=0;i<4;i++) if(x[i] !== y[i]) return x[i] - y[i]; return 0; };
+  const need = pool.filter(s=>skillScore(s.id) < PATH.solid).sort((a,b)=>(run(a) >= 3) - (run(b) >= 3) || cmp(a,b));
+  const ids = [];
+  for(const s of need){ if(ids.length < 2 && !ids.some(id=>skillById(id).tid === s.tid)) ids.push(s.id); }
+  for(const s of need){ if(ids.length < 2 && !ids.includes(s.id)) ids.push(s.id); }
+  const slipping = pathSkills().filter(s=>M[s.id] && !ids.includes(s.id)).sort((a,b)=>skillScore(a.id)-skillScore(b.id) || tie(a)-tie(b));
+  const tracksSoFar = ids.map(id=>skillById(id).tid);
+  const third = slipping.find(s=>skillScore(s.id) < 85) || need.find(s=>!ids.includes(s.id) && !tracksSoFar.includes(s.tid)) || need.find(s=>!ids.includes(s.id)) || slipping[0];
+  if(third) ids.push(third.id);
+  /* everything solid: keep it fresh with the weakest path skills, different tracks first */
+  const rest = pool.slice().sort((a,b)=>skillScore(a.id)-skillScore(b.id) || tie(a)-tie(b));
+  for(const s of rest) if(ids.length < 3 && !ids.includes(s.id) && !ids.some(id=>skillById(id).tid === s.tid)) ids.push(s.id);
+  for(const s of rest) if(ids.length < 3 && !ids.includes(s.id)) ids.push(s.id);
+  const runs = {}; ids.slice(0, 3).forEach(id=>{ runs[id] = prev && prev.ids.includes(id) ? (runs0[id] || 1) + 1 : 1; });
+  S.plan = {day:d, ids:ids.slice(0, 3), runs, apply:applyRep(ids[0])};
+  save();
+  return S.plan;
+}
+/* The rep for today: a ticket scenario in the main skill's area while its best score is under 90, otherwise an interview question. */
+const SCEN_TRACK = {disk:'linux', noc:'net', pos:'support', lockout:'support', regression:'qa'};
+function applyRep(id){
+  const s = id && skillById(id), tid = s ? s.tid : 'linux';
+  const sc = SCEN.findIndex(x=>SCEN_TRACK[x.id] === tid && ((S.tickets||{})[x.id]||0) < 90);
+  if(sc >= 0) return {kind:'ticket', i:sc};
+  const qs = IV.map((q,i)=>i).filter(i=>IV[i].c==='technical' || IV[i].c==='jobready');
+  const open = qs.filter(i=>((S.iv||{})['i'+i]||0) < 3), list = open.length ? open : qs;
+  return {kind:'iv', i:list[dayNum() % list.length]};
+}
+/* A lesson is needed if never read, or (read before today) the skill dropped under 50% or you missed 2+ of its exercises today. */
+function lessonNeeded(id){
+  if(!lessonFor(id)) return false;
+  const read = (S.lessons||{})[id], m = (S.mastery||{})[id], slip = (S.slip||{})[id];
+  if(!read) return true;
+  if(read === dayStr()) return false;
+  /* slipped = it was once solid (60%+) and is now under 50%, or it's still under 50% three days after the lesson,
+     or you missed 2+ of its exercises on a day after reading it. A weak skill isn't re-assigned its lesson every day. */
+  const v = skillScore(id), slipped = !!m && m.s >= 60 && v < 50, stuck = !!m && v < 50 && read <= addDays(dayStr(), -3);
+  return slipped || stuck || (!!slip && slip.n >= 2 && slip.day > read);
+}
+function todaySteps(){
+  const plan = dailyPlan(), d = dayStr(), day = S.days[d] || {};
+  const lessons = plan.ids.map(id=>({id, state:(S.lessons||{})[id] === d ? 'read' : lessonNeeded(id) ? 'todo' : 'skip'}));
+  const practice = plan.ids.map((id,i)=>!!day['p'+i]);
+  return {plan, day, lessons, practice, learn:lessons.every(l=>l.state !== 'todo'), practiced:practice.every(Boolean), applied:!!day.apply, reviewed:reviewsOk(day)};
+}
+/* Store the step flags a full day needs (learn, practice) once they're earned. Learn counts once a lesson was read or
+   practice started, so a day where every lesson is skipped for being healthy isn't "started" by just opening Today. */
+function syncPlanFlags(){
+  const day = S.days[dayStr()]; if(!day) return;
+  const st = todaySteps();
+  if(st.practiced) day.practice = true;
+  if(st.learn && (st.lessons.some(l=>l.state === 'read') || st.practice.some(Boolean) || day.apply)) day.learn = true;
+}
+function afterStep(){ syncPlanFlags(); checkReviews(); checkFullDay(); }
+/* End of a practice session: a plan slot (p0-p2) counts only with at least one right answer (revealed answers and skips
+   don't count), so a slot can't be ticked by skipping through it. Other missions complete as before. */
+function finishMission(s){
+  if(/^p[0-2]$/.test(s.mission) && !(s.right >= 1)){ toast('Not counted for today: get at least one right without revealing it. Try a fresh set.', 5000); return false; }
+  completeMission(s.mission); return true;
 }
 function completeMission(key){
   const d = dayStr(); S.days[d] = S.days[d] || {};
   if(S.days[d][key]) return;
   S.days[d][key] = true;
-  checkReviews();
-  checkFullDay();
+  afterStep();
 }
-/* Reviews count toward the streak: a day is full when all 3 missions are done AND reviews are handled, meaning nothing
-   is due (cards, mistakes, fading quiz questions) or you reviewed REVIEW_CAP items that day, so a backlog can't block it.
-   day.rev: true = handled, false = not yet. Days saved before this rule have no rev and still count. */
+/* A day is full when the loop is done (learn, practice, apply) AND reviews are handled: nothing due (cards, mistakes,
+   fading quiz questions) or REVIEW_CAP reviewed that day, so a backlog can't block it. day.rev: true = handled,
+   false = not yet. Days from before the loop used three missions (quiz, skill, iv); those still count (and days saved
+   before the review rule have no rev at all). A function declaration, because load() uses it via recountStreak. */
 const REVIEW_CAP = 20;
-const isFullDay = day=>!!day && ['quiz','skill','iv'].every(k=>day[k]) && day.rev !== false;
+const STEP_KEYS = ['learn','p0','p1','p2','apply','quiz','skill','iv'];
+function isFullDay(day){
+  if(!day || day.rev === false) return false;
+  return (!!day.learn && !!day.practice && !!day.apply && day.rev === true) || ['quiz','skill','iv'].every(k=>day[k]);
+}
 function dueReviewCount(){ return CARDS.filter((c,i)=>S.cards[cardId(i)] && cardDue(i)).length + journal().filter(isDue).length + fadingQuiz().length; }
 const reviewsOk = day=>!!(day && day.rev === true) || dueReviewCount() === 0 || ((day||{}).reviews||0) >= REVIEW_CAP;
 function checkReviews(){
@@ -326,7 +391,7 @@ function checkReviews(){
   const d = dayStr(), day = S.days[d];
   if(day && day.rev === true) return;
   if(reviewsOk(day)){ S.days[d] = Object.assign(day || {}, {rev:true}); checkFullDay(); }
-  else if(day && ['quiz','skill','iv'].some(k=>day[k])) day.rev = false;   /* "not yet" is only stored once a mission is done */
+  else if(day && STEP_KEYS.some(k=>day[k])) day.rev = false;   /* "not yet" is only stored once a step is done */
 }
 /* one due item reviewed (a due card, a mistake retry or a fading quiz question) */
 function noteReview(){ const day = S.days[dayStr()] = S.days[dayStr()] || {}; day.reviews = (day.reviews||0) + 1; checkReviews(); save(); }
@@ -336,7 +401,7 @@ function checkFullDay(){
     S.streak = (S.lastFull === addDays(d,-1)) ? S.streak+1 : 1;
     S.best = Math.max(S.best||0, S.streak);
     S.lastFull = d; save();
-    addXP(50, 'Full day: missions and reviews done! Streak ' + S.streak);
+    addXP(50, 'Full day: learned, practiced, applied and reviewed! Streak ' + S.streak);
   } else save();
   header();
 }
@@ -372,45 +437,89 @@ function go(tab){
   current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
 
 /* ===================== VIEWS ===================== */
+/* Today: the loop as a 4-step checklist with one "Next up" button, the last 14 days, one real lab, and a short tip. */
 function vToday(){
-  checkReviews();
-  const d = S.days[dayStr()] || {};
-  const ms = missions();
-  const done = ms.filter(m=>d[m.key]).length;
-  const tip = STRATEGIES[dayNum() % STRATEGIES.length];
-  const due = CARDS.filter((c,i)=>S.cards[cardId(i)] && cardDue(i)).length;
-  const jdue = journal().filter(isDue).length;
-  const fq = fadingQuiz().length;
-  const reviewBits = [due ? due+' flashcard'+(due>1?'s':'') : '', jdue ? jdue+' mistake'+(jdue>1?'s':'')+' to retry' : '', fq ? fq+' fading quiz question'+(fq>1?'s':'') : ''].filter(Boolean);
+  if(S.days[dayStr()]) afterStep(); else checkReviews();
+  const st = todaySteps(), d = st.day, plan = st.plan, sk = plan.ids.map(skillById);
+  const rep = plan.apply || applyRep(plan.ids[0]);
+  const dueN = dueReviewCount(), revLeft = st.reviewed ? 0 : Math.min(dueN, Math.max(0, REVIEW_CAP - (d.reviews||0)));
+  const todo = st.lessons.filter(l=>l.state === 'todo').length, pLeft = st.practice.filter(x=>!x).length;
+  const mins = todo*2 + pLeft*PRACTICE_N + (st.applied ? 0 : 5) + Math.ceil(revLeft*0.3);
+  const doneN = [st.learn, st.practiced, st.applied, st.reviewed].filter(Boolean).length;
+  const repTitle = rep.kind === 'ticket' ? '🎫 Ticket: '+esc(SCEN[rep.i].title) : '🎤 Interview: "'+esc(IV[rep.i].q)+'"';
+  const repGo = ()=> rep.kind === 'ticket' ? playTicket(rep.i, 'apply') : startIV(rep.i, 'apply');
+  const next = (()=>{
+    for(let i=0;i<plan.ids.length;i++){
+      if(st.lessons[i].state === 'todo') return ['📖 Lesson: '+esc(sk[i].sk), ()=>vLesson(plan.ids[i], 'p'+i)];
+      if(!st.practice[i]) return ['✍ Practice: '+esc(sk[i].sk)+' ('+PRACTICE_N+')', ()=>startSkill(sk[i], PRACTICE_N, 'p'+i)];
+    }
+    if(!st.applied) return [rep.kind === 'ticket' ? '🎫 Apply: ticket' : '🎤 Apply: interview rep', repGo];
+    if(!st.reviewed) return ['🔁 Reviews ('+dueN+' due)', ()=>go('review')];
+    return null;
+  })();
+  const solid = pathSkills().filter(s=>skillLevel(s)===1), solidN = solid.filter(s=>skillScore(s.id) >= PATH.solid).length;
+  const chip = (attr, i, label, state)=>'<button class="chip'+(state==='done'?' on':'')+'" data-'+attr+'="'+i+'">'+label+'</button>';
+  const step = (n, name, ok, hint, body)=>'<div class="step'+(ok?' ok':'')+'"><span class="chk" aria-hidden="true">'+(ok?'✓':'○')+'</span><span class="sr">'+(ok?'Done: ':'To do: ')+'</span><div><b>'+n+' · '+name+'</b> <span class="small">'+hint+'</span>'+body+'</div></div>';
+  const lab = labPick(plan);
   view.innerHTML =
     (saveBlocked ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Your saved progress could not be read.</b> A copy was kept in this browser, and nothing will be saved over it until you choose. '+
       'Best: restore your latest backup. Or start fresh (the unreadable copy stays in browser storage).<div class="row" style="margin-top:10px"><button class="primary" id="fixRestore">Restore a backup</button><button id="fixFresh">Start fresh</button></div></div>' : '')+
     (!saveBlocked && saveFailed ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Progress is not being saved.</b> This browser is refusing to store data (storage full, blocked, or private mode). Download a backup before closing.<div class="row" style="margin-top:10px"><button class="primary" id="fixBackup">Download backup</button></div></div>' : '')+
-    (!saveBlocked && !hasProgress() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup here so your progress and review schedule follow you.</span><button id="fixMerge">Merge a backup</button></div>' : '')+
-    (backupDue() ? '<div class="card tip row" style="margin-top:18px;justify-content:space-between"><span>💾 '+(S.lastBackup ? 'Your last backup was on '+esc(S.lastBackup)+'.' : 'You haven\'t backed up your progress yet.')+' A backup protects your progress if browser data gets cleared.</span><button class="primary" id="bk">'+(PHONE?'Copy backup':'Download backup')+'</button></div>' : '')+
-    '<h1>Today\'s missions</h1><p class="sub">'+done+' of 3 done. Finish all three and handle the reviews due today for +50 XP and to keep your streak.</p>'+
-    '<p class="small">'+(reviewsOk(d) ? '✓ Reviews handled for today.' : '🔁 Reviews: '+dueReviewCount()+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done today (clear them all, or do '+REVIEW_CAP+').')+'</p>'+
-    '<div class="grid">'+ms.map((m,i)=>
-      '<div class="card mission '+(d[m.key]?'done':'')+'"><div class="tag">'+m.tag+'</div><h3>'+m.title+'</h3><p>'+esc(m.text)+'</p>'+
-      '<div><button class="'+(d[m.key]?'':'primary')+'" data-m="'+i+'">'+(d[m.key]?'✓ Done · do it again':'Start')+'</button></div></div>').join('')+'</div>'+
-    '<h2>Strategy of the day</h2><div class="card tip"><b>'+tip[0]+'.</b> '+tip[1]+'</div>'+
-    (reviewBits.length ? '<h2>Review</h2><div class="card row"><span>Due today: '+reviewBits.join(' and ')+'.</span><button data-go="review">Review now</button></div>' : '')+
-    '<h2>Real labs to pair with today</h2><div class="card"><ul class="clean">'+
-      '<li><a href="https://tryhackme.com" target="_blank" rel="noopener">TryHackMe</a>: start the <i>Pre Security</i> path, then <i>SOC Level 1</i>.</li>'+
-      '<li><a href="https://overthewire.org/wargames/bandit/" target="_blank" rel="noopener">OverTheWire Bandit</a>: one level a day.</li>'+
-      '<li><a href="https://sqlbolt.com" target="_blank" rel="noopener">SQLBolt</a>: one lesson. Employers keep asking for SQL.</li>'+
-      '<li><a href="https://learn.microsoft.com/training/" target="_blank" rel="noopener">Microsoft Learn</a>: search "Microsoft 365 fundamentals."</li>'+
-      '<li><a href="https://www.professormesser.com/security-plus/sy0-701/sy0-701-video/sy0-701-comptia-security-plus-course/" target="_blank" rel="noopener">Professor Messer Security+</a>: one free video.</li></ul>'+
-      '<p class="small">Many TryHackMe paths need a paid plan. <a href="#" id="toPractice">See Guide → Free practice</a> for no-cost alternatives (picoCTF, Hack The Box Academy, Blue Team Labs, Cisco NetAcad and more).</p></div>';
-  view.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>ms[+b.dataset.m].go());
-  const r = view.querySelector('[data-go]'); if(r) r.onclick=()=>go('review');
-  $('#toPractice').onclick = e=>{ e.preventDefault(); go('practice'); };
-  const bk = $('#bk'); if(bk) bk.onclick = ()=>{ downloadBackup(); vToday(); };
-  const on = (id, f)=>{ const b = $(id); if(b) b.onclick = f; };
+    (!saveBlocked && !hasProgress() ? '<div class="slim">👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup so your progress follows you. <button id="fixMerge">Merge a backup</button></div>' : '')+
+    (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
+    '<h1>Today\'s loop</h1><p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
+    '<div class="card today"><div class="row" style="justify-content:space-between"><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
+      step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
+      step(2, 'Practice', st.practiced, PRACTICE_N+' exercises per lesson, typed, first try counts', '<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
+      step(3, 'Apply', st.applied, 'one rep in today\'s main area', '<div class="chips"><button class="chip'+(st.applied?' on':'')+'" data-apply="1">'+repTitle+(st.applied?' ✓':'')+'</button></div>')+
+      step(4, 'Reviews', st.reviewed, st.reviewed ? 'handled for today' : dueN+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done (clear them, or do '+REVIEW_CAP+')', st.reviewed ? '' : '<div class="chips"><button class="chip" data-go="review">Open Review</button></div>')+
+      '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<span class="small">All four steps done. Extra practice is in Study and Hands-on.</span>')+'</div></div>'+
+    stripHTML()+
+    (lab ? '<div class="card"><b>🧪 Real lab for today</b> <span class="small">· fits today\'s '+esc(track(lab.tid).name)+' lesson</span>'+
+      '<p style="margin:8px 0"><a href="'+lab.url+'" target="_blank" rel="noopener">'+esc(lab.name)+' ↗</a> <span class="small">'+esc(lab.note)+'</span></p>'+
+      '<div class="row"><button id="labUsed"'+(lab.usedToday?' disabled':'')+'>'+(lab.usedToday?'✓ Used today':'✓ Mark used today')+'</button><a href="#" id="moreLabs" class="small">More free labs →</a></div></div>' : '')+
+    (()=>{ const tip = STRATEGIES[dayNum() % STRATEGIES.length]; return '<details class="tipline"><summary>💡 Tip: <b>'+tip[0]+'</b></summary><p class="small">'+tip[1]+'</p></details>'; })();
+  const on = (sel, f)=>{ const b = $(sel); if(b) b.onclick = f; };
+  view.querySelectorAll('[data-lesson]').forEach(b=>b.onclick=()=>vLesson(plan.ids[+b.dataset.lesson], 'p'+b.dataset.lesson));
+  view.querySelectorAll('[data-prac]').forEach(b=>b.onclick=()=>{ const i = +b.dataset.prac; startSkill(sk[i], PRACTICE_N, 'p'+i); });
+  view.querySelectorAll('[data-apply]').forEach(b=>b.onclick=repGo);
+  view.querySelectorAll('[data-go="review"]').forEach(b=>b.onclick=()=>go('review'));
+  if(next) on('#nextUp', next[1]);
+  on('#labUsed', ()=>{ S.practice = S.practice || {}; S.practice[lab.name] = dayStr(); save(); toast('Logged: '+lab.name); vToday(); });
+  on('#moreLabs', e=>{ e.preventDefault(); go('practice'); });
+  on('#bk', ()=>{ downloadBackup(); vToday(); });
   on('#fixRestore', ()=>go('progress'));
   on('#fixMerge', ()=>go('progress'));
   on('#fixBackup', ()=>{ downloadBackup(); });
   on('#fixFresh', ()=>askConfirm('Start fresh? The unreadable copy stays in browser storage, but SkillQuest will begin saving new progress now.', 'Start fresh', ()=>{ saveBlocked = false; save(); vToday(); }));
+}
+/* Last 14 days: full, partly done, or nothing; today is outlined until it's full. */
+function dayState(day, isToday){
+  const r = S.days[day];
+  if(isFullDay(r)) return 'full';
+  if(isToday) return 'today';
+  return r && STEP_KEYS.some(k=>r[k]) ? 'part' : 'miss';
+}
+function stripHTML(){
+  const label = {full:'full day', part:'partly done', miss:'nothing done', today:'today'};
+  const cells = [], n = {full:0, part:0, miss:0, today:0};
+  for(let k=13;k>=0;k--){ const day = addDays(dayStr(), -k), c = dayState(day, k===0); n[c]++; cells.push('<span class="sq '+c+'" title="'+day+': '+label[c]+'"></span>'); }
+  const live = (S.lastFull === dayStr() || S.lastFull === addDays(dayStr(),-1)) ? S.streak : 0;
+  return '<div class="card strip"><div class="row" style="justify-content:space-between"><b>Last 14 days</b><span class="small">Streak '+live+' · Best '+(S.best||0)+'</span></div>'+
+    '<div class="sqs" role="img" aria-label="Last 14 days: '+n.full+' full, '+n.part+' partly done, '+n.miss+' missed">'+cells.join('')+'</div>'+
+    '<div class="small"><span class="sq full"></span> full <span class="sq part"></span> partly <span class="sq miss"></span> missed</div></div>';
+}
+/* One real lab for today: matched to today's skills (offense-leaning for the path), not used in the last 7 days if possible. */
+const LAB_FOR = {linux:['OverTheWire'], net:['Cisco Networking Academy','TryHackMe free rooms'], sec:['picoCTF','Hack The Box Academy','TryHackMe free rooms','CyberDefenders'],
+  code:['picoCTF'], sql:['SQLBolt','SQLZoo'], support:['Microsoft Learn','Professor Messer']};
+function labPick(plan){
+  const items = PRACTICE.flatMap(g=>g.items), tids = plan.ids.map(id=>skillById(id).tid);
+  const cand = [...new Set(tids.flatMap(t=>LAB_FOR[t]||[]))].map(n=>items.find(x=>x[0]===n)).filter(Boolean);
+  if(!cand.length) return null;
+  const used = n=>(S.practice||{})[n] || '';
+  const fresh = cand.filter(x=>used(x[0]) < addDays(dayStr(), -7));
+  const pick = fresh.length ? fresh[hashStr(dayStr()) % fresh.length] : cand.slice().sort((a,b)=>used(a[0]).localeCompare(used(b[0])))[0];
+  return {name:pick[0], url:pick[1], note:pick[2], tid:tids.find(t=>(LAB_FOR[t]||[]).includes(pick[0])), usedToday:used(pick[0]) === dayStr()};
 }
 
 /* Mastery = share of a level's questions and cards that are retained right now (see cardStatus / quizStatus) */
@@ -521,7 +630,7 @@ function quizStep(s){
   });
 }
 function quizEnd(s){
-  if(s.mission) completeMission(s.mission);
+  if(s.mission) finishMission(s);
   const pct = Math.round(s.right/s.items.length*100);
   view.innerHTML = '<h1>'+(s.journalRun?'Mistake retry done':'Quiz complete')+'</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' ('+pct+'%)</p><p>'+
     (s.journalRun ? 'Each mistake needs a correct answer on two different days to clear. The ones you got right today come back tomorrow for the second check.'
@@ -560,7 +669,7 @@ function psToggle(){ return '<button class="chip" id="psBtn" title="Show or hide
 function bindPsToggle(){ const b = $('#psBtn'); if(b) b.onclick = ()=>{ setPref('skillquest-ps', psOn()?'off':'on'); applyPs(); b.textContent = 'PowerShell: '+(psOn()?'shown':'hidden'); }; }
 function cardStep(s){
   if(s.i >= s.items.length){
-    if(s.mission) completeMission(s.mission);
+    if(s.mission) finishMission(s);
     view.innerHTML = '<h1>Cards done</h1><div class="card"><p class="q">'+s.good+' / '+s.first+' marked "Got it" first time</p><p>Missed cards were asked again at the end and come back tomorrow. Cards you know come back later, with longer gaps each time. Cards not due yet were practice only, so their schedule stayed the same.</p>'+
       (s.missed.length ? '<h3>Missed this round</h3><ul class="clean">'+s.missed.map(i=>'<li>'+CARDS[i][2]+'</li>').join('')+'</ul>' : '')+
       (s.held ? '<p class="small">'+s.held+' more new card'+(s.held===1?'':'s')+' unlock tomorrow (limit '+NEW_PER_DAY+' new a day).</p>' : '')+
@@ -675,7 +784,7 @@ function startTerm(n, mission, lv, sk){
 function norm(x){ return x.trim().replace(/\s+/g,' ').replace(/["']/g,''); }
 function termStep(s){
   if(s.i >= s.items.length){
-    if(s.mission) completeMission(s.mission);
+    if(s.mission) finishMission(s);
     view.innerHTML = '<h1>🐧 Terminal</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' solved</p><p>Want the real thing? Log into OverTheWire Bandit and use these commands on an actual server.</p><div class="row"><button class="primary" id="more">Another set</button><button id="home">Back to Today</button></div></div>';
     $('#more').onclick=()=>startTerm(8,null,s.lv,s.sk); $('#home').onclick=()=>go('today'); return;
   }
@@ -804,7 +913,7 @@ function startSQL(n, mission, lv, sk){
 }
 function sqlStep(s){
   if(s.i >= s.items.length){
-    if(s.mission) completeMission(s.mission);
+    if(s.mission) finishMission(s);
     view.innerHTML = '<h1>🗄️ SQL console</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' solved</p><p>Want more? SQLBolt (sqlbolt.com) has free interactive lessons that use the same skills.</p><div class="row"><button class="primary" id="more">Another set</button><button id="home">Back to Today</button></div></div>';
     $('#more').onclick=()=>startSQL(8, null, s.lv, s.sk); $('#home').onclick=()=>go('today'); return;
   }
@@ -1015,7 +1124,7 @@ function importBackup(raw, mode){
 /* ---------- Guide ---------- */
 function vGuide(){
   view.innerHTML = '<h1>How to use SkillQuest</h1><div class="card"><ol>'+
-    '<li><b>Every day (20 to 30 minutes):</b> open Today, finish all 3 missions and handle your due reviews (clear them, or do 20). That keeps your 🔥 streak. Mission 1 always targets your weakest skill: read its 2-minute lesson the first time, then practice.</li>'+
+    '<li><b>Every day (20 to 30 minutes):</b> open Today and follow <b>Next up</b>: 3 two-minute lessons, 4 exercises from each, one ticket or interview rep, then your due reviews (clear them, or do 20). That full loop keeps your 🔥 streak. Lessons are picked for your path (cloud security + red team, foundations first) plus one slipping skill, and come back when a skill drops.</li>'+
     '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward mastery.</li>'+
     '<li><b>Mistake journal (Review tab):</b> every miss is saved with the right answer. Tag why you missed it, and retry what is due each day. A mistake clears only after you get it right on two different days.</li>'+
     '<li><b>Labs (Hands-on):</b> real break-and-fix problems in your WSL Ubuntu. Do one or two a week; they are your best interview stories.</li>'+
@@ -1027,7 +1136,7 @@ function vGuide(){
     '<li><b>Check the Review tab</b> whenever cards are due. Spaced review is what moves things into long-term memory.</li>'+
     '<li><b>Before any interview:</b> do every question in the Job prep → Interview for that job type, out loud, with the timer.</li>'+
     '<li><b>Fridays:</b> go to Progress and download a backup.</li></ol>'+
-    '<p><b>Scoring:</b> quiz +10, flashcard +5, terminal and SQL +15 (+8 with a hint, 0 once the answer is shown), interview rep +10 to +25, full day (3 missions + reviews) +50.</p>'+
+    '<p><b>Scoring:</b> quiz +10, flashcard +5, terminal and SQL +15 (+8 with a hint, 0 once the answer is shown), interview rep +10 to +25, full day (learn, practice, apply + reviews) +50.</p>'+
     '<p><b>Levels:</b> Levels 1 (Foundations) and 2 (Job-ready) are ready now. Levels 3 and 4 (Mid-level, Senior) come in a later phase.</p>'+
     '<p><b>Look and feel:</b> the ◐ button switches between three color modes (matrix, cyber, amber). The ⁂ rain button turns the background code rain on or off.</p>'+
     '<p class="small">Your progress stays on this computer. When you are online, the fonts load from Google Fonts; offline, it uses your built-in coding font.</p></div>';
