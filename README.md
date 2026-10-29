@@ -51,7 +51,8 @@ Each lab is `labs/labs/NAME/lab.sh` with `TITLE`, `LEVEL`, `LESSON`, `HINTS`, an
 - **Only append** to the arrays `CARDS`, `QUIZ`, `TERM`, `IV`, `SQLT`. Saved progress is keyed by array position. `tests/content-snapshot.json` enforces this; after a deliberate wording fix, refresh it with `node tests/feature-content-order.js --update`.
 - Flashcards are `[track, level, front, back, topic]`. Every Linux card needs a topic from `CARD_TOPICS` (Browse filters by it). A PowerShell equivalent goes at the end of the back in `<span class="ps">PowerShell: …</span>`; leave it out when there is no real equivalent.
 - Cards teach techniques, never Bandit level answers or passwords (checked by `npm test`).
-- Every quiz generator in `GEN[track][level]` needs a matching skill name in `GEN_SKILLS`, in the same order.
+- Every quiz generator is labelled where it is defined: `sk('Skill name', ()=>{...}, {noType, lookup})`. The app refuses to start with an unlabelled one, and the label must match a lesson (`quiz:track:Skill name`). Skill ids are append-only (`tests/skill-snapshot.json`; refresh with `node tests/feature-skills.js --update` after adding skills).
+- Generated answers must be re-derived in `tests/quiz-generators.js`, unless the generator is marked `{lookup:true}` (its answer comes from a fixed table). A computed generator nobody re-checks fails the tests.
 - Generated answers must be **computed from the random values** and pass `npm test`.
 
 ## Honest mastery

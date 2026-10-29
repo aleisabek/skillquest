@@ -5,7 +5,7 @@ eval(js.split('/* ===================== STATE')[0] + ';' + line('shuffle') + ';'
 const strip = s => s.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 const isPriv = ip => { const a = ip.split('.').map(Number); return a[0] === 10 || (a[0] === 172 && a[1] >= 16 && a[1] <= 31) || (a[0] === 192 && a[1] === 168); };
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-let bad = 0, n = 0, unchecked = {};
+let bad = 0, n = 0, unchecked = {}, notVerified = {};
 const fail = (m, q) => { bad++; if (bad < 15) console.log('FAIL', m, '|', strip(q[2]).slice(0, 160), '|', q[3].map(strip)); };
 for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi < G[tid][lv].length; gi++) for (let k = 0; k < 3000; k++) {
   const r = G[tid][lv][gi](); if (!r) continue; n++;
@@ -61,8 +61,18 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
   else if ((m = Q.match(/Which of these is (a hashing|symmetric|asymmetric)/))) {
     const C = { 'a hashing': ['SHA-256','SHA-1','MD5','bcrypt','Argon2'], symmetric: ['AES','ChaCha20','3DES'], asymmetric: ['RSA','ECC'] }[m[1]];
     if (!C.includes(A)) fail('cryptoA', q); O.slice(1).forEach(o => { if (C.includes(o)) fail('cryptoW', q); }); }
-  else unchecked[tid + lv + ':' + gi] = Q.slice(0, 50);
+  else if ((m = Q.match(/Walk-forward test on yearly data from (\d+) to (\d+): train on (\d+) years, test on the next 1 year/))) { if (+A !== (+m[2] - +m[1] + 1) - +m[3]) fail('folds', q); }
+  else if ((m = Q.match(/Walk-forward on (\d+) to (\d+), training on (\d+) years .* In fold (\d+), which year is the test year/))) { if (+A !== +m[1] + +m[3] + +m[4] - 1) fail('fold year', q); }
+  else if ((m = Q.match(/Your data runs through (\w{3}) (\d{4})\. You seal the last (\d+) months/))) {
+    const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let mo = MON.indexOf(m[1]) - (+m[3] - 1), y = +m[2]; while (mo < 0) { mo += 12; y--; }
+    if (A !== MON[mo] + ' ' + y) fail('sealed month ' + MON[mo] + ' ' + y, q); }
+  else if (G[tid][lv][gi].lookup) unchecked[tid + lv + ':' + gi] = Q.slice(0, 50);
+  else { notVerified[G[tid][lv][gi].sk] = Q.slice(0, 70); }
 }
+/* Every generated answer must be re-derived above, unless its generator is marked {lookup:true} where it's defined
+   (its answer comes from a fixed table). A computed generator nobody checks fails the run. */
+for (const [skill, sample] of Object.entries(notVerified)) fail('computed answer not re-derived in this test (add a check, or mark it lookup): ' + skill, [0, 0, sample, ['']]);
 let empty = 0; for (const tid of Object.keys(G)) for (const lv of [1, 2]) if (gf(tid, lv).length) { for (let k = 0; k < 500; k++) if (!mk(tid, lv)) empty++; }
 console.log('generators', Object.values(G).reduce((a, g) => a + g[1].length + g[2].length, 0), '| questions checked', n, '| problems', bad, '| makeGen failures', empty);
 console.log('lookup-style generators (answer pulled from a fixed table, not computed):', Object.keys(unchecked).join(' '));
