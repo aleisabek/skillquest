@@ -16,11 +16,12 @@ vm.runInContext(before + '\n' + [
   'function toast(){} function header(){} function save(){} function addXP(n){ S.xp += n; }',
   line('function dayStr(').replace('d = d || new Date();', 'if(!d) return TODAY;'), line('function addDays('), line('function dayNum('), line('function esc('),
   line('function cardId('), line('function quizId('), line('function cardDue('), grab('quizStatus'), line('function fadingQuiz('),
-  line('const PATH'), line('const PRACTICE_N'), line('function pathSkills('), line('const skillLevel'), grab('trackL1Avg'), line('function hashStr('),
+  app.slice(app.indexOf('const PATH'), app.indexOf('};', app.indexOf('const PATH')) + 2), line('const isGated'), grab('trackOpen'), line('function unlockText('), line('function previewLesson('),
+  'function track(id){ return TRACKS.find(t=>t.id===id); }', line('const PRACTICE_N'), line('function pathSkills('), line('const skillLevel'), grab('trackL1Avg'), line('function hashStr('),
   grab('dailyPlan'), line('const SCEN_TRACK'), grab('applyRep'), grab('lessonNeeded'), grab('todaySteps'), grab('syncPlanFlags'), line('function afterStep('),
   grab('finishMission'), grab('completeMission'), line('const REVIEW_CAP'), line('const STEP_KEYS'), grab('isFullDay'), line('function dueReviewCount('), line('const reviewsOk'),
   grab('checkReviews'), line('function noteReview('), grab('checkFullDay'), grab('dayState'), line('const LAB_FOR'), app.slice(app.indexOf('const LAB_FOR'), app.indexOf('function labPick(')).split('\n').slice(1).join('\n'), grab('labPick'),
-  'globalThis.T = { dailyPlan, finishMission, addDays, lessonNeeded, todaySteps, syncPlanFlags, completeMission, isFullDay, dayState, labPick, applyRep, pathSkills, skillLevel, skillById, allSkills, DEFAULT, PATH, LAB_FOR, SCEN,',
+  'globalThis.T = { dailyPlan, finishMission, addDays, trackOpen, unlockText, previewLesson, lessonNeeded, todaySteps, syncPlanFlags, completeMission, isFullDay, dayState, labPick, applyRep, pathSkills, skillLevel, skillById, allSkills, DEFAULT, PATH, LAB_FOR, SCEN,',
   '  get S(){ return S; }, set S(v){ S = v; }, set today(v){ TODAY = v; } };'
 ].join('\n'), ctx);
 const T = ctx.T;
@@ -141,6 +142,56 @@ T.S.days[today] = { p0: true, p1: true, p2: true, apply: true };
 p14.ids.forEach(id => { T.S.lessons[id] = today; });
 T.syncPlanFlags();
 if (!T.S.days[today].learn) fail('lessons read from Study should still complete Learn when Today syncs');
+
+/* 15. Cloud Security is gated: closed for beginners, opens at 70% Security + Networking L1, then at most 1 slot a day */
+const cloudIn = p => p.ids.filter(id => sk(id).tid === 'cloud').length;
+for (let k = 1; k <= 8; k++) { fresh(); T.today = '2026-12-0' + k; if (cloudIn(T.dailyPlan())) fail('a beginner must not get Cloud Security lessons'); }
+fresh(); if (T.trackOpen('cloud')) fail('cloud should be locked for a beginner');
+if (!/Security L1 0\/70/.test(T.unlockText('cloud')) || !/Networking L1 0\/70/.test(T.unlockText('cloud'))) fail('unlock text should show the real distance', T.unlockText('cloud'));
+if (!T.previewLesson('cloud') || !T.previewLesson('cloud').startsWith('quiz:cloud:')) fail('a locked track needs a preview lesson');
+const ready = {}; T.pathSkills().filter(s => (s.tid === 'sec' || s.tid === 'net') && T.skillLevel(s) === 1).forEach(s => { ready[s.id] = strong(); });
+let sawCloud = 0;
+for (let k = 1; k <= 20; k++) {
+  fresh({ mastery: JSON.parse(JSON.stringify(ready)) }); T.today = '2027-01-' + String(k).padStart(2, '0');
+  Object.values(T.S.mastery).forEach(m => { m.last = T.today; });
+  if (!T.trackOpen('cloud')) { fail('cloud should open once Security and Networking L1 average 70%'); break; }
+  const c = cloudIn(T.dailyPlan()); if (c > 1) fail('at most one Cloud Security lesson a day, got', c); if (c) sawCloud++;
+}
+if (!sawCloud) fail('once open, Cloud Security should appear in the plan on some days');
+
+/* 16. once started, Cloud stays open even after a break lets the foundations decay below 70 */
+const cloudSk = T.pathSkills().filter(s => s.tid === 'cloud');
+fresh({ mastery: JSON.parse(JSON.stringify(ready)) }); T.today = T.addDays(today, 40);
+if (T.trackOpen('cloud')) fail('test setup: 40 idle days should decay the foundations below 70 (unstarted cloud locks again)');
+fresh({ mastery: Object.assign(JSON.parse(JSON.stringify(ready)), { [cloudSk[0].id]: { s: 60, n: 2, right: 1, last: today } }) }); T.today = T.addDays(today, 40);
+if (!T.trackOpen('cloud')) fail('a started gated track must stay open after a break');
+if (!/Security L1 \d+\/70/.test(T.unlockText('cloud'))) fail('unlock text should still render');
+
+/* 17. a started Level 2 skill still returns in the slipping slot when its track's Level 1 average has dipped */
+fresh(); const m17 = {};
+T.pathSkills().filter(s => T.skillLevel(s) === 1).forEach(s => { m17[s.id] = s.tid === 'linux' ? { s: 50, n: 5, right: 3, last: today } : strong(); });
+const linuxL2 = T.pathSkills().find(s => s.tid === 'linux' && T.skillLevel(s) === 2);
+m17[linuxL2.id] = { s: 30, n: 5, right: 2, last: today }; T.S.mastery = m17;
+if (!T.dailyPlan().ids.includes(linuxL2.id)) fail('a slipped Level 2 skill should come back even while its track foundations are weak', T.S.plan.ids);
+
+/* 18. mid-path (some started skills under 70), an opened Cloud track still gets regular slots, never more than 1 a day */
+const mid = day => { const m = {};
+  T.pathSkills().forEach(s => { if ((s.tid === 'sec' || s.tid === 'net') && T.skillLevel(s) === 1) m[s.id] = { s: 90, n: 10, right: 10, last: day };
+    else if (s.tid === 'linux' && T.skillLevel(s) === 1) m[s.id] = { s: 60, n: 5, right: 3, last: day }; });
+  m[T.pathSkills().find(s => s.tid === 'sec' && T.skillLevel(s) === 2).id] = { s: 80, n: 5, right: 4, last: day }; return m; };
+let carried = {}, plan18 = null, cloudDays = 0;
+for (let k = 1; k <= 9; k++) {
+  const day = '2027-02-0' + k; fresh({ mastery: Object.assign(mid(day), carried), plan: plan18 }); T.today = day;
+  plan18 = T.dailyPlan(); const c = plan18.ids.filter(id => sk(id).tid === 'cloud');
+  if (c.length > 1) fail('mid-path: at most one Cloud lesson a day', c);
+  c.forEach(id => { carried[id] = { s: 50, n: 1, right: 1, last: day }; }); if (c.length) cloudDays++;
+}
+if (cloudDays < 3) fail('mid-path: an opened Cloud track should get a slot at least every 3 days, got', cloudDays, 'of 9');
+
+/* 19. several started-but-weak Cloud skills still respect the 1-a-day cap */
+const m19 = JSON.parse(JSON.stringify(ready)); cloudSk.forEach(s => { m19[s.id] = { s: 30, n: 3, right: 1, last: today }; });
+for (let k = 1; k <= 5; k++) { fresh({ mastery: JSON.parse(JSON.stringify(m19)) }); T.today = today; T.S.plan = null;
+  const c = cloudIn(T.dailyPlan()); if (c !== 1) fail('weak started Cloud skills: expected exactly 1 Cloud lesson, got', c); }
 
 console.log('loop checks | problems', bad);
 process.exitCode = bad ? 1 : 0;

@@ -68,7 +68,7 @@ Tracks and Progress show the four counts behind it: Retained, Fading, Learning, 
 
 Each day: **Learn** 3 two-minute lessons → **Practice** 4 typed exercises from each of those skills → **Apply** one ticket or interview rep in the main skill's area → **Reviews**. Today shows it as a 4-step checklist with a **Next up** button, the last 14 days, one suggested free lab (matched to today's skills, rotating away from ones used this week) and a one-line tip.
 
-- **Path:** cloud security + red team, foundations first (`PATH` in app.js). Every beginner skill stays; the path only orders them. Per track, Level 1 comes first and Level 2 opens once the track's Level 1 skills average 70%. Weights: Linux, networking, security 3; code and SQL 2; IT support 1; Software Testing is not on the path (still in Study). Cloud Security and Offensive Security tracks are the planned next stage.
+- **Path:** cloud security + red team, foundations first (`PATH` in app.js). Every beginner skill stays; the path only orders them. Per track, Level 1 comes first and Level 2 opens once the track's Level 1 skills average 70%. Weights: Linux, networking, security 3; code, SQL and cloud 2; IT support 1; Software Testing is not on the path (still in Study). Cloud Security is the next stage (it opens after Security and Networking Level 1, and stays open once started); Offensive Security comes after it.
 - **Today's 3 skills** (`dailyPlan`, fixed for the day in `S.plan`): two path skills from different tracks (started-but-weak first, then new ones by weight and level) plus one slipping skill you've started (or a third track when none is slipping).
 - **Lessons come back** when a skill you've read drops under 50% or you miss 2+ of its exercises in a day (`S.slip`); otherwise a read lesson is skipped as healthy.
 - **Day flags:** `p0`–`p2` per practice slot, `practice` when all three are done, `learn` when no needed lesson is left (once something was actually done), `apply`, and `rev`.
@@ -111,3 +111,7 @@ Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) �
 - Lessons (`feature-lessons`): every lesson has why / idea / example / mistakes / say. Lessons in the newer format also have `seen` ("You'll see this as": a real log line or config) and `spot` ("Spot the problem": `{q, a}`), and must explain every acronym the first time (`ACRONYM (expansion)` or `expansion (ACRONYM)`; a short list of common ones is exempt). Security lessons may not mention trading.
 
 Note on new skills: adding Level 1 skills to a path track lowers that track's Level 1 average until you learn them, so its unstarted Level 2 skills can leave the daily plan for a while (started ones still return in the slipping slot). That's intended: new foundations come first.
+
+## Cloud Security (path stage)
+
+The `cloud` track opens only when Security and Networking Level 1 each average 70% (`PATH.after`), and then takes at most one of the day's three lessons (`PATH.gatedMax`): it gets the third slot whenever no started skill is slipping. Until then the Skills map and Tracks show it locked with the real distance to unlock, plus a read-only sample lesson that records nothing. Product names follow 2026 naming (vendor-neutral concepts first); `feature-names` fails on outdated names (e.g. Azure AD) unless written as "formerly …".

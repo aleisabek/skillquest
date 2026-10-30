@@ -381,6 +381,108 @@ GEN.sec[2].push(
       'The order: '+IR_STEPS.join(' → ')+'. Contain before you eradicate, and recover only once the cause is gone.'); })
 );
 
+/* ---- Cloud Security (path track; opens once Security and Networking foundations are solid) ---- */
+const RESP = [
+  ['IaaS (a virtual server you rent)', 'Patching the server\'s operating system', 'You (the customer)'],
+  ['IaaS (a virtual server you rent)', 'Physical security of the data center', 'The cloud provider'],
+  ['IaaS (a virtual server you rent)', 'Patching the hypervisor the servers run on', 'The cloud provider'],
+  ['IaaS (a virtual server you rent)', 'Deciding which ports are open in the firewall rules', 'You (the customer)'],
+  ['PaaS (a managed database service)', 'Patching the database engine', 'The cloud provider'],
+  ['PaaS (a managed database service)', 'Choosing who is allowed to read the data', 'You (the customer)'],
+  ['SaaS (a hosted email service)', 'Patching the email application servers', 'The cloud provider'],
+  ['SaaS (a hosted email service)', 'Turning on MFA for your users', 'You (the customer)'],
+  ['Any service model', 'Classifying and protecting your own data', 'You (the customer)']
+];
+const RESP_ALL = ['You (the customer)', 'The cloud provider', 'Neither: the service handles it on its own', 'The internet service provider'];
+const IAM_TERMS = [
+  ['Temporary credentials that an app or server takes on, instead of a stored key', 'Role'],
+  ['The account\'s first, all-powerful login: protect it with MFA and don\'t use it day to day', 'Root user'],
+  ['A long-lived ID and secret pair used by scripts; avoid it when a role can be used', 'Access key'],
+  ['A JSON document that lists Effect, Action and Resource', 'Policy'],
+  ['A collection of users who get the same permissions', 'Group']
+];
+const IAM_ALL = IAM_TERMS.map(t=>t[1]);
+const IAM_RESULTS = ['Allowed', 'Denied: an explicit Deny matches', 'Denied: nothing allows it (implicit deny)', 'It depends on the order of the statements'];
+const IAM_ACTIONS = ['s3:GetObject', 's3:PutObject', 's3:DeleteObject'];
+const iamMatch = (pattern, value)=>pattern === '*' || (pattern.endsWith('*') ? value.startsWith(pattern.slice(0, -1)) : pattern === value);
+const LOG_SOURCES = [
+  ['Who deleted a storage bucket yesterday (AWS)', 'AWS CloudTrail'],
+  ['Which user signed in from a new country (Microsoft cloud)', 'Microsoft Entra sign-in logs'],
+  ['Who deleted a virtual machine (Azure)', 'Azure Activity Log'],
+  ['Which IP addresses talked to a server, and on which ports (AWS)', 'VPC Flow Logs']
+];
+const LOG_ALL = LOG_SOURCES.map(l=>l[1]);
+const TRAIL_USERS = ['j.lee', 'm.ortiz', 'build-bot', 'a.khan', 's.patel', 'backup-svc'];
+const MISCONF = [
+  ['A storage bucket with customer files allows public read.', 'Turn on Block Public Access and remove the public policy'],
+  ['SSH (port 22) on a web server is open to 0.0.0.0/0.', 'Limit port 22 to an admin range, or use a managed access tool instead'],
+  ['Audit logging (CloudTrail) is turned off in one region.', 'Turn on a multi-region trail for the whole organization'],
+  ['Database snapshots are shared publicly.', 'Make the snapshots private and find out who shared them'],
+  ['An access key is 400 days old and hasn\'t been used in months.', 'Deactivate and then delete the unused key'],
+  ['Disks holding customer data are not encrypted.', 'Turn on encryption by default and move the data to encrypted disks']
+];
+const MISCONF_ALL = MISCONF.map(m=>m[1]);
+const SG_RESULTS = ['Yes: a rule allows it from 0.0.0.0/0', 'No: that port is allowed only from a private range', 'No: no inbound rule allows that port', 'Yes: security groups allow all inbound traffic by default'];
+const NACL_FACTS = ['Applies to a whole subnet', 'Stateless: return traffic needs its own rule', 'Rules are numbered and the lowest matching number wins', 'Can have explicit deny rules'];
+const SG_FACTS = ['Attached to an individual server\'s network interface', 'Stateful: replies to allowed traffic come back automatically', 'Allow rules only, and every rule is considered', 'Can use another security group as a rule\'s source'];
+const KEY_STEPS = ['Deactivate the key and issue a new one', 'Check the audit log for everything the key did', 'Remove the key from the code and its history', 'Turn on secret scanning so it can\'t happen again'];
+const KEY_ACTS = [
+  ['The key works right now and anyone could use it', 'Deactivate the key and issue a new one'],
+  ['You need to know whether someone already used the key', 'Check the audit log for everything the key did'],
+  ['The key still sits in an old commit in the repository', 'Remove the key from the code and its history'],
+  ['You want the next leaked key caught before it is pushed', 'Turn on secret scanning so it can\'t happen again']
+];
+const ENC_TERMS = [
+  ['Encryption keys created and controlled by you in the provider\'s key service, with your own key policy', 'Customer managed key'],
+  ['Encrypting data with a data key, then encrypting that data key with a key held in the key service', 'Envelope encryption'],
+  ['Replacing key material on a schedule so one key protects less data over time', 'Key rotation'],
+  ['Protecting data as it travels over the network', 'Encryption in transit'],
+  ['Protecting data stored on disks, databases and backups', 'Encryption at rest']
+];
+const ENC_ALL = ENC_TERMS.map(t=>t[1]);
+GEN.cloud = {1:[
+  sk('Shared responsibility', ()=>{ const [model, task, who] = pick(RESP); return mcq('cloud',1,'<b>'+model+'</b>: who is responsible for <b>'+task.toLowerCase()+'</b>?', who, RESP_ALL,
+      'The provider secures the cloud itself (buildings, hardware, the virtualization layer, and more of the stack as you go from IaaS to PaaS to SaaS). You always own your data, your users\' access and your settings.'); }, {lookup:true, noType:true}),
+  sk('IAM & least privilege', ()=>{ const [d, t] = pick(IAM_TERMS); return mcq('cloud',1,'"'+d+'." What is this called in cloud IAM?', t, IAM_ALL,
+      'Role = temporary credentials. Root user = the all-powerful first login. Access key = a long-lived secret for scripts. Policy = the JSON permission document. Group = users who share permissions.'); }, {lookup:true}),
+  sk('IAM & least privilege', ()=>{ const res = ['arn:aws:s3:::reports/*', 'arn:aws:s3:::payroll/*', '*'], acts = ['s3:GetObject', 's3:PutObject', 's3:DeleteObject', 's3:Get*', 's3:*'];
+      const n = rnd(1,3), stmts = [];
+      for(let i=0;i<n;i++) stmts.push({Effect: i===0 ? 'Allow' : pick(['Allow','Deny']), Action: pick(acts), Resource: pick(res)});
+      const action = pick(IAM_ACTIONS), resource = 'arn:aws:s3:::'+pick(['reports/q3.pdf', 'payroll/june.csv']);
+      const hits = stmts.filter(s=>iamMatch(s.Action, action) && iamMatch(s.Resource, resource));
+      const right = hits.some(s=>s.Effect==='Deny') ? IAM_RESULTS[1] : hits.some(s=>s.Effect==='Allow') ? IAM_RESULTS[0] : IAM_RESULTS[2];
+      return mcq('cloud',1,'This is the only policy on a user (same account; no bucket policy, SCP or permissions boundary applies):<pre>'+JSON.stringify({Version:'2012-10-17', Statement:stmts}, null, 1)+'</pre>Request: <code>'+action+'</code> on <code>'+resource+'</code>. What happens?', right, IAM_RESULTS,
+        'IAM checks every statement: an explicit Deny that matches always wins; otherwise a matching Allow allows it; if nothing matches, the default is deny. Statement order never matters.'); }, {noType:true}),
+  sk('Audit logging', ()=>{ const [q, src] = pick(LOG_SOURCES); return mcq('cloud',1,'Which log answers this: <b>'+q+'</b>?', src, LOG_ALL,
+      'CloudTrail and the Azure Activity Log record control-plane actions (who changed what). Entra sign-in logs record sign-ins. VPC Flow Logs record network connections, not who made changes.'); }, {lookup:true, noType:true}),
+  sk('Audit logging', ()=>{ const user = pick(TRAIL_USERS), ip = pick(['198.51.100.','203.0.113.'])+rnd(2,250), ev = pick(['DeleteBucket','CreateAccessKey','StopLogging','AttachUserPolicy']);
+      const rec = {eventTime:'2026-10-'+pad2(rnd(1,28))+'T'+pad2(rnd(0,23))+':'+pad2(rnd(0,59))+':00Z', eventName:ev, userIdentity:{type:'IAMUser', userName:user}, sourceIPAddress:ip, awsRegion:'us-east-1'};
+      /* wrong "who" options come from the record itself, so the answer can't be found by spotting the only familiar name */
+      const askWho = Math.random() < .5, others = askWho ? [user, 'IAMUser', ev, 'us-east-1'] : [ip, '10.0.0.'+rnd(2,250), '198.51.100.'+rnd(2,250), '203.0.113.'+rnd(2,250), '192.0.2.'+rnd(2,250)];
+      return mcq('cloud',1,'A CloudTrail record:<pre>'+JSON.stringify(rec, null, 1)+'</pre>'+(askWho ? 'Who made this call?' : 'From which IP address was the call made?'), askWho ? user : ip, others,
+        'In a CloudTrail record, userIdentity says who made the call, sourceIPAddress where it came from, eventName what they did, and eventTime when.'); }),
+  sk('Misconfigurations', ()=>{ const [f, fix] = pick(MISCONF); return mcq('cloud',1,'A posture scan reports: "'+f+'" What is the right fix?', fix, MISCONF_ALL,
+      'Misconfigurations are among the most common causes of cloud breaches. Posture tools find them; the fix removes the exposure at its source.'); }, {lookup:true, noType:true}),
+  sk('Security groups & NACLs', ()=>{ const port = pick([22, 3389, 443, 3306]), other = pick([80, 8080, 5432].filter(p=>p!==port));
+      const kind = pick(['open', 'private', 'none']);
+      const rules = [[other===80?'HTTP':'Custom TCP', other, '0.0.0.0/0']];
+      if(kind==='open') rules.push(['Custom TCP', port, '0.0.0.0/0']);
+      if(kind==='private') rules.push(['Custom TCP', port, '10.'+rnd(0,9)+'.0.0/16']);
+      const right = {open:SG_RESULTS[0], private:SG_RESULTS[1], none:SG_RESULTS[2]}[kind];
+      return mcq('cloud',1,'A security group\'s inbound rules:'+tableHTML(['Type','Port','Source'], shuffle(rules))+'Does this security group allow inbound traffic from anywhere on the internet to port <code>'+port+'</code>?', right, SG_RESULTS,
+        'Security groups deny inbound traffic unless a rule allows it. 0.0.0.0/0 means every IPv4 address; a private range such as 10.x.0.0/16 covers only your own network. (Actually reaching the server also needs a public IP, a route and the network ACL.)'); }),
+  sk('Security groups & NACLs', ()=>{ const nacl = Math.random() < .5, right = pick(nacl ? NACL_FACTS : SG_FACTS);
+      return mcq('cloud',1,'Which statement is true of an AWS <b>'+(nacl ? 'network ACL' : 'security group')+'</b>?', right, nacl ? SG_FACTS : NACL_FACTS,
+        'Security groups: per server, stateful, allow-only, every rule considered. Network ACLs: per subnet, stateless, numbered rules where the lowest match wins, allow and deny.'); }, {lookup:true})
+], 2:[
+  sk('Leaked key response', ()=>{ const [s, a] = pick(KEY_ACTS); return mcq('cloud',2,'A cloud access key was pushed to a public repository. "'+s+'." Which step handles that?', a, KEY_STEPS,
+      'Order: deactivate and replace the key, check the audit log for what it did, clean it out of the code and history, then add secret scanning.'); }, {lookup:true, noType:true}),
+  sk('Leaked key response', ()=>{ const i = rnd(0, KEY_STEPS.length-2); return mcq('cloud',2,'After a key leak, what comes right after "'+KEY_STEPS[i]+'"?', KEY_STEPS[i+1], KEY_STEPS,
+      'Contain first (deactivate), then investigate (audit log), then clean up (code and history), then prevent (secret scanning).'); }, {noType:true}),
+  sk('Encryption & key management', ()=>{ const [d, t] = pick(ENC_TERMS); return mcq('cloud',2,'"'+d+'." What is this called?', t, ENC_ALL,
+      'At rest = stored data; in transit = data on the network (TLS). A customer managed key gives you control over its policy and rotation; envelope encryption wraps data keys with a KMS key.'); }, {lookup:true, noType:true})
+]};
+
 /* SQL generators use a fresh random tickets table every time */
 function randTickets(){
   const n = rnd(5,8), rows = [];

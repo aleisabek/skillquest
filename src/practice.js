@@ -13,7 +13,10 @@ const PRACTICE = [
  {group:'📚 Courses & certification prep', items:[
   ['Professor Messer', 'https://www.professormesser.com', 'Free full video courses for A+, Network+ and Security+. Pair with Job prep → Exams.'],
   ['Cisco Networking Academy', 'https://www.netacad.com', 'Free: Introduction to Cybersecurity, Networking Basics, Linux Unhatched, plus Packet Tracer.'],
-  ['Microsoft Learn', 'https://learn.microsoft.com/training/', 'Free Microsoft 365, Entra ID and Intune training for IT support roles.']]},
+  ['Microsoft Learn', 'https://learn.microsoft.com/training/', 'Free Microsoft 365, Entra ID, Intune and Azure training, including the AZ-900 (Azure fundamentals) and SC-900 (security fundamentals) learning paths.']]},
+ {group:'☁️ Cloud security', items:[
+  ['AWS Skill Builder', 'https://skillbuilder.aws', 'Free digital courses, including Cloud Practitioner Essentials and security fundamentals.'],
+  ['flaws.cloud', 'http://flaws.cloud', 'A free, legal training site built to teach common AWS misconfigurations, level by level.']]},
  {group:'🗄️ SQL practice', items:[
   ['SQLBolt', 'https://sqlbolt.com', 'Short interactive lessons with exercises in the browser.'],
   ['SQLZoo', 'https://sqlzoo.net', 'More free SQL exercises, from basic SELECT to joins.']]},
