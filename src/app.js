@@ -287,8 +287,21 @@ function statsLine(st){
    Career path: cloud security and red team, foundations first. Every beginner skill stays; the path only orders them.
    Per track, Level 1 skills come first and its Level 2 skills open once the Level 1 ones average PATH.solid.
    Weights say how central a track is to both paths (Software Testing is not on it; it stays in Study).
-   Cloud Security and Offensive Security tracks are planned as the next stage. */
-const PATH = {name:'Cloud security + Red team', weights:{linux:3, net:3, sec:3, code:2, sql:2, support:1}, solid:70};
+   Cloud Security is the next stage (gated below); Offensive Security comes after it. */
+const PATH = {name:'Cloud security + Red team', weights:{linux:3, net:3, sec:3, code:2, sql:2, support:1, cloud:2}, solid:70,
+  /* later-stage tracks open only when these tracks' Level 1 skills each average PATH.solid, then take at most gatedMax daily slots */
+  after:{cloud:['sec','net']}, gatedMax:1};
+const isGated = tid=>!!PATH.after[tid];
+function previewLesson(tid){ const s = allSkills().find(x=>x.tid===tid && lessonFor(x.id)); return s && s.id; }
+/* Once a gated track is started it stays open: foundation scores decay between sessions, and a short break
+   shouldn't hide progress already made. Locked tracks can't be practiced anywhere, so a mastery record means it was open. */
+function trackOpen(tid){
+  if(!isGated(tid)) return true;
+  const M = S.mastery || {};
+  return allSkills().some(s=>s.tid===tid && M[s.id]) || PATH.after[tid].every(t=>trackL1Avg(t) >= PATH.solid);
+}
+/* "Security L1 54/70 · Networking L1 41/70": the honest distance to unlocking a gated track (floored, so 69.6 never reads 70/70) */
+function unlockText(tid){ return (PATH.after[tid] || []).map(t=>track(t).name+' L1 '+Math.floor(trackL1Avg(t))+'/'+PATH.solid).join(' · '); }
 const PRACTICE_N = 4;
 function pathSkills(){ return allSkills().filter(s=>PATH.weights[s.tid] && lessonFor(s.id)); }
 const skillLevel = s=>Math.min(...s.lvs);
@@ -306,28 +319,38 @@ function dailyPlan(){
   const prev = S.plan && S.plan.day === addDays(d, -1) ? S.plan : null, runs0 = (prev && prev.runs) || {};
   const run = s=>prev && prev.ids.includes(s.id) ? (runs0[s.id] || 1) : 0;
   const M = S.mastery||{}, tie = s=>hashStr(s.id+d);
-  const pool = pathSkills().filter(s=>skillLevel(s)===1 || trackL1Avg(s.tid) >= PATH.solid);
+  const pool = pathSkills().filter(s=>trackOpen(s.tid) && (skillLevel(s)===1 || trackL1Avg(s.tid) >= PATH.solid));
+  /* at most PATH.gatedMax of the day's skills may come from a gated (later-stage) track */
+  const room = s=>!isGated(s.tid) || ids.filter(id=>isGated(skillById(id).tid)).length < PATH.gatedMax;
   const key = s=>M[s.id] ? [0, skillScore(s.id), 0, tie(s)] : [1, -PATH.weights[s.tid], skillLevel(s), tie(s)];
   const cmp = (a,b)=>{ const x = key(a), y = key(b); for(let i=0;i<4;i++) if(x[i] !== y[i]) return x[i] - y[i]; return 0; };
   const need = pool.filter(s=>skillScore(s.id) < PATH.solid).sort((a,b)=>(run(a) >= 3) - (run(b) >= 3) || cmp(a,b));
   const ids = [];
-  for(const s of need){ if(ids.length < 2 && !ids.some(id=>skillById(id).tid === s.tid)) ids.push(s.id); }
-  for(const s of need){ if(ids.length < 2 && !ids.includes(s.id)) ids.push(s.id); }
-  const slipping = pathSkills().filter(s=>M[s.id] && !ids.includes(s.id)).sort((a,b)=>skillScore(a.id)-skillScore(b.id) || tie(a)-tie(b));
+  for(const s of need){ if(ids.length < 2 && room(s) && !ids.some(id=>skillById(id).tid === s.tid)) ids.push(s.id); }
+  for(const s of need){ if(ids.length < 2 && room(s) && !ids.includes(s.id)) ids.push(s.id); }
+  /* any started skill can come back here, including Level 2 skills whose track foundations have since dipped */
+  const slipping = pathSkills().filter(s=>trackOpen(s.tid) && M[s.id] && !ids.includes(s.id) && room(s)).sort((a,b)=>skillScore(a.id)-skillScore(b.id) || tie(a)-tie(b));
   const tracksSoFar = ids.map(id=>skillById(id).tid);
-  const third = slipping.find(s=>skillScore(s.id) < 85) || need.find(s=>!ids.includes(s.id) && !tracksSoFar.includes(s.tid)) || need.find(s=>!ids.includes(s.id)) || slipping[0];
+  /* third slot: a skill that has really slipped (under PATH.solid) first; then an opened later-stage track, so Cloud
+     doesn't wait behind every half-learned skill once unlocked; then a mildly slipping skill; then a new skill elsewhere.
+     If no later-stage skill has been practiced in 3 days, it goes ahead of the slipped skill, so it can't starve mid-path. */
+  const gatedNext = need.find(s=>isGated(s.tid) && room(s) && !ids.includes(s.id));
+  const gatedStale = gatedNext && !pathSkills().some(s=>isGated(s.tid) && M[s.id] && M[s.id].last && daysSince(M[s.id].last) < 3);
+  const third = (gatedStale && gatedNext) || slipping.find(s=>skillScore(s.id) < PATH.solid) || gatedNext
+    || slipping.find(s=>skillScore(s.id) < 85)
+    || need.find(s=>room(s) && !ids.includes(s.id) && !tracksSoFar.includes(s.tid)) || need.find(s=>room(s) && !ids.includes(s.id)) || slipping[0];
   if(third) ids.push(third.id);
   /* everything solid: keep it fresh with the weakest path skills, different tracks first */
   const rest = pool.slice().sort((a,b)=>skillScore(a.id)-skillScore(b.id) || tie(a)-tie(b));
-  for(const s of rest) if(ids.length < 3 && !ids.includes(s.id) && !ids.some(id=>skillById(id).tid === s.tid)) ids.push(s.id);
-  for(const s of rest) if(ids.length < 3 && !ids.includes(s.id)) ids.push(s.id);
+  for(const s of rest) if(ids.length < 3 && room(s) && !ids.includes(s.id) && !ids.some(id=>skillById(id).tid === s.tid)) ids.push(s.id);
+  for(const s of rest) if(ids.length < 3 && room(s) && !ids.includes(s.id)) ids.push(s.id);
   const runs = {}; ids.slice(0, 3).forEach(id=>{ runs[id] = prev && prev.ids.includes(id) ? (runs0[id] || 1) + 1 : 1; });
   S.plan = {day:d, ids:ids.slice(0, 3), runs, apply:applyRep(ids[0])};
   save();
   return S.plan;
 }
 /* The rep for today: a ticket scenario in the main skill's area while its best score is under 90, otherwise an interview question. */
-const SCEN_TRACK = {disk:'linux', noc:'net', pos:'support', lockout:'support', regression:'qa', phish:'sec'};
+const SCEN_TRACK = {disk:'linux', noc:'net', pos:'support', lockout:'support', regression:'qa', phish:'sec', leakedkey:'cloud'};
 function applyRep(id){
   const s = id && skillById(id), tid = s ? s.tid : 'linux';
   const sc = SCEN.findIndex(x=>SCEN_TRACK[x.id] === tid && ((S.tickets||{})[x.id]||0) < 90);
@@ -511,7 +534,7 @@ function stripHTML(){
 }
 /* One real lab for today: matched to today's skills (offense-leaning for the path), not used in the last 7 days if possible. */
 const LAB_FOR = {linux:['OverTheWire'], net:['Cisco Networking Academy','TryHackMe free rooms'], sec:['picoCTF','Hack The Box Academy','TryHackMe free rooms','CyberDefenders'],
-  code:['picoCTF'], sql:['SQLBolt','SQLZoo'], support:['Microsoft Learn','Professor Messer']};
+  code:['picoCTF'], sql:['SQLBolt','SQLZoo'], support:['Microsoft Learn','Professor Messer'], cloud:['AWS Skill Builder','flaws.cloud','Microsoft Learn']};
 function labPick(plan){
   const items = PRACTICE.flatMap(g=>g.items), tids = plan.ids.map(id=>skillById(id).tid);
   const cand = [...new Set(tids.flatMap(t=>LAB_FOR[t]||[]))].map(n=>items.find(x=>x[0]===n)).filter(Boolean);
@@ -535,6 +558,9 @@ function vTracks(){
           '<div class="meter"><i style="width:'+m+'%"></i></div>'+statsLine(levelStats(t.id, n))+
           '<div class="row" style="margin-top:8px"><button class="primary" data-q="'+t.id+'" data-lv="'+n+'">Quiz</button><button data-c="'+t.id+'" data-lv="'+n+'">Flashcards</button>'+
           (genFor(t.id, n).length ? '<button data-e="'+t.id+'" data-lv="'+n+'" title="Endless, freshly generated problems">∞ Drill</button>' : '')+'</div></div>'; };
+      /* a locked track offers only a read-only preview: no Browse, quizzes or drills, since those would record mastery */
+      if(!trackOpen(t.id)) return '<div class="card"><h3 style="margin:0">'+t.icon+' '+t.name+' 🔒</h3><p class="small">'+t.blurb+'</p>'+
+        '<p class="small" style="margin-top:12px">Opens when '+unlockText(t.id)+'.</p><div class="row"><button data-preview="'+t.id+'">Preview a lesson (records nothing)</button></div></div>';
       return '<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">'+t.icon+' '+t.name+'</h3><button data-b="'+t.id+'" title="Search every card in this track, filter by topic, and study what you find">Browse</button></div><p class="small">'+t.blurb+'</p>'+
         '<div class="levels">'+LEVELS.map(l=>'<span class="lv '+(l.n<=OPEN?'open':'')+'" title="'+esc(l.desc)+'">L'+l.n+' '+l.name+(l.n>OPEN?' 🔒':'')+'</span>').join('')+'</div>'+
         lvRow(1)+lvRow(2)+
@@ -546,6 +572,7 @@ function vTracks(){
   view.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>startQuiz(b.dataset.q, 10, null, null, +b.dataset.lv));
   view.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>startCards(b.dataset.c, 12, null, null, +b.dataset.lv));
   view.querySelectorAll('[data-b]').forEach(b=>b.onclick=()=>vBrowse(b.dataset.b));
+  view.querySelectorAll('[data-preview]').forEach(b=>b.onclick=()=>vLesson(previewLesson(b.dataset.preview), null, {preview:true, back:'tracks'}));
   view.querySelectorAll('[data-e]').forEach(b=>b.onclick=()=>startQuiz(b.dataset.e, 10, null, null, +b.dataset.lv, true));
   view.querySelectorAll('[data-sk]').forEach(b=>b.onclick=()=>startQuiz(b.dataset.trk, 10, null, null, 0, true, b.dataset.sk));
 }
@@ -965,7 +992,7 @@ const scenIdx = id=>SCEN.findIndex(s=>s.id===id);
 /* Readiness items: [label, score(), practice(), fades]. Only items whose score fades without review (track mastery)
    count toward a job's %; tickets, console tasks and interview reps are shown as practice done, since a best-ever score never drops. */
 const R = {
-  track:(tid,lv)=>[track(tid).icon+' '+track(tid).name+' L'+lv, ()=>mastery(tid,lv), ()=>startQuiz(tid,10,null,null,lv), true],
+  track:(tid,lv)=>[track(tid).icon+' '+track(tid).name+' L'+lv, ()=>mastery(tid,lv), ()=>startQuiz(tid,10,null,null,lv), true, tid],
   ticket:id=>['🎫 Ticket: '+SCEN[scenIdx(id)].title, ()=>tkPct(id), ()=>playTicket(scenIdx(id),null)],
   sql:lv=>['🗄️ SQL console L'+lv, ()=>sqlPct(lv), ()=>startSQL(8,null,lv)],
   term:()=>['🐧 Terminal commands', termPct, ()=>startTerm(8,null)],
@@ -980,6 +1007,8 @@ const JOBS = [
     R.track('linux',1), R.track('linux',2), R.term(), R.track('net',1), R.track('code',1), R.ticket('disk'), R.iv('jobready','job-ready scenarios')]},
   {name:'NOC employer · NOC Admin', status:'Example role', items:[
     R.track('net',1), R.track('net',2), R.track('support',1), R.track('support',2), R.ticket('noc'), R.iv('behavioral','behavioral (STAR)'), R.iv('jobready','job-ready scenarios')]},
+  {name:'Path goal · Cloud Security Engineer', status:'Long-term target · Cloud opens after Security + Networking L1', items:[
+    R.track('cloud',1), R.track('cloud',2), R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('linux',1)]},
   {name:'Future goal · Junior Security / SOC Analyst', status:'Needs Security+ first', items:[
     R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('net',2), R.track('linux',1)]}
 ];
@@ -989,11 +1018,13 @@ function vReady(){
   view.innerHTML = '<h1>🎯 Job readiness</h1><p class="sub">How much of the core knowledge for each job you have <b>retained right now</b> (track mastery, which drops when reviews go overdue). Tickets, terminal, SQL and interview reps are listed as practice done: useful, but a best-ever score never shows what you still remember. It measures your practice, not a hiring decision.</p>'+
     JOBS.map((j,ji)=>{
       const p = jobScore(j);
-      const weakest = j.items.map((it,k)=>[it[1](),k]).sort((a,b)=>a[0]-b[0])[0];
+      const locked = it=>it[4] && !trackOpen(it[4]);
+      const weakest = j.items.map((it,k)=>[it[1](),k]).filter(([,k])=>!locked(j.items[k])).sort((a,b)=>a[0]-b[0])[0] || [100];
       return '<div class="card" style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">'+esc(j.name)+'</h3><span class="pill">'+esc(j.status)+'</span></div>'+
         '<div class="row" style="margin-top:8px;gap:14px"><span class="q" style="margin:0">'+p+'%</span><span class="small">'+readyLabel(p)+'</span></div>'+
         '<div class="meter"><i style="width:'+p+'%"></i></div>'+
-        j.items.map((it,k)=>{ const v = it[1](); return '<div class="ritem"><span>'+it[0]+(it[3] ? '' : ' <span class="small">(practice done, not counted)</span>')+'</span><div class="meter"><i style="width:'+v+'%"></i></div><span class="small" style="width:40px;text-align:right">'+v+'%</span><button data-j="'+ji+'" data-k="'+k+'">Practice</button></div>'; }).join('')+
+        j.items.map((it,k)=>{ const v = it[1](); return '<div class="ritem"><span>'+it[0]+(it[3] ? '' : ' <span class="small">(practice done, not counted)</span>')+'</span><div class="meter"><i style="width:'+v+'%"></i></div><span class="small" style="width:40px;text-align:right">'+v+'%</span>'+
+          (locked(it) ? '<span class="small" title="Opens when '+esc(unlockText(it[4]))+'">🔒 Opens after '+PATH.after[it[4]].map(t=>esc(track(t).name)).join(' + ')+' L1</span>' : '<button data-j="'+ji+'" data-k="'+k+'">Practice</button>')+'</div>'; }).join('')+
         (weakest[0] < 100 ? '<p class="small" style="margin-top:10px">👉 Next best step: <b>'+j.items[weakest[1]][0]+'</b></p>' : '<p class="small">✅ Everything here is mastered. Do the interview questions out loud before the real interview.</p>')+
       '</div>';
     }).join('');

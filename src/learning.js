@@ -48,7 +48,7 @@ function skillStatus(id){
 }
 /* What to practice next: weak skills you've tried first, then new Level 1 skills, then fading ones. */
 function recommend(k){
-  return allSkills().map(s=>{
+  return allSkills().filter(s=>typeof trackOpen !== 'function' || trackOpen(s.tid)).map(s=>{
     const m = (S.mastery||{})[s.id], v = skillScore(s.id);
     const pri = m ? (v < 85 ? v : 999) : (s.lvs.includes(1) ? 55 : 75);
     return [pri, s];
@@ -73,7 +73,9 @@ function typedOn(){ return S.typed !== false; }
 
 /* ---- Mini-lessons ---- */
 function lessonFor(id){ return (typeof LESSONS !== 'undefined' && LESSONS[id]) || null; }
-function vLesson(id, mission){
+/* opts.preview: a locked track's sample lesson. Read-only: no practice button, and nothing is recorded. */
+function vLesson(id, mission, opts){
+  const preview = !!(opts && opts.preview);
   const s = skillById(id), L = lessonFor(id);
   if(!s || !L){ toast('No lesson for this skill yet'); return; }
   current = 'skills'; header();
@@ -90,7 +92,9 @@ function vLesson(id, mission){
     '<h2>Common mistakes</h2><ul class="clean">'+L.mistakes.map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
     (L.spot ? '<h2>Spot the problem</h2><p>'+L.spot.q+'</p><details><summary>Show the answer</summary><p>'+L.spot.a+'</p></details>' : '')+
     '<h2>Say it in an interview</h2><div class="explain">"'+L.say+'"</div>'+
-    '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: '+(fromPlan ? PRACTICE_N+' exercises (today’s plan)' : '6 fresh problems')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div>';
+    (preview ? '<p class="small" style="margin-top:16px">🔒 Preview: reading this records nothing. '+esc(track(s.tid).name)+' opens when '+unlockText(s.tid)+'.</p><div class="row"><button id="back">Back</button></div></div>'
+      : '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: '+(fromPlan ? PRACTICE_N+' exercises (today’s plan)' : '6 fresh problems')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div>');
+  if(preview){ $('#back').onclick = ()=>go(opts.back || 'skills'); return; }
   $('#prac').onclick = ()=>{ markRead(); startSkill(s, fromPlan ? PRACTICE_N : 6, mission || null); };
   $('#back').onclick = ()=>{ markRead(); go(fromPlan ? 'today' : 'skills'); };
 }
@@ -109,8 +113,9 @@ function skillRow(s){
    A skill spanning both levels counts as a foundation. */
 const onPath = s=>!!PATH.weights[s.tid] && !AREA_OF[s.id];
 const STAGES = [
-  ['Path · Foundations (Level 1)', 'Where the daily plan starts. Get these to 70% and each track opens its Level 2 skills.', s=>onPath(s) && Math.min(...s.lvs) === 1],
-  ['Path · Job-ready (Level 2)', 'Opens per track once its foundations average 70%. Cloud Security and Offensive Security come after this stage.', s=>onPath(s) && Math.min(...s.lvs) === 2],
+  ['Path · Foundations (Level 1)', 'Where the daily plan starts. Get these to 70% and each track opens its Level 2 skills.', s=>onPath(s) && !isGated(s.tid) && Math.min(...s.lvs) === 1],
+  ['Path · Job-ready (Level 2)', 'Opens per track once its foundations average 70%.', s=>onPath(s) && !isGated(s.tid) && Math.min(...s.lvs) === 2],
+  ['Path · Cloud Security', 'The next stage of your path. At most one cloud lesson a day once it opens.', s=>s.tid === 'cloud', 'cloud'],
   ['Off the path', 'Still here for practice and your current applications; the daily plan does not assign them.', s=>!onPath(s)]
 ];
 function vSkills(){
@@ -122,10 +127,13 @@ function vSkills(){
     '<h2>Recommended now</h2><div class="grid">'+rec.map(s=>{ const [st] = skillStatus(s.id);
       return '<div class="card mission"><div class="tag">'+esc(s.area)+'</div><h3>'+s.icon+' '+esc(s.sk)+'</h3><p>'+st+' · mastery '+skillScore(s.id)+'%</p><div class="row">'+
         (lessonFor(s.id) ? '<button class="primary" data-learn="'+esc(s.id)+'">📖 Learn + practice</button>' : '')+'<button data-drill="'+esc(s.id)+'">Drill</button></div></div>'; }).join('')+'</div>'+
-    STAGES.map(([name, note, test])=>{ const inStage = skills.filter(test); if(!inStage.length) return '';
+    STAGES.map(([name, note, test, gate])=>{ const inStage = skills.filter(test); if(!inStage.length) return '';
+      if(gate && !trackOpen(gate)) return '<h2>'+esc(name)+' 🔒</h2><div class="card"><p>Opens when '+unlockText(gate)+'. '+inStage.length+' skills are waiting: '+inStage.map(s=>esc(s.sk)).join(', ')+'.</p>'+
+        '<div class="row"><button data-preview="'+gate+'">Preview a lesson (records nothing)</button></div></div>';
       return '<h2>'+esc(name)+'</h2><p class="small">'+note+'</p>'+[...new Set(inStage.map(s=>s.area))].map(a=>
         '<h3 class="area">'+esc(a)+'</h3><div class="card">'+inStage.filter(s=>s.area===a).map(skillRow).join('')+'</div>').join(''); }).join('');
   view.querySelectorAll('[data-learn]').forEach(b=>b.onclick=()=>vLesson(b.dataset.learn));
+  view.querySelectorAll('[data-preview]').forEach(b=>b.onclick=()=>vLesson(previewLesson(b.dataset.preview), null, {preview:true}));
   view.querySelectorAll('[data-drill]').forEach(b=>b.onclick=()=>startSkill(skillById(b.dataset.drill), 8, null));
   $('#typedT').onclick = ()=>{ S.typed = !typedOn(); save(); vSkills(); toast('Typed answers '+(typedOn()?'on':'off')); };
 }

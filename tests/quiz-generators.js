@@ -51,7 +51,7 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
     const lo = +m[1], hi = +m[2], g = v => v < lo ? 'too low' : v > hi ? 'too high' : 'valid';
     if (g(+A) !== m[3]) fail('partA', q); O.slice(1).forEach(o => { if (g(+o) === m[3]) fail('partW', q); }); }
   else if ((m = Q.match(/what comes right after "(.+?)"\?/))) {
-    const lists = [['Preparation','Detection','Analysis','Containment','Eradication','Recovery','Lessons learned'],['Identify the problem','Establish a theory of probable cause','Test the theory','Make a plan of action','Implement the fix or escalate','Verify it works and prevent repeats','Document everything'], ['Requirement analysis','Test planning','Test case design','Test environment setup','Test execution','Test closure']];
+    const lists = [['Deactivate the key and issue a new one','Check the audit log for everything the key did','Remove the key from the code and its history','Turn on secret scanning so it can\'t happen again'],['Preparation','Detection','Analysis','Containment','Eradication','Recovery','Lessons learned'],['Identify the problem','Establish a theory of probable cause','Test the theory','Make a plan of action','Implement the fix or escalate','Verify it works and prevent repeats','Document everything'], ['Requirement analysis','Test planning','Test case design','Test environment setup','Test execution','Test closure']];
     const L = lists.find(l => l.includes(m[1])); if (!L || A !== L[L.indexOf(m[1]) + 1]) fail('order', q); }
   else if ((m = Q.match(/a bug is in (\w+)\. What is the next state/))) { const F = ['New','Assigned','Open','Fixed','Retest','Verified','Closed']; if (A !== F[F.indexOf(m[1]) + 1]) fail('bugflow', q); }
   else if (/true multi-factor authentication/.test(Q)) {
@@ -77,6 +77,22 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
     const rules = [...q[2].matchAll(/<tr><td>(\d+)<\/td><td>(allow|deny)<\/td><td>([^<]+)<\/td><td>([^<]+)<\/td><\/tr>/g)].map(x => ({ n: +x[1], act: x[2], src: x[3], port: x[4] }));
     const hit = rules.find(r => (r.src === 'any' || inNet(m[1], r.src)) && (r.port === 'any' || +r.port === +m[2]));
     if (rules.length < 3 || !hit || A !== (hit.act === 'allow' ? 'Allowed' : 'Denied') + ' by rule ' + hit.n) fail('firewall first match', q); }
+  else if (/This is the only policy on a user\b/.test(Q)) {
+    /* IAM evaluation, re-derived independently: explicit Deny > Allow > implicit deny; statement order irrelevant */
+    const pol = JSON.parse(strip(q[2].match(/<pre>([\s\S]*?)<\/pre>/)[1])), rq = Q.match(/Request: (\S+) on (\S+)\. What happens/);
+    const like = (p, v) => new RegExp('^' + p.split('*').map(x => x.replace(/[.:/]/g, '\\$&')).join('.*') + '$').test(v);
+    const hits = pol.Statement.filter(st => like(st.Action, rq[1]) && like(st.Resource, rq[2]));
+    const e = hits.some(st => st.Effect === 'Deny') ? 'Denied: an explicit Deny matches' : hits.length ? 'Allowed' : 'Denied: nothing allows it (implicit deny)';
+    if (A !== e) fail('iam ' + e, q); }
+  else if (/A CloudTrail record:/.test(Q)) {
+    const rec = JSON.parse(strip(q[2].match(/<pre>([\s\S]*?)<\/pre>/)[1]));
+    const e = /Who made this call/.test(Q) ? rec.userIdentity.userName : rec.sourceIPAddress;
+    if (A !== e) fail('cloudtrail field', q); }
+  else if ((m = Q.match(/allow inbound traffic from anywhere on the internet to port (\d+)\?/))) {
+    const rules = [...q[2].matchAll(/<tr><td>[^<]*<\/td><td>(\d+)<\/td><td>([^<]+)<\/td><\/tr>/g)].map(x => ({ port: +x[1], src: x[2] }));
+    const onPort = rules.filter(r => r.port === +m[1]);
+    const e = onPort.some(r => r.src === '0.0.0.0/0') ? 'Yes: a rule allows it from 0.0.0.0/0' : onPort.length ? 'No: that port is allowed only from a private range' : 'No: no inbound rule allows that port';
+    if (rules.length < 1 || A !== e) fail('security group exposure ' + e, q); }
   else if (G[tid][lv][gi].lookup) unchecked[tid + lv + ':' + gi] = Q.slice(0, 50);
   else { notVerified[G[tid][lv][gi].sk] = Q.slice(0, 70); }
 }

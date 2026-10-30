@@ -7,7 +7,8 @@ const TRACKS = [
   {id:'support', name:'IT Support & M365', icon:'🖥️', blurb:'Troubleshooting, tickets, Microsoft 365, Entra ID and Intune.'},
   {id:'qa', name:'Software Testing', icon:'🧪', blurb:'How testers think: test cases, bugs, and the testing life cycle.'},
   {id:'code', name:'Code, Git & APIs', icon:'🐍', blurb:'Git, Python, APIs and tests: the tools behind your projects.'},
-  {id:'sql', name:'SQL & Data', icon:'🗄️', blurb:'Asking databases questions. Healthcare billing and many IT jobs list it.'}
+  {id:'sql', name:'SQL & Data', icon:'🗄️', blurb:'Asking databases questions. Healthcare billing and many IT jobs list it.'},
+  {id:'cloud', name:'Cloud Security', icon:'☁️', blurb:'Securing what you run in the cloud: shared responsibility, identity, logging, misconfigurations, network controls.'}
 ];
 const LEVELS = [
   {n:1, name:'Foundations', desc:'The words and basics every interviewer assumes you know.'},
@@ -20,7 +21,8 @@ const LEVELS = [
 const CARD_TOPICS = {files:'Files & names', read:'Reading & identifying', find:'Finding', filter:'Filtering text', encode:'Encoding & hashing', archive:'Archives',
   net:'Networking', priv:'Users, processes & privilege', git:'Git', shell:'Shell & environment', redirect:'Redirection', admin:'Admin',
   /* other tracks (prefixed keys so they never clash with the Linux ones) */
-  'n-addr':'Addressing & subnets', 'n-proto':'Protocols, ports & models', 'n-tools':'Troubleshooting & tools', 'n-infra':'Network infrastructure', 's-core':'Core concepts', 's-crypto':'Cryptography', 's-threats':'Threats & attacks', 's-defense':'Defenses & tools', 's-ops':'Detection & response', 'u-method':'Troubleshooting', 'u-m365':'Microsoft 365, Entra & Intune', 'u-process':'Tickets & process', 'u-life':'Onboarding, assets & offboarding', 'q-design':'Test design', 'q-types':'Test types & strategy', 'q-process':'Process & planning', 'q-bugs':'Bugs & defects', 'c-git':'Git', 'c-api':'APIs & web', 'c-python':'Python & scripting', 'c-practice':'Engineering practice', 'd-query':'Querying basics', 'd-agg':'Aggregation & joins', 'd-design':'Design, changes & safety'};
+  'n-addr':'Addressing & subnets', 'n-proto':'Protocols, ports & models', 'n-tools':'Troubleshooting & tools', 'n-infra':'Network infrastructure', 's-core':'Core concepts', 's-crypto':'Cryptography', 's-threats':'Threats & attacks', 's-defense':'Defenses & tools', 's-ops':'Detection & response', 'u-method':'Troubleshooting', 'u-m365':'Microsoft 365, Entra & Intune', 'u-process':'Tickets & process', 'u-life':'Onboarding, assets & offboarding', 'q-design':'Test design', 'q-types':'Test types & strategy', 'q-process':'Process & planning', 'q-bugs':'Bugs & defects', 'c-git':'Git', 'c-api':'APIs & web', 'c-python':'Python & scripting', 'c-practice':'Engineering practice', 'd-query':'Querying basics', 'd-agg':'Aggregation & joins', 'd-design':'Design, changes & safety',
+  'cl-model':'Shared responsibility', 'cl-iam':'Identity & access', 'cl-log':'Logging & detection', 'cl-net':'Network controls', 'cl-data':'Data & keys'};
 /* Bandit study guide: which topics to review, roughly in the order the game needs them. Techniques only, never level solutions. */
 const BANDIT_GUIDE = [['files','read'],['find','filter'],['encode','archive'],['net'],['priv','shell'],['git']];
 
@@ -384,7 +386,21 @@ const CARDS = [
  ['sec',1,'Credential stuffing','Username and password pairs leaked from another site are tried here. It works because people reuse passwords. Defense: MFA, blocking breached passwords, unique passwords.','s-threats'],
  ['sec',2,'Containment vs eradication','Containment stops the spread now (isolate the device, disable the account). Eradication removes the cause (malware, attacker access, the weakness used). Contain first.','s-ops'],
  ['sec',2,'Lessons learned','The last incident response step: what happened, what worked, what to change. Update the plan, controls and training so it doesn\'t repeat.','s-ops'],
- ['sec',2,'Just-in-time access','Admin rights granted only when needed: requested, approved, time-limited and logged, instead of permanent admin accounts.','s-core']
+ ['sec',2,'Just-in-time access','Admin rights granted only when needed: requested, approved, time-limited and logged, instead of permanent admin accounts.','s-core'],
+ /* ---- Cloud Security (Phase 3) ---- */
+ ['cloud',1,'Shared responsibility model','The provider secures the cloud (buildings, hardware, virtualization). You secure what\'s in it. Your data, identities and settings are always yours.','cl-model'],
+ ['cloud',1,'IaaS vs PaaS vs SaaS','IaaS: rented servers, you patch the OS and apps. PaaS: managed platform, you handle code, data, access. SaaS: hosted app, you handle users, settings, data.','cl-model'],
+ ['cloud',1,'IAM policy evaluation','For identity policies in one account: an explicit <b>Deny</b> always wins. Otherwise a matching <b>Allow</b> allows. Nothing matches: denied by default. Statement order doesn\'t matter. Bucket policies, SCPs and permissions boundaries can also deny.','cl-iam'],
+ ['cloud',1,'Role vs access key','A role gives temporary credentials an app or person takes on. An access key is a long-lived secret. Prefer roles; there\'s nothing permanent to leak.','cl-iam'],
+ ['cloud',1,'Root user','The account\'s first, all-powerful login. Turn on MFA, lock it away, and use it only for the few tasks that require it.','cl-iam'],
+ ['cloud',1,'CloudTrail record fields','<code>userIdentity</code> = who, <code>eventName</code> = what, <code>eventTime</code> = when, <code>sourceIPAddress</code> = from where.','cl-log'],
+ ['cloud',1,'Cloud alerts worth watching','Logging stopped, new access keys, admin policies attached, console sign-ins without MFA from new places, public storage changes.','cl-log'],
+ ['cloud',1,'Security group vs network ACL','Security group: per server, stateful, allow-only, all rules count. Network ACL: per subnet, stateless, numbered rules, lowest match wins, allow and deny.','cl-net'],
+ ['cloud',1,'0.0.0.0/0','Every IPv4 address. Fine for a public website on 443; never for admin (22, 3389) or database ports.','cl-net'],
+ ['cloud',2,'Leaked access key: order','1 Deactivate and replace it. 2 Check the audit log for what it did. 3 Clean up, including repo history. 4 Add secret scanning and move to roles.','cl-iam'],
+ ['cloud',2,'Customer managed key','A key you control in the provider\'s key service: you set its policy (who can use it) and rotation, and can disable or delete it.','cl-data'],
+ ['cloud',2,'Envelope encryption','Data is encrypted with a data key; the data key is encrypted with a KMS key (Azure: a Key Vault key) that never leaves the key service.','cl-data'],
+ ['cloud',2,'Posture management (CSPM)','Cloud security posture management tools check settings against a baseline and flag misconfigurations, e.g. AWS Config, AWS Security Hub CSPM, Microsoft Defender for Cloud.','cl-log']
 ];
 
 /* Quiz: [track, level, question, options, correctIndex, explanation] */
@@ -531,7 +547,12 @@ const QUIZ = [
  ['sec',1,'Which access control model gives permissions based on a person\'s job role?',['RBAC (role-based access control)','DAC (discretionary access control)','MAC (mandatory access control)','ABAC (attribute-based access control)'],0,'RBAC grants access by role, so a new hire in a role gets exactly that role\'s permissions.'],
  ['sec',1,'A firewall following good practice checks rules top to bottom. What happens to traffic that matches none of the rules?',['It is blocked by the implicit (default) deny','It is allowed','It is logged and allowed','It is passed to the next firewall'],0,'Good practice (and Security+) assumes an implicit deny: anything not explicitly allowed is blocked. Not every product defaults this way, which is why rule sets end with an explicit deny-all.'],
  ['sec',2,'Ransomware is found on one laptop. What should happen first?',['Isolate the laptop from the network','Restore the files from backup','Reimage the laptop right away','Email all staff about it'],0,'Containment comes before eradication and recovery: stop the spread first, and keep the evidence.'],
- ['sec',2,'Dozens of accounts each get one failed login, all with the same password. What is this?',['Password spraying','Brute force','Credential stuffing','A DDoS attack'],0,'Spraying tries one common password across many accounts to stay under lockout limits.']
+ ['sec',2,'Dozens of accounts each get one failed login, all with the same password. What is this?',['Password spraying','Brute force','Credential stuffing','A DDoS attack'],0,'Spraying tries one common password across many accounts to stay under lockout limits.'],
+ ['cloud',1,'On a rented virtual server (IaaS), who patches the operating system?',['You, the customer','The cloud provider','Nobody: cloud servers patch themselves','The hardware vendor'],0,'In IaaS the provider patches the hardware and hypervisor; the guest operating system and everything on it are yours.'],
+ ['cloud',1,'An IAM policy allows s3:* on all resources and also denies s3:DeleteObject on every object in one bucket (bucket/*). Can the user delete objects in that bucket?',['No, the explicit Deny wins','Yes, the Allow comes first','Yes, the broader rule wins','It depends on statement order'],0,'An explicit Deny always overrides an Allow, regardless of order.'],
+ ['cloud',1,'Which source in a security group rule means "anyone on the internet"?',['0.0.0.0/0','10.0.0.0/8','127.0.0.1/32','192.168.0.0/16'],0,'0.0.0.0/0 matches every IPv4 address. The others are private or loopback ranges.'],
+ ['cloud',2,'An access key was pushed to a public repository. What do you do first?',['Deactivate the key and issue a new one','Delete the line from the code','Make the repository private','Email the team about it'],0,'Contain first: the key is valid and may already be copied. Then investigate and clean up.'],
+ ['cloud',2,'What happens to data encrypted with a key that is then deleted?',['It can no longer be decrypted','The provider decrypts it for you','It becomes unencrypted','Nothing; a backup key is used'],0,'Without the key the data is unrecoverable, which is why key deletion is a high-risk change.']
 ];
 
 /* Terminal challenges: task, accepted patterns (after normalizing), model answer, hint */
@@ -897,6 +918,28 @@ const SCEN = [
    ['Close the ticket with "handled."',2,'Nobody can learn from or audit that.'],
    ['Post the user\'s name in the team chat as a warning.',1,'Blaming users discourages reporting.'],
    ['Delete the evidence so it can\'t spread.',2,'Keep the evidence for the investigation and lessons learned.']]}
+ ]},
+ {id:'leakedkey', title:'Access key on GitHub', role:'Junior cloud security analyst', job:'Cloud Security path', steps:[
+  {s:'Secret scanning alerts: an access key for your cloud account was pushed to a public repository 40 minutes ago. First move?', c:[
+   ['Deactivate the key now and give the app a new one.',10,'Contain first: the key is valid and public, so assume someone already has it. Also revoke sessions already issued from it (deactivating doesn\'t end them).'],
+   ['Delete the line from the code and push again.',2,'The key still works and is still in the history.'],
+   ['Make the repository private.',3,'Too late: it was public, and copies may exist.'],
+   ['Open a ticket for the developer to look at tomorrow.',1,'Attackers scan public repos within minutes.']]},
+  {s:'The key is deactivated. How do you find out whether it was used?', c:[
+   ['Search the audit log (CloudTrail) for every call made with that key ID since it was pushed.',10,'The audit log shows what the key did, from where and when. Event history covers 90 days of management calls; file reads appear only if a trail was logging data events.'],
+   ['Ask the developer if they used it.',2,'They can only speak for themselves.'],
+   ['Check the bill next month.',2,'Far too slow, and it misses actions that cost nothing.'],
+   ['Look at VPC Flow Logs.',3,'Flow logs show traffic, not which management calls a key made.']]},
+  {s:'The log shows the key created a new user and started servers in another region. What now?', c:[
+   ['Remove the new user and its keys, stop and delete the servers, and check for anything else it changed.',10,'Undo the attacker\'s footholds before they use them.'],
+   ['Leave them so you can watch the attacker.',2,'That\'s a decision for an incident lead, not a first responder, and it risks more damage.'],
+   ['Only stop the servers.',4,'The new user is a back door; it has to go too.'],
+   ['Reset your own password.',1,'Your password wasn\'t the leaked credential.']]},
+  {s:'The account is cleaned up. How do you stop this happening again?', c:[
+   ['Purge the key from the repo history, turn on secret scanning with push blocking, and move the app to a role with short-lived credentials.',10,'Clean the history and remove the need for a long-lived key at all.'],
+   ['Tell developers to be more careful.',2,'Good intentions don\'t catch mistakes; controls do.'],
+   ['Rotate all keys every day.',4,'Helps a little, but long-lived keys in code are still the root cause.'],
+   ['Ban the developer from the repository.',1,'Blame discourages reporting and doesn\'t fix the process.']]}
  ]}
 ];
 
