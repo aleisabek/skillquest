@@ -19,13 +19,30 @@ const LABS = [
  {id:'old-logs', title:'Archive old logs', level:'L2', code:'F84D57', skills:['term:linux:Archives','term:linux:Finding'],
   summary:'Archive only the logs older than 7 days into a tar.gz, delete them, and keep everything else.'},
  {id:'cron-fix', title:'The backup never runs', level:'L2', code:'2D0933', skills:['term:linux:Admin','quiz:linux:Scheduling (cron)'],
-  summary:'A nightly backup never runs. Read the cron line, find the mistake, fix the schedule.'}
+  summary:'A nightly backup never runs. Read the cron line, find the mistake, fix the schedule.'},
+ /* security labs: each practices one lesson (shown at the end of it) and passes only if the fix is secure AND still works */
+ {id:'cloudtrail-hunt', title:'Which key was stolen?', level:'L2', code:'2F498D', lesson:'quiz:cloud:Audit logging', skills:['quiz:cloud:Audit logging','quiz:sec:Incident response'],
+  summary:'Audit logging was switched off overnight. Hunt through CloudTrail records for the stolen key and the backdoor key it created, and disable both without breaking the services.'},
+ {id:'iam-tighten', title:'Too much access', level:'L2', code:'77F939', lesson:'quiz:cloud:IAM & least privilege', skills:['quiz:cloud:IAM & least privilege','quiz:sec:Least privilege & access control'],
+  summary:'An app role can do anything to any bucket, and its bucket is public. Rewrite both policies to least privilege while the app keeps working.'},
+ {id:'ssh-harden', title:'Lock down SSH', level:'L2', code:'4FC504', lesson:'quiz:sec:SSH hardening', skills:['quiz:sec:SSH hardening','quiz:linux:Permissions'],
+  summary:'Turn off passwords and root sign-in in the file that actually wins, and fix the real reason deploy\'s key stopped working.'},
+ {id:'secret-leak', title:'The key is still in the history', level:'L2', code:'7676E0', lesson:'quiz:cloud:Leaked key response', skills:['quiz:sec:Secrets & untrusted code','quiz:code:Git','quiz:cloud:Leaked key response'],
+  summary:'A deleted .env file still holds an API key in git history. Purge it everywhere, keep the history and the app working, and note the rotation.'},
+ {id:'vuln-triage', title:'Fix what matters first', level:'L2', code:'A38CCA', lesson:'quiz:offsec:Findings report', skills:['quiz:sec:Vulnerabilities','quiz:offsec:Findings report'],
+  summary:'Rank scan findings by KEV, exposure and CVSS, and write the top three up as a client-ready findings.md.'}
 ];
+/* the optional lab that practices a lesson, shown at the end of that lesson (PC only: labs run in WSL) */
+function labForLesson(id){ return LABS.find(l=>l.lesson === id) || null; }
 function completeLab(lab){
   S.labs = S.labs || {};
   if(S.labs[lab.id]){ toast('Already unlocked'); return; }
   S.labs[lab.id] = dayStr();
-  lab.skills.forEach(id=>{ if(skillById(id)){ recordSkill(id, true, true); recordSkill(id, true, true); } });
+  /* credit only skills on tracks that were open before this lab (so it can't open a later path stage), and on later-stage
+     tracks only skills already started (so a lab can't skip that track's lesson order, e.g. Scoping first) */
+  const open = new Set(TRACKS.map(t=>t.id).filter(trackOpen)), M = S.mastery || {};
+  const credit = lab.skills.map(skillById).filter(s=>s && open.has(s.tid) && (!isGated(s.tid) || M[s.id]));
+  credit.forEach(s=>{ recordSkill(s.id, true, true); recordSkill(s.id, true, true); });
   addXP(100, 'Lab passed: '+lab.title);
   vLabs();
 }

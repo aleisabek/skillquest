@@ -17,6 +17,10 @@ const PRACTICE = [
  {group:'☁️ Cloud security', items:[
   ['AWS Skill Builder', 'https://skillbuilder.aws', 'Free digital courses, including Cloud Practitioner Essentials and security fundamentals.'],
   ['flaws.cloud', 'http://flaws.cloud', 'A free, legal training site built to teach common AWS misconfigurations, level by level.']]},
+ {group:'🗡️ Offensive security (legal practice only)', items:[
+  ['PortSwigger Web Security Academy', 'https://portswigger.net/web-security', 'Free, legal web security labs with written explanations: injection, access control, authentication.'],
+  ['OWASP Juice Shop', 'https://owasp.org/www-project-juice-shop/', 'A deliberately insecure web shop you run on your own machine. Only ever test apps you run yourself or are authorized to test.'],
+  ['MITRE ATT&CK', 'https://attack.mitre.org', 'The tactics and techniques knowledge base. Read a few real group profiles and the detections listed for each technique.']]},
  {group:'🗄️ SQL practice', items:[
   ['SQLBolt', 'https://sqlbolt.com', 'Short interactive lessons with exercises in the browser.'],
   ['SQLZoo', 'https://sqlzoo.net', 'More free SQL exercises, from basic SELECT to joins.']]},

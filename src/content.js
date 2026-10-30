@@ -8,7 +8,8 @@ const TRACKS = [
   {id:'qa', name:'Software Testing', icon:'🧪', blurb:'How testers think: test cases, bugs, and the testing life cycle.'},
   {id:'code', name:'Code, Git & APIs', icon:'🐍', blurb:'Git, Python, APIs and tests: the tools behind your projects.'},
   {id:'sql', name:'SQL & Data', icon:'🗄️', blurb:'Asking databases questions. Healthcare billing and many IT jobs list it.'},
-  {id:'cloud', name:'Cloud Security', icon:'☁️', blurb:'Securing what you run in the cloud: shared responsibility, identity, logging, misconfigurations, network controls.'}
+  {id:'cloud', name:'Cloud Security', icon:'☁️', blurb:'Securing what you run in the cloud: shared responsibility, identity, logging, misconfigurations, network controls.'},
+  {id:'offsec', name:'Offensive Security', icon:'🗡️', blurb:'How authorized testers think: scoping, common web flaws, password attacks, ATT&CK and reporting. Concepts and defense, no attack tooling.'}
 ];
 const LEVELS = [
   {n:1, name:'Foundations', desc:'The words and basics every interviewer assumes you know.'},
@@ -22,7 +23,8 @@ const CARD_TOPICS = {files:'Files & names', read:'Reading & identifying', find:'
   net:'Networking', priv:'Users, processes & privilege', git:'Git', shell:'Shell & environment', redirect:'Redirection', admin:'Admin',
   /* other tracks (prefixed keys so they never clash with the Linux ones) */
   'n-addr':'Addressing & subnets', 'n-proto':'Protocols, ports & models', 'n-tools':'Troubleshooting & tools', 'n-infra':'Network infrastructure', 's-core':'Core concepts', 's-crypto':'Cryptography', 's-threats':'Threats & attacks', 's-defense':'Defenses & tools', 's-ops':'Detection & response', 'u-method':'Troubleshooting', 'u-m365':'Microsoft 365, Entra & Intune', 'u-process':'Tickets & process', 'u-life':'Onboarding, assets & offboarding', 'q-design':'Test design', 'q-types':'Test types & strategy', 'q-process':'Process & planning', 'q-bugs':'Bugs & defects', 'c-git':'Git', 'c-api':'APIs & web', 'c-python':'Python & scripting', 'c-practice':'Engineering practice', 'd-query':'Querying basics', 'd-agg':'Aggregation & joins', 'd-design':'Design, changes & safety',
-  'cl-model':'Shared responsibility', 'cl-iam':'Identity & access', 'cl-log':'Logging & detection', 'cl-net':'Network controls', 'cl-data':'Data & keys'};
+  'cl-model':'Shared responsibility', 'cl-iam':'Identity & access', 'cl-log':'Logging & detection', 'cl-net':'Network controls', 'cl-data':'Data & keys',
+  'os-scope':'Scoping & engagements', 'os-web':'Web flaws', 'os-cred':'Passwords & credentials', 'os-report':'Frameworks & reporting'};
 /* Bandit study guide: which topics to review, roughly in the order the game needs them. Techniques only, never level solutions. */
 const BANDIT_GUIDE = [['files','read'],['find','filter'],['encode','archive'],['net'],['priv','shell'],['git']];
 
@@ -400,7 +402,24 @@ const CARDS = [
  ['cloud',2,'Leaked access key: order','1 Deactivate and replace it. 2 Check the audit log for what it did. 3 Clean up, including repo history. 4 Add secret scanning and move to roles.','cl-iam'],
  ['cloud',2,'Customer managed key','A key you control in the provider\'s key service: you set its policy (who can use it) and rotation, and can disable or delete it.','cl-data'],
  ['cloud',2,'Envelope encryption','Data is encrypted with a data key; the data key is encrypted with a KMS key (Azure: a Key Vault key) that never leaves the key service.','cl-data'],
- ['cloud',2,'Posture management (CSPM)','Cloud security posture management tools check settings against a baseline and flag misconfigurations, e.g. AWS Config, AWS Security Hub CSPM, Microsoft Defender for Cloud.','cl-log']
+ ['cloud',2,'Posture management (CSPM)','Cloud security posture management tools check settings against a baseline and flag misconfigurations, e.g. AWS Config, AWS Security Hub CSPM, Microsoft Defender for Cloud.','cl-log'],
+ /* ---- Offensive Security (Phase 4): concepts and defense only ---- */
+ ['offsec',1,'Authorization (penetration testing)','Written, signed permission from someone with authority over the systems. Without it, testing is unauthorized access: a crime (in the US, under the Computer Fraud and Abuse Act).','os-scope'],
+ ['offsec',1,'Rules of engagement','Targets and exclusions, the testing window, allowed techniques, how to handle sensitive data, and the emergency contact who can stop the test.','os-scope'],
+ ['offsec',1,'Out of scope','Don\'t touch it, even if it looks vulnerable. Note it, tell the client contact, and wait for a written scope change.','os-scope'],
+ ['offsec',1,'Vulnerability scan vs penetration test','Scan: automated and broad, lists possible issues (with false positives). Pentest: people, a scope and a deadline, proving which weaknesses can really be exploited and how far.','os-scope'],
+ ['offsec',1,'Red team vs purple team','Red team: goal-based adversary emulation that also tests detection and response; few defenders know. Purple team: attack and defense work openly together to improve detections.','os-scope'],
+ ['offsec',1,'Black, gray and white box','How much testers know up front: nothing (black), some, like a normal user account (gray), or everything, including source code (white).','os-scope'],
+ ['offsec',1,'Injection: the root cause','Untrusted input mixed into something that gets interpreted (a SQL query, an OS command, a web page), so data becomes code. Fix: keep data separate with parameters, argument lists and output encoding.','os-web'],
+ ['offsec',1,'Broken access control (IDOR)','The server doesn\'t check that this user may reach this record. Classic sign: change an ID in a request and get someone else\'s data. Fix: a server-side ownership or role check on every request, deny by default.','os-web'],
+ ['offsec',1,'Hidden is not protected','Hiding an admin button only changes the page. The server must check permissions on every request, or anyone who types the address gets in.','os-web'],
+ ['offsec',2,'Online vs offline password attacks','Online: guesses against a live login, slowed by lockouts, rate limits and MFA, and visible in logs. Offline: guessing stolen hashes on the attacker\'s own hardware, with no lockout and no logs.','os-cred'],
+ ['offsec',2,'Storing passwords safely','A salted, deliberately slow password hash (Argon2id first, or bcrypt, scrypt) makes every offline guess expensive. Fast general-purpose hashes (MD5, SHA-1, even SHA-256) and unsalted ones fall quickly.','os-cred'],
+ ['offsec',2,'MFA fatigue','Repeated push prompts until a tired user taps Approve. Defend with number matching or phishing-resistant MFA (passkeys), and alert on bursts of denied prompts.','os-cred'],
+ ['offsec',2,'ATT&CK: tactic vs technique','Tactic = the attacker\'s goal (why), e.g. Persistence. Technique = how, with an ID, e.g. T1053 Scheduled Task/Job. One technique can serve several tactics.','os-report'],
+ ['offsec',2,'Cyber Kill Chain','Reconnaissance, Weaponization, Delivery, Exploitation, Installation, Command and Control, Actions on Objectives. Breaking any link stops the attack.','os-report'],
+ ['offsec',2,'CISA KEV catalog','Known Exploited Vulnerabilities: CVEs confirmed as exploited in the wild. In KEV and internet-facing means fix first, whatever the CVSS score.','os-report'],
+ ['offsec',2,'Parts of a finding','Title, severity, affected asset, evidence (redacted), business impact, remediation, references and retest status. Critical issues get flagged to the client right away.','os-report']
 ];
 
 /* Quiz: [track, level, question, options, correctIndex, explanation] */
@@ -552,7 +571,13 @@ const QUIZ = [
  ['cloud',1,'An IAM policy allows s3:* on all resources and also denies s3:DeleteObject on every object in one bucket (bucket/*). Can the user delete objects in that bucket?',['No, the explicit Deny wins','Yes, the Allow comes first','Yes, the broader rule wins','It depends on statement order'],0,'An explicit Deny always overrides an Allow, regardless of order.'],
  ['cloud',1,'Which source in a security group rule means "anyone on the internet"?',['0.0.0.0/0','10.0.0.0/8','127.0.0.1/32','192.168.0.0/16'],0,'0.0.0.0/0 matches every IPv4 address. The others are private or loopback ranges.'],
  ['cloud',2,'An access key was pushed to a public repository. What do you do first?',['Deactivate the key and issue a new one','Delete the line from the code','Make the repository private','Email the team about it'],0,'Contain first: the key is valid and may already be copied. Then investigate and clean up.'],
- ['cloud',2,'What happens to data encrypted with a key that is then deleted?',['It can no longer be decrypted','The provider decrypts it for you','It becomes unencrypted','Nothing; a backup key is used'],0,'Without the key the data is unrecoverable, which is why key deletion is a high-risk change.']
+ ['cloud',2,'What happens to data encrypted with a key that is then deleted?',['It can no longer be decrypted','The provider decrypts it for you','It becomes unencrypted','Nothing; a backup key is used'],0,'Without the key the data is unrecoverable, which is why key deletion is a high-risk change.'],
+ ['offsec',1,'A client says on a call, "Go ahead and test everything." What do you need before starting?',['Written authorization and a defined scope','Nothing more; verbal permission is enough','Just a VPN account','A copy of their firewall rules'],0,'Testing needs written permission from the system owner and an exact scope. Verbal approval is hard to prove and names no targets.'],
+ ['offsec',1,'Mid-test you find an unpatched server that is not in the agreed scope. What do you do?',['Note it, don\'t test it, and tell the client contact','Test it quickly, since it\'s clearly vulnerable','Ignore it completely','List it in the report as tested'],0,'Out of scope means hands off. The client may not know it exists, so report it and let them add it in writing.'],
+ ['offsec',1,'The customer search crashes with a database error whenever a name contains an apostrophe, like O\'Brien. What does that suggest?',['Input reaches the SQL text unescaped: a likely SQL injection flaw','The database is out of disk space','The customer typed the name wrong','The browser cache is stale'],0,'An apostrophe breaking the query means input is pasted into the SQL. A parameterized query fixes both the crash and the injection flaw.'],
+ ['offsec',1,'Changing /invoices/1042 to /invoices/1043 shows another customer\'s invoice. Which OWASP category is this?',['Broken access control','Injection','Cryptographic failures','Security misconfiguration'],0,'The server doesn\'t check that the invoice belongs to the user: broken access control, often called an IDOR (insecure direct object reference).'],
+ ['offsec',2,'A leaked password table uses unsalted SHA-1. Why is that a serious problem?',['Fast, unsalted hashes can be guessed offline very quickly, and identical passwords share a hash','SHA-1 can be decrypted like encryption','It isn\'t; any hash is safe','Salt only matters for encryption'],0,'Hashes can\'t be decrypted, but fast unsalted ones can be guessed at enormous speed offline. Use a salted, slow hash like bcrypt or Argon2.'],
+ ['offsec',2,'Which of these is a MITRE ATT&CK tactic rather than a technique?',['Lateral Movement','Phishing (T1566)','Scheduled Task/Job (T1053)','Brute Force (T1110)'],0,'Tactics are goals (the columns of the matrix); techniques are methods with IDs like T1566.']
 ];
 
 /* Terminal challenges: task, accepted patterns (after normalizing), model answer, hint */
@@ -940,6 +965,28 @@ const SCEN = [
    ['Tell developers to be more careful.',2,'Good intentions don\'t catch mistakes; controls do.'],
    ['Rotate all keys every day.',4,'Helps a little, but long-lived keys in code are still the root cause.'],
    ['Ban the developer from the repository.',1,'Blame discourages reporting and doesn\'t fix the process.']]}
+ ]},
+ {id:'scope', title:'"Just test everything"', role:'Junior penetration tester', job:'Red team path', steps:[
+  {s:'Kickoff call. The client\'s IT manager says: "Test whatever you can reach, it\'s fine." What do you do?', c:[
+   ['Ask for signed authorization and a written scope listing exact targets, exclusions and a testing window.',10,'Written permission and an exact scope protect the client and you. "Whatever you can reach" can include systems they don\'t own.'],
+   ['Start on their whole address range tonight.',1,'Without written authorization this is unauthorized access, and the range may include other companies\' systems.'],
+   ['Record the call and treat it as permission.',3,'Verbal approval is hard to prove and still names no targets or limits.'],
+   ['Ask a coworker to start while you wait for the paperwork.',1,'Nobody tests anything before authorization is signed.']]},
+  {s:'Mid-test you notice 10.20.1.7 answering and it looks unpatched. The scope is 10.20.0.0/24. Next move?', c:[
+   ['Don\'t test it. Note it and tell the client contact, who can add it in writing.',10,'It\'s outside the /24, so it\'s out of scope. The client may not even know it exists.'],
+   ['Test it quickly; it obviously belongs to them.',1,'You don\'t know who owns it, and you have no permission to touch it.'],
+   ['Leave it out of everything.',4,'Not testing is right, but the client should hear about an unknown, unpatched machine.'],
+   ['List it in the report as tested.',1,'Reporting work you didn\'t do, or weren\'t allowed to do, destroys trust.']]},
+  {s:'While you test the web app, its database slows to a crawl and the client\'s monitoring starts alerting. What now?', c:[
+   ['Pause testing and call the emergency contact named in the rules of engagement.',10,'Stopping and telling them right away is exactly what that contact is for.'],
+   ['Keep going; it\'s probably unrelated.',2,'If your testing is the cause, every minute makes it worse.'],
+   ['Stop for the day and mention it in the final report.',4,'Stopping is right, but they need to know now, not in two weeks.'],
+   ['Restart their database server yourself.',1,'You have no authority over their systems beyond the agreed testing.']]},
+  {s:'You confirm that any customer can read every other customer\'s invoices. How do you handle it?', c:[
+   ['Keep minimal redacted evidence, flag it to the contact now, and write it up with severity, asset, impact and the fix.',10,'A serious data exposure gets an early heads-up, as the rules of engagement say, then a full write-up.'],
+   ['Download all the invoices as proof.',1,'Take only the evidence you need. Mass-downloading real customer data is a breach of its own.'],
+   ['Mention it on the closing call only.',2,'Without a written finding nobody can track, fix or retest it.'],
+   ['Post it online so they fix it faster.',1,'Disclosing a client\'s flaw publicly breaks your contract and puts their customers at risk.']]}
  ]}
 ];
 

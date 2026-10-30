@@ -380,6 +380,28 @@ GEN.sec[2].push(
   sk('Incident response', ()=>{ const i = rnd(0, IR_STEPS.length-2); return mcq('sec',2,'In incident response, what comes right after "'+IR_STEPS[i]+'"?', IR_STEPS[i+1], IR_STEPS,
       'The order: '+IR_STEPS.join(' → ')+'. Contain before you eradicate, and recover only once the cause is gone.'); })
 );
+/* SSH hardening (Phase 5, with the ssh-harden lab). OpenSSH uses the FIRST value it reads for a setting; Ubuntu's
+   sshd_config includes sshd_config.d/*.conf at the top, in name order, so a drop-in beats the main file. */
+const SSH_SETTINGS = [
+  ['PermitRootLogin no', 'Nobody can sign in directly as root'],
+  ['PasswordAuthentication no', 'Passwords are refused; keys must be used'],
+  ['MaxAuthTries 3', 'A connection is dropped after 3 failed attempts'],
+  ['AllowUsers deploy admin', 'Only these two accounts may sign in over SSH'],
+  ['PubkeyAuthentication yes', 'Signing in with an SSH key is allowed']
+];
+const SSH_DROPINS = ['10-hardening.conf', '50-cloud-init.conf', '60-admin.conf', '90-local.conf'];
+GEN.sec[2].push(
+  sk('SSH hardening', ()=>{ const files = shuffle(SSH_DROPINS).slice(0, 3).sort(), lines = {};
+      files.forEach(f=>{ lines[f] = Math.random() < .5 ? ['PasswordAuthentication '+pick(['yes','no'])] : ['MaxAuthTries '+pick([3,4,6])]; });
+      if(!files.some(f=>lines[f][0].startsWith('Password')) && Math.random() < .5) lines[files[2]] = ['PasswordAuthentication yes'];
+      const main = ['Include /etc/ssh/sshd_config.d/*.conf', 'PermitRootLogin no', 'PasswordAuthentication '+pick(['yes','no'])];
+      const right = files.find(f=>lines[f][0].startsWith('PasswordAuthentication')) || 'sshd_config';
+      const show = files.map(f=>'== sshd_config.d/'+f+' ==\n'+lines[f].join('\n')).join('\n')+'\n== sshd_config ==\n'+main.join('\n');
+      return mcq('sec',2,'An Ubuntu server\'s SSH config:<pre>'+show+'</pre>Which file\'s line decides whether passwords are allowed?', right, files.concat('sshd_config'),
+        'sshd keeps the first value it reads. The Include at the top pulls in sshd_config.d/*.conf in name order before the rest of sshd_config, so the first drop-in that sets PasswordAuthentication wins.'); }, {noType:true}),
+  sk('SSH hardening', ()=>{ const [l, e] = pick(SSH_SETTINGS); return mcq('sec',2,'What does <code>'+l+'</code> do in sshd_config?', e, SSH_SETTINGS.map(x=>x[1]),
+      'Typical hardening: keys instead of passwords, no direct root login, a limited list of allowed users, few attempts per connection.'); }, {lookup:true, noType:true})
+);
 
 /* ---- Cloud Security (path track; opens once Security and Networking foundations are solid) ---- */
 const RESP = [
@@ -481,6 +503,122 @@ GEN.cloud = {1:[
       'Contain first (deactivate), then investigate (audit log), then clean up (code and history), then prevent (secret scanning).'); }, {noType:true}),
   sk('Encryption & key management', ()=>{ const [d, t] = pick(ENC_TERMS); return mcq('cloud',2,'"'+d+'." What is this called?', t, ENC_ALL,
       'At rest = stored data; in transit = data on the network (TLS). A customer managed key gives you control over its policy and rotation; envelope encryption wraps data keys with a KMS key.'); }, {lookup:true, noType:true})
+]};
+
+/* ---- Offensive Security: concepts, authorization and defense only (no payloads or tool commands; see
+   tests/feature-offsec-safety.js). OWASP categories by name, never by rank number. ---- */
+const ROE_RESULTS = ['Yes: in scope and inside the testing window', 'No: the target is out of scope', 'No: the target is explicitly excluded', 'No: outside the testing window'];
+const SCOPE_ACTS = [
+  ['The client\'s website runs on a marketing agency\'s server', 'Get the hosting agency\'s own written permission before touching its server'],
+  ['A system you are testing starts failing in production', 'Stop and call the emergency contact in the rules of engagement'],
+  ['You notice a server outside the agreed address ranges', 'Don\'t test it; note it and tell the client contact'],
+  ['The client says "just test whatever you can reach"', 'Turn the verbal OK into a signed scope listing exact targets, exclusions and a window'],
+  ['You come across files full of customer personal data', 'Stop viewing them, keep only minimal redacted evidence, and follow the data-handling rules']
+];
+const ENGAGE = [
+  ['An automated tool checks 2,000 servers for missing patches every quarter', 'Vulnerability scan'],
+  ['Testers have two weeks to prove which weaknesses in one web app can really be exploited', 'Penetration test'],
+  ['A small team spends a month trying to reach payroll data while the defenders aren\'t told', 'Red team exercise'],
+  ['Attackers and defenders sit together, run a technique, and tune the alert until it fires', 'Purple team exercise'],
+  ['Outside researchers are paid for each valid issue they report under a published policy', 'Bug bounty program']
+];
+const INJ_FIX = [
+  ['User input is joined into the text of a SQL query', 'Use parameterized queries'],
+  ['A filename typed by the user is pasted into a shell command the server runs', 'Run the program without a shell, pass arguments as a list, and validate the filename'],
+  ['Comments are shown on the page exactly as typed, and some run as script in other users\' browsers', 'Encode output for the page context and add a Content Security Policy'],
+  ['An error page shows the full database error to every visitor', 'Show a generic error and log the details on the server']
+];
+const SQL_STYLES = {concat:'Vulnerable: the input is concatenated into the query text', fstring:'Vulnerable: an f-string builds the query from the input', percent:'Vulnerable: %-formatting puts the input into the query text', param:'Safe: the value is passed separately as a parameter'};
+const OWASP_CASES = [
+  ['Any logged-in user can open /admin/users by typing the address', 'Broken access control'],
+  ['Changing the order number in the URL shows another customer\'s order', 'Broken access control'],
+  ['The login form allows unlimited guesses and has no MFA', 'Authentication failures'],
+  ['Sessions stay valid after the user logs out', 'Authentication failures'],
+  ['Sample apps that ship with the web server were never removed from production', 'Security misconfiguration'],
+  ['Comments run as script in other users\' browsers because the page shows them exactly as typed', 'Injection'],
+  ['Customer card data is sent over plain HTTP', 'Cryptographic failures']
+];
+const OWASP_ALL = ['Broken access control', 'Authentication failures', 'Security misconfiguration', 'Cryptographic failures', 'Injection'];
+const AC_RESULTS = ['Yes: it is the user\'s own invoice', 'Yes: support admins may view any invoice', 'No: it belongs to another customer', 'Yes: the user is logged in, so any invoice is allowed'];
+const PW_DEF = [
+  ['Password hashes were stolen and are being guessed offline at full speed', 'Store passwords with a salted, slow hash such as bcrypt or Argon2'],
+  ['A user gets 14 MFA push prompts at 2 a.m. and finally taps Approve', 'Turn on number matching and alert on bursts of denied prompts'],
+  ['Hundreds of wrong passwords hit one account within a minute', 'Rate-limit sign-ins to that account and alert on the burst'],
+  ['Several users\' passwords appear in a public breach list', 'Block breached passwords and make those users reset'],
+  ['Users change passwords every 90 days as Spring1, Summer1, Fall1', 'Drop forced rotation; require long passphrases and breached-password checks']
+];
+const CRACK_TIME = ['Under a minute', 'Under a day', 'Under a year', 'A year or more'];
+const TACTICS = [
+  ['Researching employees on professional networking sites before an attack', 'Reconnaissance'],
+  ['A malicious attachment arrives in a user\'s inbox', 'Initial Access'],
+  ['Creating a new local account to keep access later', 'Persistence'],
+  ['Listing domain users and groups to find the admins', 'Discovery'],
+  ['Copying password hashes out of a computer\'s memory', 'Credential Access'],
+  ['Moving from one server to the next with Remote Desktop and stolen admin credentials', 'Lateral Movement'],
+  ['Gathering files of interest into one folder before taking them', 'Collection'],
+  ['Malware checking in with an outside server every 5 minutes for instructions', 'Command and Control'],
+  ['Uploading stolen files to an attacker\'s cloud storage account', 'Exfiltration'],
+  ['Encrypting files on every server and leaving a ransom note', 'Impact']
+];
+/* ATT&CK v19 (April 2026) split Defense Evasion into Stealth and Defense Impairment; those tactics are left out of the
+   options here so no question depends on which version a learner studied */
+const TACTIC_ALL = ['Reconnaissance', 'Resource Development', 'Initial Access', 'Execution', 'Persistence', 'Privilege Escalation', 'Credential Access', 'Discovery', 'Lateral Movement', 'Collection', 'Command and Control', 'Exfiltration', 'Impact'];
+const KILL = ['Reconnaissance', 'Weaponization', 'Delivery', 'Exploitation', 'Installation', 'Command and Control', 'Actions on Objectives'];
+const REPORT_PARTS = [
+  ['A one-page overview of the results for leadership, with no jargon', 'Executive summary'],
+  ['Which hosts were tested, when, how, and what was off-limits', 'Scope and methodology'],
+  ['The request and response that prove the issue, with customer data redacted', 'Evidence'],
+  ['What the issue would let an attacker do to the business', 'Business impact'],
+  ['The specific change that fixes the issue', 'Remediation'],
+  ['Confirming the fix works after the client deploys it', 'Retest']
+];
+GEN.offsec = {1:[
+  sk('Scoping & authorization', ()=>{ const third = rnd(0,8), excl = rnd(2,60), start = pick([20,21,22]), end = pick([5,6,7]);
+      const kind = pick(['ok','out','excl','time']), inside = ()=>pick([...Array(24-start).keys()].map(h=>h+start).concat([...Array(end).keys()]));
+      const ip = kind==='excl' ? '10.20.'+third+'.'+excl : kind==='out' ? '10.20.'+(third+1)+'.'+rnd(2,250) : '10.20.'+third+'.'+rnd(61,250);
+      const hour = kind==='time' ? rnd(end, start-1) : inside();
+      const roe = 'In scope:  10.20.'+third+'.0/24\nExcluded:  10.20.'+third+'.'+excl+' (production database)\nWindow:    '+pad2(start)+':00-'+pad2(end)+':00 UTC, every night';
+      return mcq('offsec',1,'From the rules of engagement:<pre>'+roe+'</pre>May you test <code>'+ip+'</code> at <code>'+pad2(hour)+':30 UTC</code>?', ROE_RESULTS[{ok:0, out:1, excl:2, time:3}[kind]], ROE_RESULTS,
+        'Check in order: is the target explicitly excluded, is it inside the scoped range, is it inside the window? A /24 covers only the last number (0 to 255) of that one range. When in doubt, stop and ask in writing.'); }, {noType:true}),
+  sk('Scoping & authorization', ()=>{ const [s, a] = pick(SCOPE_ACTS); return mcq('offsec',1,'During a penetration test: <b>'+s+'</b>. What is the right move?', a, SCOPE_ACTS.map(x=>x[1]),
+      'Authorization and scope come first: only test what the owner has approved in writing, stop when something breaks, and handle sensitive data minimally.'); }, {lookup:true, noType:true}),
+  sk('Engagement types', ()=>{ const [d, t] = pick(ENGAGE); return mcq('offsec',1,'"'+d+'." What kind of assessment is this?', t, ENGAGE.map(x=>x[1]),
+      'Scan = automated and broad. Pentest = scoped, time-boxed, proves what can be exploited. Red team = goal-based adversary emulation that also tests detection. Purple team = attack and defense together. Bug bounty = paid outside reports under a policy.'); }, {lookup:true, noType:true}),
+  sk('Injection', ()=>{ const [t, c] = pick([['users','name'], ['orders','id'], ['tickets','email']]), style = pick(Object.keys(SQL_STYLES));
+      const base = 'SELECT * FROM '+t+' WHERE '+c+' = ';
+      const code = {concat:'cur.execute("'+base+'\'" + '+c+' + "\'")', fstring:'cur.execute(f"'+base+'\'{'+c+'}\'")', percent:'cur.execute("'+base+'\'%s\'" % '+c+')',
+        param:'cur.execute("'+base+pick(['%s','?'])+'", ('+c+',))'}[style];
+      return mcq('offsec',1,'<code>'+c+'</code> comes from a web form. Is this Python database call safe from SQL injection?<pre>'+code+'</pre>', SQL_STYLES[style], Object.values(SQL_STYLES),
+        'Only a parameter keeps the input as data: the query text and the value travel separately. Concatenation, f-strings and %-formatting all paste the input into the SQL before the database sees it.'); }, {noType:true}),
+  sk('Injection', ()=>{ const [s, f] = pick(INJ_FIX); return mcq('offsec',1,'<b>'+s+'</b>. What is the right fix?', f, INJ_FIX.map(x=>x[1]),
+      'Injection is input treated as code. Keep data separate: parameters for SQL, no shell for commands, output encoding for pages. And never show raw errors to visitors.'); }, {lookup:true, noType:true}),
+  sk('Access control failures', ()=>{ const name = pick(['alice','omar','mei','dev']), uid = rnd(10,40), role = pick(['customer','customer','support admin']);
+      const own = role==='customer' && Math.random() < .5, owner = own ? uid : uid + rnd(1,30), inv = rnd(1000,1999);
+      const right = role==='support admin' ? AC_RESULTS[1] : own ? AC_RESULTS[0] : AC_RESULTS[2];
+      return mcq('offsec',1,'Policy: customers may see only their own invoices; support admins may see any invoice.<pre>user='+name+' (id '+uid+', role '+role+')  GET /api/invoices/'+inv+'  owner='+owner+'</pre>Should the server return this invoice?', right, AC_RESULTS,
+        'Being logged in isn\'t enough: the server must check the role or the ownership of the record on every request. Returning someone else\'s invoice is broken access control (an IDOR).'); }, {noType:true}),
+  sk('Access control failures', ()=>{ const [s, c] = pick(OWASP_CASES); return mcq('offsec',1,'Which OWASP Top 10 category fits? <b>'+s+'</b>', c, OWASP_ALL,
+      'Broken access control = the server doesn\'t check what this user may reach. Authentication failures = weak login and session handling. Security misconfiguration = unsafe settings. Cryptographic failures = data not properly protected, such as sent unencrypted.'); }, {lookup:true, noType:true})
+], 2:[
+  sk('Password attacks & detection', ()=>{ const [s, d] = pick(PW_DEF); return mcq('offsec',2,'<b>'+s+'</b>. What is the best defense or detection?', d, PW_DEF.map(x=>x[1]),
+      'Online attacks are stopped by MFA, lockouts and monitoring; offline attacks only by strong, slow, salted hashing. Length and breached-password checks beat forced rotation.'); }, {lookup:true, noType:true}),
+  sk('Password attacks & detection', ()=>{ const [cs, set] = pick([[26,'lowercase letters only'], [62,'upper- and lowercase letters and digits']]), len = pick([6,8,10,12,14]);
+      const [rate, hash] = pick([[1e10,'a fast, unsalted hash (10,000,000,000 guesses a second)'], [1e4,'bcrypt (10,000 guesses a second)']]);
+      const secs = Math.pow(cs, len) / rate, right = CRACK_TIME[secs < 60 ? 0 : secs < 86400 ? 1 : secs < 31536000 ? 2 : 3];
+      return mcq('offsec',2,'A password hash leaks. It was made with '+hash+'. The password is '+len+' characters of '+set+', chosen at random. About how long would it take to try every possible password?', right, CRACK_TIME,
+        'Possible passwords = characters in the set to the power of the length, so each extra character multiplies the work. In this example the slow hash cuts guesses per second by a million; real gaps are often larger.'); }, {noType:true}),
+  sk('MITRE ATT&CK & kill chain', ()=>{ const [a, t] = pick(TACTICS); return mcq('offsec',2,'Which MITRE ATT&CK tactic (the attacker\'s goal) fits this? <b>'+a+'</b>', t, TACTIC_ALL,
+      'Tactics are the why. Reconnaissance happens before access; Discovery is looking around once inside. Others: Initial Access, Persistence, Credential Access, Lateral Movement, Collection, Command and Control, Exfiltration, Impact. Techniques are the how.'); }, {lookup:true}),
+  sk('MITRE ATT&CK & kill chain', ()=>{ const i = rnd(0, KILL.length-2); return mcq('offsec',2,'In the Cyber Kill Chain, what comes right after "'+KILL[i]+'"?', KILL[i+1], KILL,
+      'Reconnaissance, Weaponization, Delivery, Exploitation, Installation, Command and Control, Actions on Objectives. Breaking any link stops the attack.'); }),
+  sk('Findings report', ()=>{ const scores = shuffle([5.3, 6.5, 7.2, 7.5, 8.1, 8.8, 9.1, 9.8]).slice(0, 4);
+      const rows = scores.map((c, i)=>({id:'F-0'+(i+1), c, net:Math.random() < .5, kev:Math.random() < .3}));
+      const first = rows.slice().sort((a,b)=>(b.kev - a.kev) || (b.net - a.net) || (b.c - a.c))[0].id;
+      return mcq('offsec',2,'Team rule: anything in CISA\'s Known Exploited Vulnerabilities (KEV) catalog first, then internet-facing, then higher CVSS.'+
+        tableHTML(['Finding','CVSS','Internet-facing','In KEV'], rows.map(r=>[r.id, r.c.toFixed(1), r.net ? 'Yes' : 'No', r.kev ? 'Yes' : 'No']))+'Which finding gets fixed first?', first, rows.map(r=>r.id),
+        'CVSS measures technical severity. Exposure and active exploitation (KEV) decide what is most likely to hurt you first, so a lower score can outrank a higher one.'); }),
+  sk('Findings report', ()=>{ const [c, p] = pick(REPORT_PARTS); return mcq('offsec',2,'Which part of a penetration test report holds this? <b>'+c+'</b>', p, REPORT_PARTS.map(x=>x[1]),
+      'Executive summary for leaders, scope and methodology for context, then per finding: evidence, business impact, remediation and retest status.'); }, {lookup:true, noType:true})
 ]};
 
 /* SQL generators use a fresh random tickets table every time */

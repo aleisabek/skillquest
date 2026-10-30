@@ -9,14 +9,15 @@ vm.runInContext(js.split('/* ===================== STATE')[0].split('/* ========
 const L = ctx.L;
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 /* acronyms common enough to need no expansion */
-const COMMON = new Set(['IT', 'IP', 'IPv4', 'IPv6', 'MFA', 'SSH', 'VPN', 'HTTP', 'HTTPS', 'DNS', 'URL', 'API', 'SQL', 'NIST', 'HR', 'US', 'PDF', 'CEO', 'OK', 'PIN', 'USB', 'CPU', 'RAM', 'OS', 'ID', 'AM', 'PM']);
-const text = l => [l.why, l.idea, l.seen, l.example, ...(l.mistakes || []), l.say, l.spot && l.spot.q, l.spot && l.spot.a].filter(Boolean).join(' ');
+/* (MITRE is an organization's name, not an acronym to expand) */
+const COMMON = new Set(['IT', 'IP', 'IPv4', 'IPv6', 'MFA', 'SSH', 'VPN', 'HTTP', 'HTTPS', 'DNS', 'URL', 'API', 'SQL', 'NIST', 'HR', 'US', 'PDF', 'CEO', 'OK', 'PIN', 'USB', 'CPU', 'RAM', 'OS', 'ID', 'AM', 'PM', 'MITRE']);
+const text = l => [l.why, l.idea, l.seen, l.example, l.prevent, l.detect, ...(l.mistakes || []), l.say, l.spot && l.spot.q, l.spot && l.spot.a].filter(Boolean).join(' ');
 for (const [id, l] of Object.entries(L)) {
   for (const k of ['why', 'idea', 'example', 'say']) if (typeof l[k] !== 'string' || !l[k].trim()) fail(id, 'missing', k);
   if (!Array.isArray(l.mistakes) || !l.mistakes.length) fail(id, 'needs common mistakes');
   if (l.seen === undefined) continue;   /* the checks below apply to the newer lesson format */
   if (!l.spot || !l.spot.q || !l.spot.a) fail(id, 'has "You\'ll see this as" but no "Spot the problem" question');
-  const t = text(l).replace(/<pre>[\s\S]*?<\/pre>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');   /* snippets are real log text, not prose */
+  const t = text(l).replace(/<pre>[\s\S]*?<\/pre>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/ATT&(amp;)?CK/g, 'ATTCK').replace(/\s+/g, ' ');   /* snippets are real log text, not prose */
   const acrs = new Set((t.match(/\b[A-Z]{2,5}s?\b/g) || []).map(a => a.replace(/s$/, '')));
   for (const a of acrs) {
     if (COMMON.has(a) || /^\d/.test(a)) continue;

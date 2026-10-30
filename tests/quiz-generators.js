@@ -51,7 +51,7 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
     const lo = +m[1], hi = +m[2], g = v => v < lo ? 'too low' : v > hi ? 'too high' : 'valid';
     if (g(+A) !== m[3]) fail('partA', q); O.slice(1).forEach(o => { if (g(+o) === m[3]) fail('partW', q); }); }
   else if ((m = Q.match(/what comes right after "(.+?)"\?/))) {
-    const lists = [['Deactivate the key and issue a new one','Check the audit log for everything the key did','Remove the key from the code and its history','Turn on secret scanning so it can\'t happen again'],['Preparation','Detection','Analysis','Containment','Eradication','Recovery','Lessons learned'],['Identify the problem','Establish a theory of probable cause','Test the theory','Make a plan of action','Implement the fix or escalate','Verify it works and prevent repeats','Document everything'], ['Requirement analysis','Test planning','Test case design','Test environment setup','Test execution','Test closure']];
+    const lists = [['Reconnaissance','Weaponization','Delivery','Exploitation','Installation','Command and Control','Actions on Objectives'], ['Deactivate the key and issue a new one','Check the audit log for everything the key did','Remove the key from the code and its history','Turn on secret scanning so it can\'t happen again'],['Preparation','Detection','Analysis','Containment','Eradication','Recovery','Lessons learned'],['Identify the problem','Establish a theory of probable cause','Test the theory','Make a plan of action','Implement the fix or escalate','Verify it works and prevent repeats','Document everything'], ['Requirement analysis','Test planning','Test case design','Test environment setup','Test execution','Test closure']];
     const L = lists.find(l => l.includes(m[1])); if (!L || A !== L[L.indexOf(m[1]) + 1]) fail('order', q); }
   else if ((m = Q.match(/a bug is in (\w+)\. What is the next state/))) { const F = ['New','Assigned','Open','Fixed','Retest','Verified','Closed']; if (A !== F[F.indexOf(m[1]) + 1]) fail('bugflow', q); }
   else if (/true multi-factor authentication/.test(Q)) {
@@ -93,6 +93,36 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
     const onPort = rules.filter(r => r.port === +m[1]);
     const e = onPort.some(r => r.src === '0.0.0.0/0') ? 'Yes: a rule allows it from 0.0.0.0/0' : onPort.length ? 'No: that port is allowed only from a private range' : 'No: no inbound rule allows that port';
     if (rules.length < 1 || A !== e) fail('security group exposure ' + e, q); }
+  else if ((m = Q.match(/In scope:\s+(\S+)\/24\s+Excluded:\s+(\S+) \(production database\)\s+Window:\s+(\d\d):00-(\d\d):00 UTC[\s\S]*May you test (\S+) at (\d\d):30 UTC\?/))) {
+    /* rules of engagement, re-derived: excluded beats everything, then the /24 range, then the overnight window */
+    const [, net, excl, st, en, ip, h] = m, same24 = ip.split('.').slice(0, 3).join('.') === net.split('.').slice(0, 3).join('.');
+    const inWin = +h >= +st || +h < +en;
+    const e = ip === excl ? 'No: the target is explicitly excluded' : !same24 ? 'No: the target is out of scope' : !inWin ? 'No: outside the testing window' : 'Yes: in scope and inside the testing window';
+    if (A !== e) fail('rules of engagement ' + e, q); }
+  else if (/Is this Python database call safe from SQL injection\?/.test(Q)) {
+    const code = Q.slice(Q.indexOf('cur.execute'));
+    const e = /^cur\.execute\("[^"]*(%s|\?)", \(\w+,\)\)/.test(code) ? 'Safe: the value is passed separately as a parameter'
+      : /^cur\.execute\(f"/.test(code) ? 'Vulnerable: an f-string builds the query from the input'
+      : /" % \w+\)/.test(code) ? 'Vulnerable: %-formatting puts the input into the query text'
+      : /" \+ \w+ \+ "/.test(code) ? 'Vulnerable: the input is concatenated into the query text' : '?';
+    if (A !== e) fail('sql style ' + e, q); }
+  else if ((m = Q.match(/user=\w+ \(id (\d+), role (customer|support admin)\)\s+GET \/api\/invoices\/\d+\s+owner=(\d+)/))) {
+    const e = m[2] === 'support admin' ? 'Yes: support admins may view any invoice' : m[1] === m[3] ? 'Yes: it is the user\'s own invoice' : 'No: it belongs to another customer';
+    if (A !== e) fail('invoice access ' + e, q); }
+  else if ((m = Q.match(/\(([\d,]+) guesses a second\)\. The password is (\d+) characters of (lowercase letters only|upper- and lowercase letters and digits)/))) {
+    const rate = +m[1].replace(/,/g, ''), n = m[3].startsWith('lowercase') ? 26 : 62, s = n ** +m[2] / rate;
+    const e = s < 60 ? 'Under a minute' : s < 24 * 3600 ? 'Under a day' : s < 365 * 24 * 3600 ? 'Under a year' : 'A year or more';
+    if (A !== e) fail('keyspace time ' + e, q); }
+  else if (/Which finding gets fixed first\?/.test(Q)) {
+    const rows = [...q[2].matchAll(/<tr><td>(F-\d+)<\/td><td>([\d.]+)<\/td><td>(Yes|No)<\/td><td>(Yes|No)<\/td><\/tr>/g)].map(x => ({ id: x[1], c: +x[2], net: x[3] === 'Yes', kev: x[4] === 'Yes' }));
+    let best = rows[0]; for (const r of rows) if (r.kev !== best.kev ? r.kev : r.net !== best.net ? r.net : r.c > best.c) best = r;
+    if (rows.length !== 4 || A !== best.id) fail('finding priority ' + (best && best.id), q); }
+  else if (/Which file's line decides whether passwords are allowed\?/.test(Q)) {
+    /* sshd: drop-ins (in name order) are read before the rest of sshd_config, and the first value read wins */
+    const blocks = [...Q.matchAll(/== (sshd_config(?:\.d\/([\w-]+\.conf))?) ==\n([^=]*)/g)].map(x => ({ name: x[2] || 'sshd_config', drop: !!x[2], body: x[3] }));
+    const order = blocks.filter(b => b.drop).sort((a, b) => a.name < b.name ? -1 : 1).concat(blocks.filter(b => !b.drop));
+    const win = order.find(b => /^PasswordAuthentication /m.test(b.body));
+    if (!win || A !== win.name) fail('sshd first value ' + (win && win.name), q); }
   else if (G[tid][lv][gi].lookup) unchecked[tid + lv + ':' + gi] = Q.slice(0, 50);
   else { notVerified[G[tid][lv][gi].sk] = Q.slice(0, 70); }
 }

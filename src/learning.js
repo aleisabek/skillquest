@@ -89,12 +89,16 @@ function vLesson(id, mission, opts){
     '<h2>The core idea</h2>'+L.idea+
     (L.seen ? '<h2>You\'ll see this as</h2><div class="model">'+L.seen+'</div>' : '')+
     '<h2>Worked example</h2><div class="model">'+L.example+'</div>'+
+    (L.prevent ? '<h2>How to prevent it</h2>'+L.prevent : '')+
+    (L.detect ? '<h2>How to detect it</h2>'+L.detect : '')+
     '<h2>Common mistakes</h2><ul class="clean">'+L.mistakes.map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
     (L.spot ? '<h2>Spot the problem</h2><p>'+L.spot.q+'</p><details><summary>Show the answer</summary><p>'+L.spot.a+'</p></details>' : '')+
     '<h2>Say it in an interview</h2><div class="explain">"'+L.say+'"</div>'+
+    (!PHONE && !preview && labForLesson(id) ? '<h2>Try it for real (optional, on your PC)</h2><p>In Ubuntu (WSL): <code>sq-lab start '+esc(labForLesson(id).id)+'</code>. '+esc(labForLesson(id).summary)+' <a href="#" id="toLabs">Open Labs</a></p>' : '')+
     (preview ? '<p class="small" style="margin-top:16px">🔒 Preview: reading this records nothing. '+esc(track(s.tid).name)+' opens when '+unlockText(s.tid)+'.</p><div class="row"><button id="back">Back</button></div></div>'
       : '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: '+(fromPlan ? PRACTICE_N+' exercises (today’s plan)' : '6 fresh problems')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div>');
   if(preview){ $('#back').onclick = ()=>go(opts.back || 'skills'); return; }
+  if($('#toLabs')) $('#toLabs').onclick = e=>{ e.preventDefault(); markRead(); go('labs'); };
   $('#prac').onclick = ()=>{ markRead(); startSkill(s, fromPlan ? PRACTICE_N : 6, mission || null); };
   $('#back').onclick = ()=>{ markRead(); go(fromPlan ? 'today' : 'skills'); };
 }
@@ -115,7 +119,8 @@ const onPath = s=>!!PATH.weights[s.tid] && !AREA_OF[s.id];
 const STAGES = [
   ['Path · Foundations (Level 1)', 'Where the daily plan starts. Get these to 70% and each track opens its Level 2 skills.', s=>onPath(s) && !isGated(s.tid) && Math.min(...s.lvs) === 1],
   ['Path · Job-ready (Level 2)', 'Opens per track once its foundations average 70%.', s=>onPath(s) && !isGated(s.tid) && Math.min(...s.lvs) === 2],
-  ['Path · Cloud Security', 'The next stage of your path. At most one cloud lesson a day once it opens.', s=>s.tid === 'cloud', 'cloud'],
+  ['Path · Cloud Security', 'A later stage of your path. Cloud and Offensive Security share one daily lesson slot once open.', s=>s.tid === 'cloud', 'cloud'],
+  ['Path · Offensive Security', 'The last stage: how authorized testers think, always defense first. Shares the one later-stage slot with Cloud.', s=>s.tid === 'offsec', 'offsec'],
   ['Off the path', 'Still here for practice and your current applications; the daily plan does not assign them.', s=>!onPath(s)]
 ];
 function vSkills(){

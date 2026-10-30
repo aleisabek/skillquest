@@ -46,6 +46,8 @@ build.js          concatenates src/ into one file
 
 Each lab is `labs/labs/NAME/lab.sh` with `TITLE`, `LEVEL`, `LESSON`, `HINTS`, and the functions `lab_setup`, `lab_mission`, `lab_check` and optionally `lab_cleanup`. The completion code is the first 6 hex characters of `sha256("skillquest-lab:NAME")`; `src/labs.js` must list the same code (checked by `npm test`).
 
+Security labs (`cloudtrail-hunt`, `iam-tighten`, `ssh-harden`, `secret-leak`, `vuln-triage`) each practice one lesson: the lab's `lesson` field in `src/labs.js` names it, and that lesson ends with a "Try it for real" link to the lab (PC build only, never in a locked preview). They use python3, git and standard Ubuntu tools only (no jq, no real sshd), and pass only when the fix is **secure and still works**. `labs/test-solutions/NAME.sh` holds the fixtures for each: `right` and `alt` (a different valid fix) must pass; `wrong` (insecure), `broken` (secure but breaks the service) and `crash` (the checker's inputs destroyed) must fail. sq-lab fails closed: a check passes only if nothing failed and at least one check actually ran. `npm test` checks that every lab folder has a run line, every security lab's lesson exists and links back, and that passing labs never changes a full day or the streak. Labs credit only skills on tracks you've opened, so a lab can't unlock a later path stage early.
+
 ## Rules that keep saved progress safe
 
 - **Only append** to the arrays `CARDS`, `QUIZ`, `TERM`, `IV`, `SQLT`. Saved progress is keyed by array position. `tests/content-snapshot.json` enforces this; after a deliberate wording fix, refresh it with `node tests/feature-content-order.js --update`.
@@ -68,7 +70,7 @@ Tracks and Progress show the four counts behind it: Retained, Fading, Learning, 
 
 Each day: **Learn** 3 two-minute lessons → **Practice** 4 typed exercises from each of those skills → **Apply** one ticket or interview rep in the main skill's area → **Reviews**. Today shows it as a 4-step checklist with a **Next up** button, the last 14 days, one suggested free lab (matched to today's skills, rotating away from ones used this week) and a one-line tip.
 
-- **Path:** cloud security + red team, foundations first (`PATH` in app.js). Every beginner skill stays; the path only orders them. Per track, Level 1 comes first and Level 2 opens once the track's Level 1 skills average 70%. Weights: Linux, networking, security 3; code, SQL and cloud 2; IT support 1; Software Testing is not on the path (still in Study). Cloud Security is the next stage (it opens after Security and Networking Level 1, and stays open once started); Offensive Security comes after it.
+- **Path:** cloud security + red team, foundations first (`PATH` in app.js). Every beginner skill stays; the path only orders them. Per track, Level 1 comes first and Level 2 opens once the track's Level 1 skills average 70%. Weights: Linux, networking, security 3; code, SQL, cloud and offensive security 2; IT support 1; Software Testing is not on the path (still in Study). Cloud Security and Offensive Security are the later stages (see their sections below).
 - **Today's 3 skills** (`dailyPlan`, fixed for the day in `S.plan`): two path skills from different tracks (started-but-weak first, then new ones by weight and level) plus one slipping skill you've started (or a third track when none is slipping).
 - **Lessons come back** when a skill you've read drops under 50% or you miss 2+ of its exercises in a day (`S.slip`); otherwise a read lesson is skipped as healthy.
 - **Day flags:** `p0`–`p2` per practice slot, `practice` when all three are done, `learn` when no needed lesson is left (once something was actually done), `apply`, and `rev`.
@@ -114,4 +116,12 @@ Note on new skills: adding Level 1 skills to a path track lowers that track's Le
 
 ## Cloud Security (path stage)
 
-The `cloud` track opens only when Security and Networking Level 1 each average 70% (`PATH.after`), and then takes at most one of the day's three lessons (`PATH.gatedMax`): it gets the third slot whenever no started skill is slipping. Until then the Skills map and Tracks show it locked with the real distance to unlock, plus a read-only sample lesson that records nothing. Product names follow 2026 naming (vendor-neutral concepts first); `feature-names` fails on outdated names (e.g. Azure AD) unless written as "formerly …".
+The `cloud` track opens only when Security and Networking Level 1 each average 70% (`PATH.after`) and stays open once started. Later-stage tracks together take at most one of the day's three lessons (`PATH.gatedMax`); one gets the third slot when nothing has really slipped (under 70), or whenever that track hasn't been practiced in 3 days. Until a track opens, the Skills map and Tracks show it locked with the real distance to unlock, plus a read-only sample lesson that records nothing; Browse, drills and Job readiness practice stay closed. Product names follow 2026 naming (vendor-neutral concepts first); `feature-names` fails on outdated names (e.g. Azure AD) unless written as "formerly …".
+
+## Offensive Security (path stage)
+
+The `offsec` track is the last stage: it opens when Security, Networking, Linux and Code Level 1 all average 70%, and shares the single later-stage slot with Cloud. It teaches how authorized testers think, always defense first: scoping and authorization (first), engagement types, injection, access control failures, password attacks and detection, MITRE ATT&CK and the kill chain, and the findings report (CVSS plus exposure plus CISA KEV). OWASP categories are taught by name, never rank number.
+
+- `feature-offsec-safety` scans every Offensive lesson, card, quiz question, the `scope` ticket and 300 generated exercises per generator for payload strings, attack-tool names and commands, and step-by-step attack phrasing, and proves the scanner catches samples of each.
+- Every vulnerability-class lesson (all except the process lessons) must have `prevent` and `detect` sections, shown as "How to prevent it" and "How to detect it".
+- Practice it legally: Free resources lists PortSwigger Web Security Academy, OWASP Juice Shop (run it yourself) and MITRE ATT&CK.
