@@ -22,7 +22,8 @@ vm.runInContext(before + '\n' + [
   grab('finishMission'), grab('completeMission'), line('const REVIEW_CAP'), line('const STEP_KEYS'), grab('isFullDay'), line('function dueReviewCount('), line('const reviewsOk'),
   grab('checkReviews'), line('function noteReview('), grab('checkFullDay'), grab('dayState'), line('const LAB_FOR'), app.slice(app.indexOf('const LAB_FOR'), app.indexOf('function labPick(')).split('\n').slice(1).join('\n'), grab('labPick'),
   'globalThis.T = { dailyPlan, finishMission, addDays, trackOpen, unlockText, previewLesson, lessonNeeded, todaySteps, syncPlanFlags, completeMission, isFullDay, dayState, labPick, applyRep, pathSkills, skillLevel, skillById, allSkills, DEFAULT, PATH, LAB_FOR, SCEN,',
-  '  get S(){ return S; }, set S(v){ S = v; }, set today(v){ TODAY = v; } };'
+  '  completeLab, LABS, get S(){ return S; }, set S(v){ S = v; }, set today(v){ TODAY = v; } };',
+  'vLabs = function(){};'
 ].join('\n'), ctx);
 const T = ctx.T;
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
@@ -192,6 +193,49 @@ if (cloudDays < 3) fail('mid-path: an opened Cloud track should get a slot at le
 const m19 = JSON.parse(JSON.stringify(ready)); cloudSk.forEach(s => { m19[s.id] = { s: 30, n: 3, right: 1, last: today }; });
 for (let k = 1; k <= 5; k++) { fresh({ mastery: JSON.parse(JSON.stringify(m19)) }); T.today = today; T.S.plan = null;
   const c = cloudIn(T.dailyPlan()); if (c !== 1) fail('weak started Cloud skills: expected exactly 1 Cloud lesson, got', c); }
+
+/* 20. Offensive Security also needs Linux and Code foundations; Cloud and Offensive share one daily slot, and both get turns */
+fresh({ mastery: JSON.parse(JSON.stringify(ready)) });
+if (T.trackOpen('offsec')) fail('Offensive Security must stay locked until Linux and Code Level 1 are solid too');
+if (T.unlockText('offsec').split(' · ').length !== 4) fail('Offensive unlock text should list all four foundation tracks', T.unlockText('offsec'));
+if (!T.previewLesson('offsec') || !T.previewLesson('offsec').startsWith('quiz:offsec:')) fail('Offensive Security needs a preview lesson');
+const four = {}; T.pathSkills().filter(s => ['sec', 'net', 'linux', 'code'].includes(s.tid) && T.skillLevel(s) === 1).forEach(s => { four[s.id] = strong(); });
+let offDays = 0, cloudDays20 = 0, carried20 = {}, plan20 = null;
+for (let k = 1; k <= 20; k++) {
+  const day = '2027-03-' + String(k).padStart(2, '0');
+  const m = Object.assign(JSON.parse(JSON.stringify(four)), carried20); for (const id in four) m[id].last = day;
+  fresh({ mastery: m, plan: plan20 }); T.today = day;
+  if (!T.trackOpen('offsec') || !T.trackOpen('cloud')) { fail('both later stages should be open with all four foundations solid'); break; }
+  plan20 = T.dailyPlan(); const g = plan20.ids.filter(id => ['cloud', 'offsec'].includes(sk(id).tid));
+  if (g.length > 1) fail('Cloud and Offensive together may take only one slot a day, got', g);
+  g.forEach(id => {
+    if (sk(id).tid === 'offsec' && !offDays && sk(id).sk !== 'Scoping & authorization') fail('Offensive Security must start with Scoping & authorization, got', sk(id).sk);
+    if (sk(id).tid === 'cloud' && !cloudDays20 && sk(id).sk !== 'Shared responsibility') fail('Cloud Security should start with its first lesson, got', sk(id).sk);
+    carried20[id] = { s: 60, n: 2, right: 1, last: day }; if (sk(id).tid === 'offsec') offDays++; else cloudDays20++; });
+}
+if (!offDays || !cloudDays20) fail('both later-stage tracks should get turns over 20 days', { offDays, cloudDays20 });
+
+/* 21. labs are optional: passing them never changes a full day or the streak's day state */
+for (const day of [{ learn: true, practice: true, apply: true, rev: true }, { learn: true }]) {
+  fresh(); T.S.days[today] = Object.assign({}, day);
+  const without = [T.isFullDay(T.S.days[today]), T.dayState(today, true)];
+  T.S.labs = { 'ssh-harden': today, 'iam-tighten': today, 'vuln-triage': today };
+  const withLabs = [T.isFullDay(T.S.days[today]), T.dayState(today, true)];
+  if (JSON.stringify(without) !== JSON.stringify(withLabs)) fail('passing labs must not change the full day or day state', without, withLabs);
+}
+
+/* 22. completing a lab through the app: days untouched, locked tracks get nothing, later-stage lesson order is respected */
+const labById = id => T.LABS.find(l => l.id === id);
+fresh(); T.completeLab(labById('vuln-triage'));
+if (JSON.stringify(T.S.days) !== '{}') fail('completing a lab must not touch the day records', T.S.days);
+if (T.S.mastery['quiz:offsec:Findings report']) fail('a lab must not credit a skill on a locked track');
+if (!T.S.mastery['quiz:sec:Vulnerabilities']) fail('a lab should credit its skills on open tracks');
+if (T.trackOpen('offsec')) fail('a lab must not open a later path stage');
+fresh({ mastery: JSON.parse(JSON.stringify(four)) }); T.completeLab(labById('vuln-triage'));
+if (T.S.mastery['quiz:offsec:Findings report']) fail('on an open later-stage track, a lab must not credit a skill that was never started (lesson order)');
+fresh({ mastery: Object.assign(JSON.parse(JSON.stringify(four)), { 'quiz:offsec:Findings report': { s: 40, n: 2, right: 1, last: today } }) });
+T.completeLab(labById('vuln-triage'));
+if (T.S.mastery['quiz:offsec:Findings report'].n !== 4) fail('a started later-stage skill should get the lab credit');
 
 console.log('loop checks | problems', bad);
 process.exitCode = bad ? 1 : 0;

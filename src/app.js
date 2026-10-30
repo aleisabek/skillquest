@@ -287,10 +287,11 @@ function statsLine(st){
    Career path: cloud security and red team, foundations first. Every beginner skill stays; the path only orders them.
    Per track, Level 1 skills come first and its Level 2 skills open once the Level 1 ones average PATH.solid.
    Weights say how central a track is to both paths (Software Testing is not on it; it stays in Study).
-   Cloud Security is the next stage (gated below); Offensive Security comes after it. */
-const PATH = {name:'Cloud security + Red team', weights:{linux:3, net:3, sec:3, code:2, sql:2, support:1, cloud:2}, solid:70,
-  /* later-stage tracks open only when these tracks' Level 1 skills each average PATH.solid, then take at most gatedMax daily slots */
-  after:{cloud:['sec','net']}, gatedMax:1};
+   Cloud Security and Offensive Security are the later stages (gated below). */
+const PATH = {name:'Cloud security + Red team', weights:{linux:3, net:3, sec:3, code:2, sql:2, support:1, cloud:2, offsec:2}, solid:70,
+  /* later-stage tracks open only when these tracks' Level 1 skills each average PATH.solid; together they take at most
+     gatedMax of the day's slots */
+  after:{cloud:['sec','net'], offsec:['sec','net','linux','code']}, gatedMax:1};
 const isGated = tid=>!!PATH.after[tid];
 function previewLesson(tid){ const s = allSkills().find(x=>x.tid===tid && lessonFor(x.id)); return s && s.id; }
 /* Once a gated track is started it stays open: foundation scores decay between sessions, and a short break
@@ -319,7 +320,9 @@ function dailyPlan(){
   const prev = S.plan && S.plan.day === addDays(d, -1) ? S.plan : null, runs0 = (prev && prev.runs) || {};
   const run = s=>prev && prev.ids.includes(s.id) ? (runs0[s.id] || 1) : 0;
   const M = S.mastery||{}, tie = s=>hashStr(s.id+d);
-  const pool = pathSkills().filter(s=>trackOpen(s.tid) && (skillLevel(s)===1 || trackL1Avg(s.tid) >= PATH.solid));
+  /* a later-stage track is taught in its own order: only its first unstarted skill is offered (Scoping before anything offensive) */
+  const firstNew = tid=>pathSkills().find(x=>x.tid===tid && !M[x.id]);
+  const pool = pathSkills().filter(s=>trackOpen(s.tid) && (skillLevel(s)===1 || trackL1Avg(s.tid) >= PATH.solid) && (!isGated(s.tid) || M[s.id] || firstNew(s.tid) === s));
   /* at most PATH.gatedMax of the day's skills may come from a gated (later-stage) track */
   const room = s=>!isGated(s.tid) || ids.filter(id=>isGated(skillById(id).tid)).length < PATH.gatedMax;
   const key = s=>M[s.id] ? [0, skillScore(s.id), 0, tie(s)] : [1, -PATH.weights[s.tid], skillLevel(s), tie(s)];
@@ -331,12 +334,13 @@ function dailyPlan(){
   /* any started skill can come back here, including Level 2 skills whose track foundations have since dipped */
   const slipping = pathSkills().filter(s=>trackOpen(s.tid) && M[s.id] && !ids.includes(s.id) && room(s)).sort((a,b)=>skillScore(a.id)-skillScore(b.id) || tie(a)-tie(b));
   const tracksSoFar = ids.map(id=>skillById(id).tid);
-  /* third slot: a skill that has really slipped (under PATH.solid) first; then an opened later-stage track, so Cloud
-     doesn't wait behind every half-learned skill once unlocked; then a mildly slipping skill; then a new skill elsewhere.
-     If no later-stage skill has been practiced in 3 days, it goes ahead of the slipped skill, so it can't starve mid-path. */
-  const gatedNext = need.find(s=>isGated(s.tid) && room(s) && !ids.includes(s.id));
-  const gatedStale = gatedNext && !pathSkills().some(s=>isGated(s.tid) && M[s.id] && M[s.id].last && daysSince(M[s.id].last) < 3);
-  const third = (gatedStale && gatedNext) || slipping.find(s=>skillScore(s.id) < PATH.solid) || gatedNext
+  /* third slot: a skill that has really slipped (under PATH.solid) first; then an opened later-stage track, so
+     later-stage tracks don't wait behind every half-learned skill once unlocked; then a mildly slipping skill; then a new skill elsewhere.
+     A later-stage track with nothing practiced in 3 days goes ahead of the slipped skill, so none starves mid-path. */
+  const gatedFree = need.filter(s=>isGated(s.tid) && room(s) && !ids.includes(s.id)), gatedNext = gatedFree[0];
+  const practicedLately = tid=>pathSkills().some(s=>s.tid===tid && M[s.id] && M[s.id].last && daysSince(M[s.id].last) < 3);
+  const gatedStale = gatedFree.find(s=>!practicedLately(s.tid));
+  const third = gatedStale || slipping.find(s=>skillScore(s.id) < PATH.solid) || gatedNext
     || slipping.find(s=>skillScore(s.id) < 85)
     || need.find(s=>room(s) && !ids.includes(s.id) && !tracksSoFar.includes(s.tid)) || need.find(s=>room(s) && !ids.includes(s.id)) || slipping[0];
   if(third) ids.push(third.id);
@@ -350,7 +354,7 @@ function dailyPlan(){
   return S.plan;
 }
 /* The rep for today: a ticket scenario in the main skill's area while its best score is under 90, otherwise an interview question. */
-const SCEN_TRACK = {disk:'linux', noc:'net', pos:'support', lockout:'support', regression:'qa', phish:'sec', leakedkey:'cloud'};
+const SCEN_TRACK = {disk:'linux', noc:'net', pos:'support', lockout:'support', regression:'qa', phish:'sec', leakedkey:'cloud', scope:'offsec'};
 function applyRep(id){
   const s = id && skillById(id), tid = s ? s.tid : 'linux';
   const sc = SCEN.findIndex(x=>SCEN_TRACK[x.id] === tid && ((S.tickets||{})[x.id]||0) < 90);
@@ -534,7 +538,8 @@ function stripHTML(){
 }
 /* One real lab for today: matched to today's skills (offense-leaning for the path), not used in the last 7 days if possible. */
 const LAB_FOR = {linux:['OverTheWire'], net:['Cisco Networking Academy','TryHackMe free rooms'], sec:['picoCTF','Hack The Box Academy','TryHackMe free rooms','CyberDefenders'],
-  code:['picoCTF'], sql:['SQLBolt','SQLZoo'], support:['Microsoft Learn','Professor Messer'], cloud:['AWS Skill Builder','flaws.cloud','Microsoft Learn']};
+  code:['picoCTF'], sql:['SQLBolt','SQLZoo'], support:['Microsoft Learn','Professor Messer'], cloud:['AWS Skill Builder','flaws.cloud','Microsoft Learn'],
+  offsec:['PortSwigger Web Security Academy','OWASP Juice Shop','TryHackMe free rooms']};
 function labPick(plan){
   const items = PRACTICE.flatMap(g=>g.items), tids = plan.ids.map(id=>skillById(id).tid);
   const cand = [...new Set(tids.flatMap(t=>LAB_FOR[t]||[]))].map(n=>items.find(x=>x[0]===n)).filter(Boolean);
@@ -993,7 +998,7 @@ const scenIdx = id=>SCEN.findIndex(s=>s.id===id);
    count toward a job's %; tickets, console tasks and interview reps are shown as practice done, since a best-ever score never drops. */
 const R = {
   track:(tid,lv)=>[track(tid).icon+' '+track(tid).name+' L'+lv, ()=>mastery(tid,lv), ()=>startQuiz(tid,10,null,null,lv), true, tid],
-  ticket:id=>['🎫 Ticket: '+SCEN[scenIdx(id)].title, ()=>tkPct(id), ()=>playTicket(scenIdx(id),null)],
+  ticket:id=>['🎫 Ticket: '+SCEN[scenIdx(id)].title, ()=>tkPct(id), ()=>playTicket(scenIdx(id),null), false, SCEN_TRACK[id]],
   sql:lv=>['🗄️ SQL console L'+lv, ()=>sqlPct(lv), ()=>startSQL(8,null,lv)],
   term:()=>['🐧 Terminal commands', termPct, ()=>startTerm(8,null)],
   iv:(cat,label)=>['🎤 Interview: '+label, ()=>ivPct(cat), ()=>go('interview')]
@@ -1009,6 +1014,8 @@ const JOBS = [
     R.track('net',1), R.track('net',2), R.track('support',1), R.track('support',2), R.ticket('noc'), R.iv('behavioral','behavioral (STAR)'), R.iv('jobready','job-ready scenarios')]},
   {name:'Path goal · Cloud Security Engineer', status:'Long-term target · Cloud opens after Security + Networking L1', items:[
     R.track('cloud',1), R.track('cloud',2), R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('linux',1)]},
+  {name:'Path goal · Penetration Tester (red team)', status:'Long-term target · Offensive opens after Security, Networking, Linux + Code L1', items:[
+    R.track('offsec',1), R.track('offsec',2), R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('linux',1), R.track('code',1), R.ticket('scope')]},
   {name:'Future goal · Junior Security / SOC Analyst', status:'Needs Security+ first', items:[
     R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('net',2), R.track('linux',1)]}
 ];

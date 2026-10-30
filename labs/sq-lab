@@ -32,7 +32,7 @@ load_lab() {
   # shellcheck source=/dev/null
   source "$LABS_HOME/labs/$name/lab.sh"
 }
-ok()   { echo "  ${G}✔${N} $*"; }
+ok()   { echo "  ${G}✔${N} $*"; OKS=$((${OKS:-0}+1)); }
 bad()  { echo "  ${R}✘${N} $*"; FAILED=1; }
 
 cmd="${1:-list}"; shift || true
@@ -42,7 +42,7 @@ case "$cmd" in
     for n in $(lab_names); do
       ( source "$LABS_HOME/labs/$n/lab.sh"
         s=$(status_of "$n"); case "$s" in passed) tag="${G}passed${N}";; started) tag="${Y}started${N}";; *) tag="new";; esac
-        printf "  %-14s %-9s %s  ${C}[%s]${N}\n" "$n" "$tag" "$TITLE" "$LEVEL" )
+        printf "  %-16s %-9s %s  ${C}[%s]${N}\n" "$n" "$tag" "$TITLE" "$LEVEL" )
     done
     echo; echo "Start one with: ${B}sq-lab start NAME${N}";;
   start)
@@ -64,7 +64,9 @@ case "$cmd" in
   check)
     load_lab "${1:-}"
     if [ ! -d "$DIR" ]; then echo "This lab isn't started. Run: ${B}sq-lab start $LAB${N}"; exit 1; fi
-    FAILED=0; echo "${B}Checking ${TITLE}${N}"; lab_check
+    FAILED=0; OKS=0; echo "${B}Checking ${TITLE}${N}"; lab_check
+    # fail closed: a checker that crashed or printed nothing is never a pass
+    [ "$OKS" -gt 0 ] || bad "the checker couldn't confirm anything (see any error above)"
     if [ "$FAILED" = 0 ]; then
       set_status "$LAB" passed; lab_cleanup 2>/dev/null
       echo; echo "${G}${B}Lab passed!${N} Completion code for the SkillQuest app: ${B}$(code_for "$LAB")${N}"
