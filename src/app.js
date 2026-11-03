@@ -1003,22 +1003,25 @@ const R = {
   term:()=>['🐧 Terminal commands', termPct, ()=>startTerm(8,null)],
   iv:(cat,label)=>['🎤 Interview: '+label, ()=>ivPct(cat), ()=>go('interview')]
 };
-const JOBS = [
+/* The jobs being applied to live in src/private.js (never committed); without it, these example roles stand in. */
+const EXAMPLE_JOBS = [
   {name:'Restaurant group · IT Support Specialist', status:'Example role', items:[
     R.track('support',1), R.track('support',2), R.track('net',1), R.track('sec',1), R.ticket('pos'), R.ticket('lockout'), R.iv('technical','technical basics')]},
-  {name:'Healthcare billing · Software Tester', status:'Example role', items:[
+  {name:'Healthcare billing software · Software Tester', status:'Example role', items:[
     R.track('qa',1), R.track('qa',2), R.track('sql',1), R.sql(1), R.sql(2), R.ticket('regression'), R.iv('resume','about your resume')]},
   {name:'Energy company · Jr Linux IT Specialist', status:'Example role', items:[
     R.track('linux',1), R.track('linux',2), R.term(), R.track('net',1), R.track('code',1), R.ticket('disk'), R.iv('jobready','job-ready scenarios')]},
-  {name:'NOC employer · NOC Admin', status:'Example role', items:[
-    R.track('net',1), R.track('net',2), R.track('support',1), R.track('support',2), R.ticket('noc'), R.iv('behavioral','behavioral (STAR)'), R.iv('jobready','job-ready scenarios')]},
+  {name:'Network operations center · NOC Admin', status:'Example role', items:[
+    R.track('net',1), R.track('net',2), R.track('support',1), R.track('support',2), R.ticket('noc'), R.iv('behavioral','behavioral (STAR)'), R.iv('jobready','job-ready scenarios')]}
+];
+const JOBS = (typeof privateJobs === 'function' ? privateJobs(R) : EXAMPLE_JOBS).concat([
   {name:'Path goal · Cloud Security Engineer', status:'Long-term target · Cloud opens after Security + Networking L1', items:[
     R.track('cloud',1), R.track('cloud',2), R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('linux',1)]},
   {name:'Path goal · Penetration Tester (red team)', status:'Long-term target · Offensive opens after Security, Networking, Linux + Code L1', items:[
     R.track('offsec',1), R.track('offsec',2), R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('linux',1), R.track('code',1), R.ticket('scope')]},
   {name:'Future goal · Junior Security / SOC Analyst', status:'Needs Security+ first', items:[
     R.track('sec',1), R.track('sec',2), R.track('net',1), R.track('net',2), R.track('linux',1)]}
-];
+]);
 function jobScore(j){ const f = j.items.filter(it=>it[3]); return f.length ? Math.round(f.reduce((a,it)=>a+it[1](),0) / f.length) : 0; }
 function readyLabel(p){ return p>=90?'Strong':p>=70?'Interview-ready':p>=40?'Getting there':'Building'; }
 function vReady(){

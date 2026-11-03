@@ -1,7 +1,7 @@
 /* Mini-lessons: Software Testing */
 Object.assign(LESSONS, {
 'quiz:qa:Test design': {
-  why: `Testers can't try every input. Boundary values and equivalence partitions find most bugs with the fewest tests, and Healthcare billing-style interviews ask about them.`,
+  why: `Testers can't try every input. Boundary values and equivalence partitions find most bugs with the fewest tests, and software-testing interviews ask about them.`,
   idea: `<ul class="clean"><li><b>Equivalence partitioning</b>: split inputs into groups that should behave the same (too low, valid, too high) and test one value from each.</li><li><b>Boundary value analysis</b>: bugs hide at the edges, so test just outside and just inside each edge.</li><li>Always add <b>negative tests</b>: wrong types, empty input, special characters.</li></ul>`,
   example: `<p>An age field accepts 18 to 65.</p><p>Partitions: under 18, 18–65, over 65 → test 10, 40, 80. Boundaries: <b>17, 18, 65, 66</b>. Negative: "abc", empty, -1.</p>`,
   mistakes: [`Testing only "happy path" values like 30.`, `Testing 18 and 65 but not 17 and 66.`],

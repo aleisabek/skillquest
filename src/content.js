@@ -7,7 +7,7 @@ const TRACKS = [
   {id:'support', name:'IT Support & M365', icon:'🖥️', blurb:'Troubleshooting, tickets, Microsoft 365, Entra ID and Intune.'},
   {id:'qa', name:'Software Testing', icon:'🧪', blurb:'How testers think: test cases, bugs, and the testing life cycle.'},
   {id:'code', name:'Code, Git & APIs', icon:'🐍', blurb:'Git, Python, APIs and tests: the tools behind your projects.'},
-  {id:'sql', name:'SQL & Data', icon:'🗄️', blurb:'Asking databases questions. Healthcare billing and many IT jobs list it.'},
+  {id:'sql', name:'SQL & Data', icon:'🗄️', blurb:'Asking databases questions. Many IT and testing jobs list it.'},
   {id:'cloud', name:'Cloud Security', icon:'☁️', blurb:'Securing what you run in the cloud: shared responsibility, identity, logging, misconfigurations, network controls.'},
   {id:'offsec', name:'Offensive Security', icon:'🗡️', blurb:'How authorized testers think: scoping, common web flaws, password attacks, ATT&CK and reporting. Concepts and defense, no attack tooling.'}
 ];
@@ -186,7 +186,7 @@ const CARDS = [
  ['qa',2,'Defect triage','The team reviews new bugs together: confirm each one, set severity and priority, then assign it or defer it.','q-bugs'],
  ['qa',2,'Choosing regression tests','After a change, run tests for the changed area, risky shared areas, and the smoke suite.','q-types'],
  ['qa',2,'Root cause analysis','Keep asking "why?" until you reach the real cause (the 5 Whys). Note it in the bug.','q-bugs'],
- ['qa',2,'Healthcare billing words (Healthcare billing)','Claim: a bill sent to insurance. Denial: insurer refuses to pay. EDI 837: the claim file. EDI 835: the payment/remittance file.','q-process'],
+ ['qa',2,'Healthcare billing words','Claim: a bill sent to insurance. Denial: insurer refuses to pay. EDI 837: the claim file. EDI 835: the payment/remittance file.','q-process'],
 
  ['code',2,'Reading a file in Python','<code>with open("app.log") as f:</code> then <code>for line in f:</code>. The file closes automatically, even on errors.','c-python'],
  ['code',2,'try / except','Handles errors instead of crashing: <code>try: ... except FileNotFoundError: ...</code>','c-python'],
@@ -725,7 +725,7 @@ const IV = [
  {c:'jobready', q:'How would you write a SQL query to find duplicate email addresses?', tip:'GROUP BY plus HAVING.',
   model:'"SELECT email, COUNT(*) FROM users GROUP BY email HAVING COUNT(*) > 1; Grouping by email makes one row per address, and HAVING keeps only the addresses that appear more than once."',
   points:['GROUP BY email','COUNT(*)','HAVING COUNT(*) > 1','Explained why it works']},
- {c:'jobready', q:'How would you test a new "export claims to CSV" feature?', tip:'Healthcare billing-style question. Think like a tester.',
+ {c:'jobready', q:'How would you test a new "export claims to CSV" feature?', tip:'A common software-testing question. Think like a tester.',
   model:'"I start from the requirements: which columns, which filters, who can export. Positive tests: the export matches the screen and the row count matches a SQL count. Negative and edge tests: no data, a very large export, commas or quotes inside fields, special characters, dates in the right format. Permissions: only the right roles can export, since claims contain protected health information. I test with fake data, and finally run regression on related reports."',
   points:['Started from requirements','Positive tests with a data check','Edge cases (empty, large, special characters)','Permissions and privacy','Regression on related features']},
  {c:'jobready', q:'What does a NOC admin do when several sites go down at once?', tip:'Look for the common cause, organize, communicate.',
@@ -854,7 +854,7 @@ const SCEN = [
    ['Turn it off but tell no one.',0,'Never.'],
    ['Escalate to your manager without fixing anything.',3,'You already know the fix. Solve it, then document it.']]}
  ]},
- {id:'regression', title:'Totals are wrong after release', role:'Software tester on a healthcare billing app', job:'Healthcare billing Software Tester', steps:[
+ {id:'regression', title:'Totals are wrong after release', role:'Software tester on a healthcare billing app', job:'Healthcare billing QA', steps:[
   {s:'After Tuesday\'s release, a user says "the claim totals look wrong." What do you do first?', c:[
    ['Get specifics (which screen, which claim IDs, expected vs. actual amount) and try to reproduce it.',10,'You cannot report what you cannot reproduce.'],
    ['Tell the developers the release is broken.',2,'Too vague for anyone to act on.'],
@@ -876,7 +876,7 @@ const SCEN = [
    ['Close it. The developer said it is fixed.',0,'Testers verify.'],
    ['Manually retest the whole app from scratch.',3,'Too broad and slow. Target the risky areas.']]}
  ]},
- {id:'noc', title:'Five sites down at once', role:'NOC admin', job:'NOC employer NOC Admin', steps:[
+ {id:'noc', title:'Five sites down at once', role:'NOC admin', job:'NOC admin', steps:[
   {s:'Monitoring shows 5 customer sites went down within 2 minutes. What first?', c:[
    ['Look for what they share: same ISP, same region, same upstream device, or a planned maintenance window.',10,'Many alerts at once usually means one shared cause.'],
    ['Open 5 separate tickets and work them one by one.',3,'You would solve the same problem five times.'],
@@ -898,7 +898,7 @@ const SCEN = [
    ['Delete the alerts.',0,'You need them for the review.'],
    ['Move every customer to a new ISP.',0,'Not your decision, and not based on one incident.']]}
  ]},
- {id:'disk', title:'Server disk full', role:'Junior Linux admin', job:'Energy company Jr Linux', steps:[
+ {id:'disk', title:'Server disk full', role:'Junior Linux admin', job:'Junior Linux admin', steps:[
   {s:'An app on a Linux server stopped saving data. The alert says "disk 100%." First command?', c:[
    ['<code>df -h</code> to see which filesystem is full.',10,'Confirm the alert and find the full mount point.'],
    ['<code>rm -rf /tmp/*</code> right away.',2,'Deleting blindly can break running apps, and /tmp may not even be the full disk.'],
