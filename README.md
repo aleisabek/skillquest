@@ -1,5 +1,9 @@
 # SkillQuest
 
+[![tests](https://github.com/aleisabek/skillquest/actions/workflows/test.yml/badge.svg)](https://github.com/aleisabek/skillquest/actions/workflows/test.yml)
+
+Every push runs the full suite in GitHub Actions: the Node checks (`npm test`) and every WSL lab end to end on Ubuntu (`labs/test-labs.sh`).
+
 An offline practice app for entry-level IT jobs: IT support & Microsoft 365, networking, security, Linux, software testing, code/Git/APIs and SQL. It builds into **one HTML file** that runs in any browser with no install and no internet. Progress is saved in the browser.
 
 ## Commands
