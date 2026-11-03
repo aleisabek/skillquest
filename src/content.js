@@ -748,7 +748,10 @@ const IV = [
   points:['Offline, no keys, live trading blocked','Preflight check for committed secrets','Quarantined outside code, read not run','Leak response: revoke and rotate first']},
  {c:'resume', q:'Your portfolio says AI agents wrote the code. So what was your part?', tip:'Own it confidently. You were the owner: goals, rules, decisions, review, reporting.',
   model:'"I was the owner. I set the goals, approved every decision and rule change, and there are 26 logged decisions with dates and reasons. AI coding agents wrote the code, and changes went through pull requests with written reviews. I wrote the plain-language reports and decided what we would and would not do with the results. The skill I built is the one security work needs: setting the rules, checking the evidence, and not trusting a result just because it looks good."',
-  points:['Said "owner" clearly, no hedging','Goals, approvals, the decision log','Reviews and pull requests','Wrote the reports','Tied it to verify-before-trust']}
+  points:['Said "owner" clearly, no hedging','Goals, approvals, the decision log','Reviews and pull requests','Wrote the reports','Tied it to verify-before-trust']},
+ {c:'technical', q:'Coding: given a list of daily stock prices, find the best profit from one buy and one later sell (LeetCode 121). Talk me through your solution.', tip:'Say the brute force first, then the one-pass idea, then complexity, then edge cases.',
+  model:'"Checking every buy and sell pair works but is O(n squared). Better: walk the list once. Keep the lowest price seen so far and the best profit so far. At each price, profit if I sold today is price minus the lowest so far; keep the larger of that and the best profit, then update the lowest price. That is O(n) time and O(1) space. Edge cases: if prices only fall, no trade makes money, so the answer is 0, not a negative number. A single price, or an empty list, also gives 0. A large input is fine because it is one pass with two variables."',
+  points:['Brute force first: every pair, O(n²)','One pass: lowest price so far, best profit so far','Sell price minus lowest so far at each step','O(n) time, O(1) space','Edge cases: falling prices give 0; one price or empty gives 0; large input is fine']}
 ];
 
 const STRATEGIES = [

@@ -1,0 +1,31 @@
+# Every push and pull request runs the full suite: the Node checks (content, generators, daily loop,
+# progress safety...) and every break-and-fix lab end to end on a real Ubuntu machine.
+name: tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5   # the SQLite answer check runs as `python`
+        with:
+          python-version: '3.12'
+      - name: Node checks (npm test)
+        run: npm test
+  labs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure git for the secret-leak lab
+        run: git config --global init.defaultBranch main
+      - name: Every lab end to end (right, alternative, insecure, broken and crash fixes)
+        run: bash labs/test-labs.sh
