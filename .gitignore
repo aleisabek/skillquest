@@ -1,4 +1,6 @@
 dist/
+# the real job list (see build.js); never commit it
+src/private.js
 tests/.tmp/
 node_modules/
 __pycache__/

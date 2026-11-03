@@ -29,7 +29,7 @@ Object.assign(LESSONS, {
   say: `Incidents get service back; problems find root causes; changes go through approval so fixes don't cause new outages.`
 },
 'quiz:support:Microsoft 365 admin': {
-  why: `Restaurant group's and many other jobs list Microsoft 365, Entra ID and Intune. Knowing which admin center does what saves time.`,
+  why: `Most IT support jobs list Microsoft 365, Entra ID and Intune. Knowing which admin center does what saves time.`,
   idea: `<ul class="clean"><li><b>Microsoft 365 admin center</b>: users, password resets, licenses, shared mailboxes</li><li><b>Microsoft Entra admin center</b>: identity, groups, MFA, sign-in logs, Conditional Access</li><li><b>Microsoft Intune admin center</b>: device enrollment, app and policy deployment, remote wipe</li><li><b>Exchange admin center</b>: mail flow, message trace · <b>Teams admin center</b>: Teams policies</li></ul>`,
   example: `<p>"I didn't get the vendor's email." Exchange admin center → <b>Message trace</b> shows whether it arrived, was quarantined, or was never sent.</p>`,
   mistakes: [`Resetting a password without verifying the caller's identity.`, `Removing a license before saving the leaving employee's mailbox and files.`],

@@ -20,8 +20,8 @@ if (D.cards.length !== linux.length) fail('exported', D.cards.length, 'cards, ex
 D.cards.forEach((c, i) => { if (c.f !== linux[i][2] || c.b !== linux[i][3]) fail('card', i, 'differs from SkillQuest'); });
 /* only Linux cards are public: no job applications, interview stories or other tracks */
 /* the blocklist is built from the app's own data, so a newly added employer or ticket job is covered automatically */
-const jobsSrc = js.slice(js.indexOf('const JOBS'), js.indexOf('];', js.indexOf('const JOBS')));
-const employers = [...jobsSrc.matchAll(/name:'((?:[^'\\]|\\.)*?) ·/g)].map(m => m[1].replace(/\\'/g, "'")).filter(n => !/^Future goal/.test(n));
+/* employers come from the example roles and, on a machine that has it, the private job list (both are in the built script) */
+const employers = [...js.matchAll(/\{name:'((?:[^'\\]|\\.)*?) · /g)].map(m => m[1].replace(/\\'/g, "'")).filter(n => !/^(Future goal|Path goal)$/.test(n));
 const blocked = [...new Set([...employers, ...T.SCEN.map(s => s.job), 'Applied ', 'interview', 'skillquest-v1', 'Sabek Carriers'])];
 if (employers.length < 3) fail('could not read the employer names from JOBS (found ' + employers.length + ')');
 for (const w of blocked) if (html.toLowerCase().includes(w.toLowerCase())) fail('public page mentions', w);
