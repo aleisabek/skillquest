@@ -33,3 +33,37 @@ Object.assign(LESSONS, {
   say: `For mail flow I check the MX record first, and for email trust I check the TXT records for SPF and DMARC.`
 }
 });
+
+/* Network+ domain 4 (network security), N10-009 objectives 4.1 to 4.3 (see OBJECTIVES in exam.js). */
+Object.assign(LESSONS, {
+'quiz:net:Network attacks': {
+  why: `Network+ expects you to recognize common attacks from what they do to the network. Naming the mechanism tells you which control stops it.`,
+  idea: `<ul class="clean"><li><b>DoS and DDoS</b> (denial of service; distributed means from many machines at once): flood a service until it can't answer.</li><li><b>Media access control (MAC) flooding</b>: thousands of fake source addresses fill the switch's address table, so it floods frames out of every port, where an attacker can capture them.</li><li><b>Address Resolution Protocol (ARP) poisoning or spoofing</b>: forged replies tie the attacker's MAC address to another device's IP address, often the gateway's.</li><li><b>DNS poisoning or spoofing</b>: a forged record in a resolver's cache sends users to the attacker's IP address.</li><li><b>Virtual local area network (VLAN) hopping</b>: reaching another VLAN's traffic, by pretending to be a switch and forming a trunk (switch spoofing) or by double tagging frames.</li><li><b>Rogue devices and services</b>: a rogue Dynamic Host Configuration Protocol (DHCP) server hands out a wrong gateway or DNS server; a rogue access point is unapproved wireless hardware plugged into your network.</li><li><b>Evil twin</b>: a fake Wi-Fi network copying a real one's name (SSID, service set identifier) to lure devices onto it.</li><li><b>On-path attack</b> (formerly called man-in-the-middle): the attacker relays, and can read or change, traffic between two parties. ARP poisoning, DNS spoofing, rogue DHCP and evil twins are common ways to get on-path.</li><li><b>Social engineering</b>: phishing, dumpster diving, shoulder surfing and tailgating. <b>Malware</b>: software built to do harm.</li></ul>`,
+  seen: `<pre>$ arp -a
+? (192.168.1.1) at 3c:52:82:aa:10:07 on en0
+? (192.168.1.23) at 3c:52:82:aa:10:07 on en0</pre><p>The gateway (192.168.1.1) and a laptop (.23) share one MAC address: a classic sign of ARP poisoning, with the laptop sitting on-path.</p>`,
+  example: `<p>Users on one floor get certificate warnings on every website, and their gateway's MAC address matches a desktop computer in the corner. ARP poisoning has put that computer on-path. Unplug it, then turn on the switch's protections (dynamic ARP inspection, port security) so it can't happen again.</p>`,
+  mistakes: [`Calling every interception "on-path" without naming how it happened: ARP poisoning, DNS spoofing, rogue DHCP and evil twins each need a different fix.`, `Mixing up a rogue access point (unapproved hardware on your network) with an evil twin (a fake network copying yours).`, `Forgetting that physical tricks such as tailgating are network attacks too.`],
+  spot: {q: `Several laptops suddenly get addresses in 192.168.50.x, but the office uses 10.1.0.0/16, and their gateway turns out to be a desk in Marketing. What happened?`, a: `A rogue DHCP server, probably a home router someone plugged in, is answering address requests. Find and unplug it, and turn on DHCP snooping so only trusted ports can hand out addresses.`},
+  say: `I name the mechanism (MAC flooding, ARP or DNS poisoning, rogue DHCP, evil twin, VLAN hopping), because that tells me which control stops it.`
+},
+'quiz:net:Network security': {
+  why: `Network+ ties security to the network itself: who may connect, how devices are hardened, which traffic is filtered, and which rules apply to the data.`,
+  idea: `<ul class="clean"><li><b>Device hardening</b>: disable unused ports and services, and change default passwords.</li><li><b>Network access control (NAC)</b>: decides which devices may connect. 802.1X makes a switch port or Wi-Fi network wait until the user or device authenticates, usually against a RADIUS server; <b>port security</b> limits a switch port to known media access control (MAC) addresses; <b>MAC filtering</b> allowlists hardware addresses (easy to fake).</li><li><b>Authentication, authorization and accounting (AAA)</b>: RADIUS for network access (Wi-Fi, VPN, 802.1X); TACACS+ for administering routers and switches, with per-command authorization and logging; LDAP (Lightweight Directory Access Protocol) to query a directory of users and groups; SAML (Security Assertion Markup Language) for web single sign-on (SSO). Add MFA, time-based codes, least privilege and role-based access control.</li><li><b>Security rules</b>: an ACL (access control list) permits or denies traffic by address, protocol and port; URL filtering blocks web addresses or categories; content filtering inspects what is inside.</li><li><b>Zones and segmentation</b>: trusted and untrusted zones; a <b>screened subnet</b> (formerly called a demilitarized zone (DMZ)) holds public-facing servers between the internet and the internal network. Keep separate segments for internet of things devices, industrial systems (supervisory control and data acquisition (SCADA), industrial control systems (ICS), operational technology (OT)), guests, and bring your own device (BYOD).</li><li><b>Deception</b>: a honeypot (one decoy system) or honeynet (a decoy network) attracts attackers and records what they do.</li><li><b>Compliance</b>: PCI DSS (Payment Card Industry Data Security Standard) wherever card numbers are handled; the GDPR (General Data Protection Regulation) for personal data of people in the EU (European Union); data locality laws on where data must be stored. Geofencing allows or blocks access by location.</li><li><b>Terms</b>: a vulnerability is a weakness, a threat is something that could use it, an exploit is the way it is used, and risk combines likelihood and impact.</li></ul>`,
+  seen: `<pre>interface GigabitEthernet1/0/14
+ switchport mode access
+ switchport access vlan 30
+ switchport port-security
+ switchport port-security maximum 1
+ switchport port-security violation shutdown
+ authentication port-control auto
+ dot1x pae authenticator
+!
+interface GigabitEthernet1/0/15
+ shutdown</pre><p>A switch configuration: port 14 allows one device and requires 802.1X; unused port 15 is shut down.</p>`,
+  example: `<p>A shop's network: the card terminals sit in their own segment for PCI DSS, guests get a separate Wi-Fi with an ACL blocking the internal range, the web server lives in the screened subnet, staff Wi-Fi uses 802.1X with RADIUS, and every unused switch port is shut down.</p>`,
+  mistakes: [`Relying on MAC filtering alone: MAC addresses are easy to fake.`, `Using RADIUS where router admins need per-command control and logging: that's what TACACS+ is for.`, `Putting the public web server on the internal network instead of in a screened subnet.`, `Leaving default admin passwords on new switches and access points.`],
+  spot: {q: `A new access point is installed with its default admin password and plugged into a free port in reception. Name two problems.`, a: `The default password must be changed (device hardening), and a live port in a public area should be disabled, or protected with 802.1X and port security.`},
+  say: `I harden devices, control who connects (802.1X with RADIUS, port security), filter traffic with ACLs, separate zones, and know which compliance rules apply to the data.`
+}
+});

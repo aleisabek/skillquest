@@ -125,6 +125,18 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
     const order = blocks.filter(b => b.drop).sort((a, b) => a.name < b.name ? -1 : 1).concat(blocks.filter(b => !b.drop));
     const win = order.find(b => /^PasswordAuthentication /m.test(b.body));
     if (!win || A !== win.name) fail('sshd first value ' + (win && win.name), q); }
+  else if ((m = Q.match(/^Equipment worth \$([\d,]+) would lose about (\d+)% of its value in one incident \(the exposure factor\)\. Incidents like this happen about once every (\d+) years\. What is the (annualized loss expectancy|single loss expectancy)/))) {
+    /* SLE = asset value × exposure factor; ALE = SLE × ARO, where once every N years is an ARO of 1/N */
+    const av = +m[1].replace(/,/g, ''), sle = av * +m[2] / 100, ale = sle / +m[3], want = m[4].startsWith('annualized') ? ale : sle;
+    const val = s => +s.replace(/[$,]/g, '');
+    if (val(A) !== Math.round(want)) fail('risk money ' + want, q);
+    O.slice(1).forEach(o => { if (val(o) === Math.round(want)) fail('risk money: a wrong option equals the answer', q); }); }
+  else if ((m = Q.match(/lose at most (\d+) hours? of order data \(its RPO, recovery point objective\)\. Backups run every (\d+) hours?\./))) {
+    /* worst case loses one whole backup interval, so the RPO holds only if interval <= RPO */
+    const ok = +m[2] <= +m[1]; if (!A.startsWith(ok ? 'Yes:' : 'No:')) fail('rpo', q);
+    if (O.slice(1).some(o => o.startsWith(ok ? 'Yes:' : 'No:'))) fail('rpo: two options agree', q); }
+  else if ((m = Q.match(/A phishing simulation goes to (\d+) staff\. (\d+) click the link and (\d+) report the email\. What is the (click|report) rate\?/))) {
+    const pct = Math.round(+(m[4] === 'click' ? m[2] : m[3]) / +m[1] * 100) + '%'; if (A !== pct) fail('phish rate ' + pct, q); }
   else if (G[tid][lv][gi].lookup) unchecked[tid + lv + ':' + gi] = Q.slice(0, 50);
   else { notVerified[G[tid][lv][gi].sk] = Q.slice(0, 70); }
 }

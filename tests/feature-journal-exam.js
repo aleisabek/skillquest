@@ -33,7 +33,7 @@ for (const cert of T.CERTS) {
   for (const n of [20, 45]) {
     const plan = T.examPlan(cert, n), total = [...plan.values()].reduce((a, b) => a + b, 0);
     if (total !== n) fail(cert.id, 'plan total', total, '!=', n);
-    for (const [d, k] of plan) { if (!T.domCovered(d)) fail('uncovered domain in plan', d.name); if (k > (d.gens.length ? Infinity : d.qs.length)) fail('over capacity', d.name, k); }
+    for (const [d, k] of plan) { if (!T.domCovered(d)) fail('uncovered domain in plan', d.name); if (k > ((d.gens.length || (d.tagged || []).length) ? Infinity : d.qs.length)) fail('over capacity', d.name, k); }
     for (let r = 0; r < 50; r++) {
       const ex = T.buildExam(cert, n);
       if (ex.length !== n) fail(cert.id, 'exam length', ex.length, 'expected', n);

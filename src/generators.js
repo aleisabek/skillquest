@@ -25,8 +25,9 @@ const FILES = ['notes.txt','app.log','users.csv','report.md','backup.tar','confi
 const WORDS = ['error','timeout','denied','admin','failed','printer','vpn'];
 
 /* sk(skill, generator, {noType, lookup}): labels a quiz generator with its skill. noType = keep multiple choice even when
-   typed answers are on. lookup = its answer comes from a fixed table, not a calculation (tests re-derive every other one). */
-function sk(skill, f, o){ f.sk = skill; if(o && o.noType) f.noType = true; if(o && o.lookup) f.lookup = true; return f; }
+   typed answers are on. lookup = its answer comes from a fixed table, not a calculation (tests re-derive every other one).
+   obj = the CompTIA exam objectives it covers, {'SY0-701':['5.2'], ...}: the practice exams pick their questions by it. */
+function sk(skill, f, o){ f.sk = skill; if(o && o.noType) f.noType = true; if(o && o.lookup) f.lookup = true; if(o && o.obj) f.obj = o.obj; return f; }
 const GEN = {
  net:{1:[
   sk('Ports & services', ()=>{ const [p,s] = pick(PORTS); return Math.random()<.5
@@ -374,7 +375,7 @@ GEN.sec[1].push(
       const say = i=>(rules[i][0]==='allow' ? 'Allowed' : 'Denied')+' by rule '+(i+1);
       return mcq('sec',1,'Firewall rules (checked top to bottom, first match wins):'+tableHTML(['#','Action','Source','Port'], rules.map((r,i)=>[i+1, r[0], r[1], r[2]]))+
         'A packet from <code>'+src+'</code> to port <code>'+port+'</code> arrives. What happens?', say(hit), rules.map((r,i)=>say(i)),
-        'Rule '+(hit+1)+' is the first one that matches source '+src+' and port '+port+', so the packet is '+(rules[hit][0]==='allow'?'allowed':'denied')+'. Rules below it never run.'); }),
+        'Rule '+(hit+1)+' is the first one that matches source '+src+' and port '+port+', so the packet is '+(rules[hit][0]==='allow'?'allowed':'denied')+'. Rules below it never run.'); }, {obj:{'N10-009':['4.3']}}),
   sk('Firewalls', ()=>{ const stateful = Math.random() < .5, right = pick(stateful ? FW_STATEFUL : FW_STATELESS);
       return mcq('sec',1,'Which statement describes a <b>'+(stateful?'stateful':'stateless')+'</b> firewall?', right, stateful ? FW_STATELESS : FW_STATEFUL,
         'Stateful firewalls track connections, so replies to allowed traffic come back in. Stateless ones judge each packet alone and need rules for both directions.'); }, {lookup:true})
@@ -1083,6 +1084,292 @@ function genTask(list, lv, sk){
   const pool = list.filter(g=>(!lv || g.lv===lv) && (!sk || g.sk===sk)); if(!pool.length) return null;
   const g = pick(pool), t = g.f(); if(t) t.sk = g.sk; return t;
 }
+
+/* ---- CompTIA gap-filling: Security+ domain 5 (governance, risk, compliance) and Network+ domain 4 (network security) ----
+   Each generator records the objectives it covers ({obj:{exam code: [objective numbers]}}), checked against CompTIA's own
+   exam objectives documents (see OBJECTIVES in exam.js). A term is only ever the right answer where that objective lists it;
+   near-synonyms that would make a second option defensible are never offered together (the "not" lists). */
+const S701_801 = (a, b)=>({'SY0-701':a, 'SY0-801':b});
+/* scenario tables: [situation, answer, options that must not appear beside this answer] */
+const pickSc = (T, ALL)=>{ const [s, a, not] = pick(T); return {s, a, wrongs:ALL.filter(x=>x!==a && !(not||[]).includes(x))}; };
+const money = n=>'$'+Math.round(n).toLocaleString('en-US');
+
+const GOV_DOCS = [
+  ['Management approves a short statement: company systems are for business use, and every employee must protect customer data.', 'Policy'],
+  ['A board-approved document says the company will classify all of its data and that every department must follow its security rules.', 'Policy'],
+  ['Every password must be at least 14 characters long and checked against a list of breached passwords.', 'Standard'],
+  ['All company laptops must use full-disk encryption with 256-bit AES (Advanced Encryption Standard).', 'Standard'],
+  ['When someone leaves: 1. disable their account, 2. collect their laptop and badge, 3. move their files to their manager.', 'Procedure'],
+  ['Numbered steps for restoring the finance server from last night\'s backup, in the order to do them.', 'Procedure'],
+  ['Recommended, not required: lock your screen when you step away, and keep your passwords in a password manager.', 'Guideline'],
+  ['Suggested good practice for writing secure code. Each team may adapt it to its own project.', 'Guideline']
+];
+const GOV_ALL = ['Policy', 'Standard', 'Procedure', 'Guideline'];
+const GOV_WHY = {Policy:'A policy is management\'s high-level statement of what must happen and why.', Standard:'A standard is a specific, mandatory, measurable requirement that supports a policy.',
+  Procedure:'A procedure is the step-by-step how-to for a task.', Guideline:'A guideline is recommended advice: helpful, but optional.'};
+const DATA_ROLES = [
+  ['A clinic decides which patient details to collect and what they are used for.', 'Data controller'],
+  ['An online shop decides to collect customers\' birthdays and use them for marketing emails.', 'Data controller'],
+  ['A payroll company calculates salaries from a client\'s employee data, only as that client instructs.', 'Data processor'],
+  ['A mailing company sends a charity\'s newsletters to the charity\'s supporters, using the list only as the charity instructs.', 'Data processor'],
+  ['The head of sales is accountable for the customer database and approves who may access it.', 'Data owner'],
+  ['The finance director is accountable for the accounts data and decides how it is classified.', 'Data owner']
+];
+const ROLE_ALL = ['Data controller', 'Data processor', 'Data owner', 'Data custodian'];
+const ROLE_WHY = {'Data controller':'The controller is the organization that decides why and how personal data is processed.',
+  'Data processor':'The processor handles personal data on the controller\'s behalf and only on its instructions.',
+  'Data owner':'The data owner is the senior person accountable for a set of data: they classify it and approve access.',
+  'Data custodian':'The custodian looks after the data day to day: backups, storage, applying the access rules the owner sets.'};
+const CUSTODY = [
+  ['An IT administrator runs the nightly backups of the HR database and applies the access rules HR has set.', 'Data custodian'],
+  ['A database administrator stores the sales data, patches the server and grants access exactly as the sales director approves.', 'Data custodian'],
+  ['The HR director decides who may see salary records.', 'Data owner'],
+  ['The head of marketing is accountable for the mailing list and decides how sensitive it is.', 'Data owner']
+];
+const TREAT = [
+  ['The company buys cyber insurance to cover the cost of a breach.', 'Transfer'],
+  ['A contract makes the hosting vendor pay for losses if its service is breached.', 'Transfer'],
+  ['The company shuts down an old file-sharing service instead of trying to secure it.', 'Avoid'],
+  ['Leadership decides not to launch a product in a market where it can\'t meet the security rules.', 'Avoid'],
+  ['The team patches the server and adds MFA to make a break-in less likely.', 'Mitigate'],
+  ['A firewall is put in front of the database so fewer systems can reach it.', 'Mitigate'],
+  ['Fixing a low-impact issue would cost more than the loss it could cause, so management formally signs off on leaving it.', 'Accept'],
+  ['An exception lets one old machine skip the patching standard for six months; the risk is written down and approved.', 'Accept']
+];
+const TREAT_ALL = ['Transfer', 'Accept', 'Avoid', 'Mitigate'];
+const TREAT_WHY = {Transfer:'Transfer moves the financial impact to someone else (insurance, a contract). The organization is still accountable.',
+  Avoid:'Avoid removes the risk by not doing the risky activity at all.', Mitigate:'Mitigate adds controls that lower the likelihood or the impact.',
+  Accept:'Accept means a documented, approved decision to live with the risk, usually because fixing it costs more than it saves.'};
+const RISK_TERMS = [
+  ['Risks are rated High, Medium or Low for likelihood and impact, and plotted on a heat map.', 'Qualitative analysis'],
+  ['Each risk gets an expected loss per year in dollars, worked out from asset value, exposure and how often it happens.', 'Quantitative analysis'],
+  ['One list of every known risk, with its owner, likelihood, impact and planned treatment.', 'Risk register'],
+  ['How much risk leadership is willing to take on in pursuit of the company\'s goals.', 'Risk appetite'],
+  ['A study of which business functions are critical and what an outage of each would cost.', 'Business impact analysis']
+];
+const RISK_TERMS_ALL = RISK_TERMS.map(x=>x[1]);
+const RISK_TERMS_WHY = {'Qualitative analysis':'Qualitative analysis rates risks in words (High, Medium, Low); quantitative analysis puts money on them.',
+  'Quantitative analysis':'Quantitative analysis uses numbers: SLE, ARO and ALE in dollars. Rating High, Medium or Low would be qualitative.',
+  'Risk register':'The risk register is the list that tracks each risk, its owner and its treatment. A business impact analysis looks at functions, not individual risks.',
+  'Risk appetite':'Risk appetite is how much risk leadership is willing to take on. The register records the risks; the appetite decides which ones are acceptable.',
+  'Business impact analysis':'A business impact analysis (BIA) finds the critical functions and what an outage costs; it sets targets such as the RTO and RPO.'};
+const RECOVERY = [
+  ['The target time for getting the order system working again after an outage.', 'RTO (recovery time objective)'],
+  ['The most order data, measured in time, the business can afford to lose.', 'RPO (recovery point objective)'],
+  ['On average, how long it takes to fix a failed device and get it working again.', 'MTTR (mean time to repair)'],
+  ['On average, how long a device runs between one failure and the next.', 'MTBF (mean time between failures)']
+];
+const RECOVERY_ALL = RECOVERY.map(x=>x[1]);
+const AGREE = [
+  ['The hosting company promises 99.9% uptime each month, with a fee credit if it misses.', 'SLA (service-level agreement)'],
+  ['A help desk vendor must answer priority-1 tickets within 15 minutes, measured every month.', 'SLA (service-level agreement)'],
+  ['Two companies write down, with no legal obligation, that they intend to share threat information with each other.', 'MOU (memorandum of understanding)'],
+  ['Before seeing the network diagrams, a consultant agrees in writing not to reveal them to anyone.', 'NDA (non-disclosure agreement)'],
+  ['One framework contract sets the general terms (payment, liability, confidentiality) for all future projects with a vendor.', 'MSA (master service agreement)'],
+  ['For one project, a document lists the deliverables, timeline and price: "migrate 40 mailboxes by 30 June for $6,000."', 'SOW (statement of work)']
+];
+const AGREE_ALL = ['SLA (service-level agreement)', 'MOU (memorandum of understanding)', 'NDA (non-disclosure agreement)', 'MSA (master service agreement)', 'SOW (statement of work)'];
+const VENDOR = [
+  ['The contract lets the bank inspect the vendor\'s security controls, with notice, at any time while the contract runs.', 'Right-to-audit clause'],
+  ['Before signing, the team checks the vendor\'s finances, breach history and security certifications.', 'Due diligence'],
+  ['The manager choosing between two vendors owns shares in one of them.', 'Conflict of interest'],
+  ['A signed document sets which systems the testers may target, when, and who to call if something breaks.', 'Rules of engagement'],
+  ['With the vendor\'s written permission, hired testers try to break into the vendor\'s customer portal.', 'Penetration testing']
+];
+const VENDOR_ALL = VENDOR.map(x=>x[1]);
+const VENDOR_WHY = {'Right-to-audit clause':'A right-to-audit clause is a contract term that lets you check the vendor later. Due diligence is the checking you do before signing.',
+  'Due diligence':'Due diligence is the research before choosing a vendor: finances, breach history, certifications.',
+  'Conflict of interest':'A conflict of interest is a personal stake (shares, family, gifts) that could bias whoever chooses the vendor.',
+  'Rules of engagement':'Rules of engagement set what testers may do, when, and how to stop: the limits, not the testing itself.',
+  'Penetration testing':'Penetration testing actively tries to break in, with permission. A right-to-audit clause only gives you the right to check.'};
+const CONSEQ = [
+  ['The regulator orders the company to pay $2 million for failing to protect customer records.', 'Financial penalty (fines)'],
+  ['After the breach is in the news, many customers move to a competitor.', 'Reputational damage'],
+  ['The authority withdraws the firm\'s permit to operate as a payment processor.', 'Loss of license'],
+  ['A major client ends its contract because the firm broke the security terms written into it.', 'Contractual impacts']
+];
+const CONSEQ_ALL = CONSEQ.map(x=>x[1]);
+const CONSEQ_WHY = {'Financial penalty (fines)':'A regulator ordering a payment is a financial penalty, a fine.',
+  'Reputational damage':'Losing customers\' trust after bad news is reputational damage: nobody ordered it, but it costs business.',
+  'Loss of license':'Losing a permit or license means the firm may no longer do that business at all.',
+  'Contractual impacts':'A client ending or penalizing a contract because its security terms were broken is a contractual impact.'};
+const AUDIT = [
+  ['A former customer asks the shop to erase all the personal data it holds about them.', 'Right to be forgotten'],
+  ['A rule says invoices are kept for 7 years and then securely deleted.', 'Data retention'],
+  ['Management signs a formal statement confirming that the required security controls are in place.', 'Attestation'],
+  ['The company\'s own audit team, reporting to the board\'s audit committee, reviews who has admin access.', 'Internal audit'],
+  ['Government examiners visit the bank to check that it follows the banking security regulations.', 'External audit', ['Attestation']],
+  ['An independent firm is hired to audit the payment systems and report on them.', 'External audit', ['Attestation']]
+];
+const AUDIT_ALL = ['Right to be forgotten', 'Data retention', 'Attestation', 'Internal audit', 'External audit'];
+const PENTEST = [
+  ['Testers are given network diagrams, source code and admin credentials before they start.', 'Known environment'],
+  ['Testers get only the company\'s name, just like an outside attacker would.', 'Unknown environment'],
+  ['Testers get the in-scope IP ranges and one ordinary user account, but no diagrams or code.', 'Partially known environment'],
+  ['The tester reads the company\'s job adverts and staff profiles online, without touching any company system.', 'Passive reconnaissance'],
+  ['The tester searches old copies of the company\'s website in a public web archive.', 'Passive reconnaissance'],
+  ['The tester port-scans the company\'s public servers to see which services answer.', 'Active reconnaissance'],
+  ['The tester runs a service-version scan (a banner grab) against the company\'s web server.', 'Active reconnaissance']
+];
+const PENTEST_ALL = ['Known environment', 'Partially known environment', 'Unknown environment', 'Passive reconnaissance', 'Active reconnaissance'];
+const AWARE = [
+  ['An email "from IT" says your mailbox is full and asks you to sign in through a link.', 'Report it to security (or with the report-phishing button) without clicking',
+    ['Click the link to see whether the page looks real', 'Reply and ask whether the email is genuine', 'Forward it to your team so they know about it']],
+  ['You find a USB stick labelled "Salaries 2026" in the car park.', 'Hand it to IT or security without plugging it in',
+    ['Plug it in to find out who owns it', 'Plug it into a computer that isn\'t on the network', 'Keep it as a spare drive']],
+  ['Someone you don\'t recognize follows you through a badge-controlled door without badging in.', 'Politely stop them and send them to reception or security',
+    ['Hold the door; refusing would be rude', 'Ignore it: door security is facilities\' job', 'Mention it to your team at the end of the week']],
+  ['Working in a café, you notice the person behind you can see your screen.', 'Move or use a privacy screen, and lock the screen whenever you step away',
+    ['Keep working: only the café Wi-Fi is a risk', 'Turn the screen brightness up', 'Switch to your personal laptop instead']],
+  ['A caller says they are from the help desk and asks for the code your authenticator app is showing.', 'Refuse, hang up and report the call',
+    ['Read out the code if they know your name and department', 'Give the code, then change your password afterwards', 'Ask them to email instead, then send the code by reply']],
+  ['A colleague asks to borrow your login for the day because their own account is locked.', 'Decline, and send them to the help desk to unlock their account',
+    ['Share it, then change your password tomorrow', 'Write it on a sticky note so they can give it back', 'Share it if your manager agrees in chat']]
+];
+const NET_ATK = [
+  ['A switch\'s MAC address table is filled with thousands of fake source addresses, so it floods every frame out of every port.', 'MAC flooding'],
+  ['An attacker sends forged ARP replies, so other PCs send the gateway\'s traffic to the attacker\'s laptop.', 'ARP poisoning (spoofing)', ['On-path attack']],
+  ['A DNS resolver\'s cache is fed a forged record, so users asking for the bank\'s name get the attacker\'s IP address.', 'DNS poisoning (spoofing)', ['On-path attack']],
+  ['An attacker\'s PC pretends to be a switch, forms a trunk link and reaches traffic on VLANs it isn\'t assigned to.', 'VLAN hopping'],
+  ['Frames carrying two VLAN tags (double tagging) reach a VLAN the sender isn\'t on.', 'VLAN hopping'],
+  ['An unauthorized device answers address requests and gives clients the attacker\'s laptop as their default gateway.', 'Rogue DHCP server', ['On-path attack', 'ARP poisoning (spoofing)']],
+  ['An employee plugs a small wireless access point into a desk port so their phone gets Wi-Fi, bypassing the company\'s controls.', 'Rogue access point (AP)', ['Evil twin', 'Rogue DHCP server']],
+  ['In a café, an attacker broadcasts a Wi-Fi network with the café\'s exact name and a stronger signal.', 'Evil twin', ['Rogue access point (AP)', 'On-path attack']],
+  ['Thousands of hacked cameras and home routers flood a shop\'s website until it stops responding.', 'DDoS (distributed denial of service)'],
+  ['An attacker positioned between a user and a website silently relays and reads their traffic.', 'On-path attack', ['ARP poisoning (spoofing)', 'DNS poisoning (spoofing)', 'Evil twin', 'Rogue DHCP server']],
+  ['Someone without a badge walks into the office right behind an employee.', 'Tailgating'],
+  ['An attacker watches over a user\'s shoulder while they type their PIN.', 'Shoulder surfing'],
+  ['An attacker goes through the company\'s recycling bins looking for printed network diagrams.', 'Dumpster diving']
+];
+const NET_ATK_ALL = [...new Set(NET_ATK.map(x=>x[1]))];
+const NET_ATK_WHY = {'MAC flooding':'MAC flooding overfills the switch\'s address table so it floods frames everywhere. ARP poisoning instead lies about which MAC owns an IP.',
+  'ARP poisoning (spoofing)':'ARP poisoning sends forged ARP replies that tie the attacker\'s MAC to another device\'s IP; it is a common way to get on-path.',
+  'DNS poisoning (spoofing)':'DNS poisoning plants a forged record, so a name resolves to the attacker\'s address. It works on names, not on MAC or IP tables.',
+  'VLAN hopping':'VLAN hopping reaches another VLAN by forming a trunk (switch spoofing) or by double tagging frames.',
+  'Rogue DHCP server':'A rogue DHCP server hands out wrong settings, such as an attacker\'s gateway. A rogue access point adds unapproved Wi-Fi instead.',
+  'Rogue access point (AP)':'A rogue access point is unapproved wireless hardware on your own network. An evil twin is a fake network that imitates yours.',
+  'Evil twin':'An evil twin copies a real network\'s name to lure devices onto the attacker\'s Wi-Fi. A rogue access point is just unapproved hardware.',
+  'DDoS (distributed denial of service)':'A DDoS floods a service from many machines at once until it stops answering.',
+  'On-path attack':'On-path means relaying and reading traffic between two parties; ARP poisoning, DNS spoofing, rogue DHCP servers and evil twins are ways to get there.',
+  'Tailgating':'Tailgating is following someone through a controlled door without badging in.', 'Shoulder surfing':'Shoulder surfing is watching someone type or read sensitive information.',
+  'Dumpster diving':'Dumpster diving is searching rubbish or recycling for useful information.'};
+const NET_DEF = [
+  ['Live network jacks in an empty meeting room would let any visitor plug in.', 'Disable unused ports', ['Port security', '802.1X', 'MAC filtering', 'Network segmentation']],
+  ['A newly installed switch still accepts the admin/admin login it shipped with.', 'Change default passwords'],
+  ['A device may use a wired or wireless port only after its user signs in with company credentials, checked by a central server.', '802.1X', ['Port security', 'MAC filtering']],
+  ['A switch port should allow only the first device connected to it, and shut down if a different MAC address appears.', 'Port security', ['MAC filtering', '802.1X']],
+  ['A small office\'s Wi-Fi lets in only devices whose hardware addresses are on an allowlist.', 'MAC filtering', ['Port security', '802.1X']],
+  ['The public web server must be reachable from the internet but kept apart from the internal LAN.', 'Screened subnet', ['Network segmentation', 'ACL (access control list)']],
+  ['Staff browsers must be blocked from a list of known malware and gambling web addresses.', 'URL filtering'],
+  ['Smart cameras and thermostats must never be able to reach the finance PCs.', 'Network segmentation', ['Screened subnet', 'ACL (access control list)']],
+  ['A decoy server that looks valuable records everything done by anyone who touches it.', 'Honeypot'],
+  ['A router must drop all traffic from the guest network to 10.0.0.0/8 except DNS.', 'ACL (access control list)', ['Network segmentation', 'Screened subnet']]
+];
+const NET_DEF_ALL = [...new Set(NET_DEF.map(x=>x[1]))];
+const NET_DEF_WHY = {'Disable unused ports':'A port nobody needs should simply be off: shutting it down beats trying to control who plugs in.',
+  'Change default passwords':'Default logins are published online, so changing them is the first hardening step.',
+  '802.1X':'802.1X makes the port wait until the user or device authenticates, usually against a RADIUS server. Port security only looks at MAC addresses.',
+  'Port security':'Port security limits a switch port to known MAC addresses and can shut it down on a violation. 802.1X checks credentials instead.',
+  'MAC filtering':'MAC filtering allowlists hardware addresses. It is easy to fake, so treat it as a weak control.',
+  'Screened subnet':'A screened subnet holds public-facing servers between the internet and the internal network.',
+  'URL filtering':'URL filtering blocks web addresses or categories of sites.',
+  'Network segmentation':'Segmentation puts groups of devices (IoT, guests, finance) on separate networks so one can\'t reach another.',
+  'Honeypot':'A honeypot is a decoy that attracts attackers and records what they do.',
+  'ACL (access control list)':'An ACL permits or denies traffic by address, protocol and port, read top to bottom.'};
+const AAA = [
+  ['Wi-Fi users sign in with their company accounts through 802.1X; the access points check each sign-in with a central server.', 'RADIUS'],
+  ['Network engineers sign in to routers and switches with central accounts, and each command they run is authorized and logged separately.', 'TACACS+'],
+  ['An application looks up which groups a user belongs to in the company directory.', 'LDAP'],
+  ['Staff sign in once at the company\'s identity provider and are let into a cloud app by an XML assertion.', 'SAML']
+];
+const AAA_ALL = AAA.map(x=>x[1]);
+const AAA_WHY = {RADIUS:'RADIUS (Remote Authentication Dial-In User Service) checks users who connect to the network: Wi-Fi, VPN, 802.1X.',
+  'TACACS+':'TACACS+ (Terminal Access Controller Access-Control System Plus) is built for device administration: it separates sign-in, per-command authorization and logging.',
+  LDAP:'LDAP (Lightweight Directory Access Protocol) reads and searches a directory of users and groups.',
+  SAML:'SAML (Security Assertion Markup Language) carries a signed XML sign-in assertion from an identity provider to an app: single sign-on.'};
+const REGS = [
+  ['A shop stores and processes customers\' payment card numbers.', 'PCI DSS'],
+  ['A company collects personal data about people in the European Union.', 'GDPR'],
+  ['A law requires that a country\'s citizens\' records stay on servers inside that country.', 'Data locality'],
+  ['Admin sign-ins are allowed only from devices located inside the office\'s area.', 'Geofencing']
+];
+const REGS_ALL = REGS.map(x=>x[1]);
+const REGS_WHY = {'PCI DSS':'PCI DSS (Payment Card Industry Data Security Standard) applies wherever card numbers are stored, processed or sent.',
+  GDPR:'GDPR (General Data Protection Regulation) is the EU law on personal data of people in the European Union.',
+  'Data locality':'Data locality rules say where data must physically be stored.', Geofencing:'Geofencing allows or blocks access by the device\'s location.'};
+
+GEN.sec[2].push(
+  sk('Governance & policy', ()=>{ const {s, a, wrongs} = pickSc(GOV_DOCS, GOV_ALL);
+      return mcq('sec',2,'"'+s+'" Which kind of governance document is this?', a, wrongs, GOV_WHY[a]+' Policy says what and why; standards make it specific and mandatory; procedures say how, step by step; guidelines advise.'); },
+    {lookup:true, obj:S701_801(['5.1'], ['5.1'])}),
+  sk('Governance & policy', ()=>{ const {s, a, wrongs} = pickSc(DATA_ROLES, ROLE_ALL);
+      return mcq('sec',2,'"'+s+'" Which role is this?', a, wrongs, ROLE_WHY[a]); },
+    {lookup:true, obj:S701_801(['5.1'], ['3.3', '5.4'])}),
+  sk('Governance & policy', ()=>{ const {s, a, wrongs} = pickSc(CUSTODY, ROLE_ALL);
+      return mcq('sec',2,'"'+s+'" Which role is this?', a, wrongs, ROLE_WHY[a]+' The owner decides; the custodian carries it out.'); },
+    {lookup:true, obj:S701_801(['5.1'], ['3.3'])}),
+  sk('Risk management', ()=>{ const av = rnd(5, 150) * 2000, ef = pick([10, 20, 25, 40, 50, 60, 75]), yrs = pick([2, 4, 5, 10]), aro = 1 / yrs;
+      const sle = av * ef / 100, ale = sle * aro, askAle = Math.random() < .5;
+      const q = 'Equipment worth '+money(av)+' would lose about '+ef+'% of its value in one incident (the exposure factor). Incidents like this happen about once every '+yrs+' years. What is the '+(askAle ? 'annualized loss expectancy (ALE)' : 'single loss expectancy (SLE)')+'?';
+      const right = money(askAle ? ale : sle);
+      const wrong = askAle ? [money(sle), money(av * aro), money(sle * yrs), money(av), money(ale * 2), money(ale / 2)] : [money(av), money(av * aro), money(av * (100 - ef) / 100), money(sle * aro), money(sle * 2), money(sle / 2)];
+      return mcq('sec',2,q, right, wrong, 'SLE = asset value × exposure factor = '+money(av)+' × '+ef+'% = '+money(sle)+'. ARO (annualized rate of occurrence) = 1/'+yrs+' = '+aro+'. ALE = SLE × ARO = '+money(ale)+' a year. (The exposure factor is the share of the value one incident destroys.)'); },
+    {obj:S701_801(['5.2'], ['5.2'])}),
+  sk('Risk management', ()=>{ const {s, a, wrongs} = pickSc(TREAT, TREAT_ALL);
+      return mcq('sec',2,'"'+s+'" Which risk treatment is this?', a, wrongs, TREAT_WHY[a]); },
+    {lookup:true, obj:S701_801(['5.2'], ['5.2'])}),
+  sk('Risk management', ()=>{ const {s, a, wrongs} = pickSc(RISK_TERMS, RISK_TERMS_ALL);
+      return mcq('sec',2,'"'+s+'" What is this called?', a, wrongs, RISK_TERMS_WHY[a]); },
+    {lookup:true, obj:S701_801(['5.2'], ['5.2'])}),
+  sk('Risk management', ()=>{ const {s, a, wrongs} = pickSc(RECOVERY, RECOVERY_ALL);
+      return mcq('sec',2,'"'+s+'" Which measure is this?', a, wrongs, 'RTO = the target time to restore service. RPO = how much data (in time) you can lose. MTTR = average time to fix. MTBF = average time between failures.'); },
+    {lookup:true, obj:S701_801(['5.2'], ['3.4'])}),
+  sk('Risk management', ()=>{ const rpo = pick([1, 2, 4, 6, 12, 24]), every = pick([1, 2, 4, 6, 8, 12, 24].filter(h=>h !== rpo));
+      const ok = every <= rpo;
+      return mcq('sec',2,'The business can afford to lose at most '+rpo+' hour'+(rpo > 1 ? 's' : '')+' of order data (its RPO, recovery point objective). Backups run every '+every+' hour'+(every > 1 ? 's' : '')+'. Does the backup schedule meet the RPO?',
+        ok ? 'Yes: at worst '+every+' hour'+(every > 1 ? 's' : '')+' of data is lost, within the RPO' : 'No: up to '+every+' hours of data could be lost, more than the RPO allows',
+        [ok ? 'No: up to '+every+' hours of data could be lost, more than the RPO allows' : 'Yes: at worst '+every+' hour'+(every > 1 ? 's' : '')+' of data is lost, within the RPO', 'It depends on the RTO (recovery time objective), not the backups', 'It depends on how fast the restore runs (MTTR)'],
+        'Data written just after a backup is lost if the system fails just before the next one, so the worst case is one full backup interval ('+every+'h) against an RPO of '+rpo+'h. How long the restore takes is the RTO side, a different question.'); },
+    {obj:S701_801(['5.2'], ['3.4'])}),
+  sk('Third-party risk', ()=>{ const {s, a, wrongs} = pickSc(AGREE, AGREE_ALL);
+      return mcq('sec',2,'"'+s+'" Which agreement is this?', a, wrongs, a+'. SLA = measured service levels; MOU = shared intent, not binding; NDA = keep it secret; MSA = the general terms for all work; SOW = one project\'s deliverables, timeline and price.'); },
+    {lookup:true, obj:S701_801(['5.3'], ['5.3'])}),
+  sk('Third-party risk', ()=>{ const {s, a, wrongs} = pickSc(VENDOR, VENDOR_ALL);
+      return mcq('sec',2,'"'+s+'" Which part of managing vendor risk is this?', a, wrongs, VENDOR_WHY[a]); },
+    {lookup:true, obj:S701_801(['5.3'], ['5.3'])}),
+  sk('Compliance & audits', ()=>{ const {s, a, wrongs} = pickSc(CONSEQ, CONSEQ_ALL);
+      return mcq('sec',2,'"'+s+'" Which consequence of non-compliance is this?', a, wrongs, CONSEQ_WHY[a]); },
+    {lookup:true, obj:S701_801(['5.4'], ['5.4'])}),
+  sk('Compliance & audits', ()=>{ const {s, a, wrongs} = pickSc(AUDIT, AUDIT_ALL);
+      return mcq('sec',2,'"'+s+'" What is this?', a, wrongs, a+'. Internal audits are done by the organization\'s own auditors; external audits by regulators or independent firms.'); },
+    {lookup:true, obj:S701_801(['5.4', '5.5'], ['5.4', '5.5'])}),
+  sk('Compliance & audits', ()=>{ const {s, a, wrongs} = pickSc(PENTEST, PENTEST_ALL);
+      return mcq('sec',2,'Penetration test: "'+s+'" Which term fits?', a, wrongs, 'Known, partially known and unknown environment = how much the testers are told. Passive reconnaissance gathers public information without touching the target; active reconnaissance interacts with its systems.'); },
+    {lookup:true, obj:S701_801(['5.5'], ['5.5'])}),
+  sk('Security awareness', ()=>{ const [s, a, w] = pick(AWARE);
+      return mcq('sec',2,'"'+s+'" What should you do?', a, w, a+'. When in doubt: don\'t engage, don\'t plug in, and report it to security: reporting is what lets them protect everyone else.'); },
+    {lookup:true, obj:S701_801(['5.6'], ['5.6'])}),
+  sk('Security awareness', ()=>{ const n = pick([200, 300, 400, 500, 800, 1000]), cp = rnd(3, 30), rp = rnd(5, 60), clicked = n * cp / 100, reported = n * rp / 100, askClick = Math.random() < .5;
+      const right = (askClick ? cp : rp)+'%', other = (askClick ? rp : cp)+'%';
+      return mcq('sec',2,'A phishing simulation goes to '+n+' staff. '+clicked+' click the link and '+reported+' report the email. What is the '+(askClick ? 'click' : 'report')+' rate?', right,
+        [other, (cp + rp)+'%', (100 - (askClick ? cp : rp))+'%', Math.min(99, 2 * (askClick ? cp : rp))+'%', Math.max(1, Math.round((askClick ? cp : rp) / 2))+'%'],
+        (askClick ? clicked : reported)+' of '+n+' = '+right+'. Over repeated campaigns, a falling click rate and a rising report rate show the training is working.'); },
+    {obj:S701_801(['5.6'], ['5.6'])})
+);
+GEN.net[2].push(
+  sk('Network attacks', ()=>{ const {s, a, wrongs} = pickSc(NET_ATK, NET_ATK_ALL);
+      return mcq('net',2,'"'+s+'" Which attack is this?', a, wrongs, NET_ATK_WHY[a]); },
+    {lookup:true, obj:{'N10-009':['4.2']}}),
+  sk('Network security', ()=>{ const {s, a, wrongs} = pickSc(NET_DEF, NET_DEF_ALL);
+      return mcq('net',2,'"'+s+'" Which control fits best?', a, wrongs, NET_DEF_WHY[a]); },
+    {lookup:true, obj:{'N10-009':['4.1', '4.3']}}),
+  sk('Network security', ()=>{ const {s, a, wrongs} = pickSc(AAA, AAA_ALL);
+      return mcq('net',2,'"'+s+'" Which protocol or standard is this?', a, wrongs, AAA_WHY[a]); },
+    {lookup:true, obj:{'N10-009':['4.1']}}),
+  sk('Network security', ()=>{ const {s, a, wrongs} = pickSc(REGS, REGS_ALL);
+      return mcq('net',2,'"'+s+'" Which applies?', a, wrongs, REGS_WHY[a]); },
+    {lookup:true, obj:{'N10-009':['4.1']}})
+);
 
 /* Every quiz generator is labelled where it is defined with sk(); this only records its level and refuses to start
    with an unlabelled one, so adding or reordering generators can never shift another generator's skill. */
