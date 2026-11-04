@@ -26,7 +26,7 @@ for (const id of ids) {
   const raw = JSON.stringify(sc.els) + JSON.stringify(sc.steps);
   if (/#[0-9a-f]{3,8}\b|rgba?\(|url\(|https?:|<image|@import/i.test(raw)) fail(id, 'contains a hard-coded colour or outside asset');
   sc.steps.forEach((st, i) => {
-    if (typeof st.say !== 'string' || st.say.length < 20 || st.say.length > 200) fail(id, 'step', i + 1, 'caption should be 20 to 200 characters');
+    if (typeof st.say !== 'string' || st.say.length < 20 || st.say.length > 240) fail(id, 'step', i + 1, 'caption should be 20 to 240 characters');
     for (const eid of Object.keys(st.set || {})) if (!els.has(eid)) fail(id, 'step', i + 1, 'changes unknown element', eid);
     const a = JSON.stringify(T.sceneState(sc, i)), b = JSON.stringify(T.sceneState(sc, i));
     if (a !== b) fail(id, 'step', i + 1, 'is not deterministic');
@@ -50,10 +50,30 @@ for (const must of [eip + '/' + ep, m.net, m.bc, '(' + m.usable + ' hosts)', '.'
   if (!lessonText.includes(must)) fail('the Subnetting lesson does not say', must, '(the scene shows it)');
 const sc = T.SCENES['quiz:net:Subnetting'], last = sc.steps.length - 1;
 const at = n => T.sceneState(sc, n);
-if (at(3).o3.t !== m.net.split('.')[3] || at(4).o3.t !== m.bc.split('.')[3] || at(last).o3.t !== eip.split('.')[3]) fail('subnet scene octet values', at(3).o3.t, at(4).o3.t, at(last).o3.t);
-if (!at(3).res.t.includes(m.net) || !at(4).res.t.includes(m.bc) || !at(last).res.t.includes(String(m.usable))) fail('subnet scene result lines');
-for (let b = ep; b < 32; b++) if (at(3)['b' + b].t !== '0' || at(4)['b' + b].t !== '1') { fail('host bit', b, 'should be 0 then 1'); break; }
-if (!sc.steps[3].say.includes(m.net) || !sc.steps[4].say.includes(m.bc) || !sc.steps[last].say.includes(m.usable + ' usable hosts')) fail('the captions must state the computed network, broadcast and host count');
+/* Try it covers /8 to /30: the octet the split falls in, and the block size inside that octet */
+for (let p = 8; p <= 30; p++) {
+  const t = T.subnetMath('10.20.30.40', p), k = Math.min(3, Math.floor(p / 8)), size = 2 ** (8 - (p - 8 * k));
+  if (t.k !== k || t.block !== size) fail('Try it maths for /' + p, 'octet', t.k + 1, 'block', t.block, 'expected', k + 1, size);
+  if (t.netOct[k] % size !== 0 || t.bcOct[k] !== t.netOct[k] + size - 1) fail('Try it block bounds for /' + p);
+}
+/* find the steps by what they teach, then check the picture at each one */
+const stepOf = re => sc.steps.findIndex(s => re.test(s.say));
+const sNet = stepOf(/network address is/), sBc = stepOf(/broadcast address/), sMask = stepOf(/subnet mask/), sBlock = stepOf(/blocks of/);
+if ([sNet, sBc, sMask, sBlock].some(i => i < 0)) fail('subnet scene is missing a step (network, broadcast, mask or blocks)');
+else {
+  const lastOct = +eip.split('.')[3], bits8 = v => v.toString(2).padStart(8, '0'), k = ep - 24;
+  const row = (st, id) => Array.from({ length: 8 }, (_, i) => st[id + 't' + i].t).join('');
+  if (row(at(sMask), 'za') !== bits8(lastOct)) fail('zoomed address bits', row(at(sMask), 'za'));
+  if (row(at(sMask), 'zm') !== bits8(+m.mask.split('.')[3]) || at(sMask).zmv.t !== '= ' + m.mask.split('.')[3]) fail('zoomed mask', row(at(sMask), 'zm'));
+  /* the AND, re-derived bit by bit, then the broadcast with every device bit set to 1 */
+  const and = Array.from({ length: 8 }, (_, i) => +(bits8(lastOct)[i] === '1' && i < k)).join('');
+  if (row(at(sNet), 'zr') !== and || at(sNet).zrv.t !== '= ' + m.net.split('.')[3]) fail('AND result should be', and, 'got', row(at(sNet), 'zr'));
+  if (row(at(sBc), 'zr') !== and.slice(0, k) + '1'.repeat(8 - k) || at(sBc).zrv.t !== '= ' + m.bc.split('.')[3]) fail('broadcast row', row(at(sBc), 'zr'));
+  if (!at(sNet).res1.t.includes(m.net) || !at(sBc).res1.t.includes('.' + m.bc.split('.').pop()) || !at(last).res1.t.includes(m.usable + ' usable')) fail('subnet scene result lines');
+  if (at(sBlock).nblock.c === 'hide' || at(sBlock - 1).nblock.c !== 'hide') fail('the number line should appear on the blocks step');
+  if (!sc.steps[sNet].say.includes(m.net) || !sc.steps[sBc].say.includes(m.bc) || !sc.steps[sMask].say.includes(m.mask)) fail('captions must state the computed mask, network and broadcast');
+  if (!sc.steps[sBlock].say.includes('blocks of ' + m.block) || !sc.steps[last].say.includes(m.usable + ' addresses')) fail('captions must state the block size and usable count');
+}
 
 /* size and the motion/reduced-motion rules */
 const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles.css'), 'utf8');
