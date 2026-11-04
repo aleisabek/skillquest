@@ -132,6 +132,22 @@ async function main(){
     await key('ArrowLeft');
     if (await run('return SCENE_LIVE.step;') !== 0) fail('ArrowLeft inside the scene should step back');
 
+    /* Try it: typing an address and moving the prefix updates the answers live; a bad address gets a clear message */
+    const tr = await run(`vLesson('quiz:net:Subnetting'); const box = document.querySelector('#scene .scene-try');
+      if (!box) return {err: 'no Try it panel'};
+      const ip = box.querySelector('[data-k="ip"]'), p = box.querySelector('[data-k="p"]');
+      ip.value = '10.0.0.200'; p.value = '26'; p.dispatchEvent(new Event('input', {bubbles: true}));
+      const good = box.querySelector('[data-k="out"]').textContent;
+      ip.value = '10.0.0.300'; ip.dispatchEvent(new Event('input', {bubbles: true}));
+      const msg = box.querySelector('[data-k="msg"]').textContent, empty = box.querySelector('[data-k="out"]').textContent;
+      go('today'); return {good, msg, empty};`);
+    if (tr.err) fail(tr.err);
+    else {
+      for (const want of ['10.0.0.192', '10.0.0.255', '10.0.0.193', '10.0.0.254', '62', '255.255.255.192', '11001000', '11000000'])
+        if (!tr.good.includes(want)) fail('Try it for 10.0.0.200/26 should show', want);
+      if (!/0 to 255/.test(tr.msg) || tr.empty) fail('Try it should explain a bad address and clear the answers');
+    }
+
     /* phone: at a 360px screen no label in the picture renders below 12px */
     await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true });
     for (const id of lessons) {
