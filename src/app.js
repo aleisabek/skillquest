@@ -488,6 +488,7 @@ $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(
 function go(tab){
   if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
   stopRecording(true);   /* leaving the page discards a half-finished recording */
+  destroyScene();        /* and stops any lesson animation */
   current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
 
 /* ===================== VIEWS ===================== */

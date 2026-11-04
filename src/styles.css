@@ -199,3 +199,34 @@ input.typed.no{border-color:var(--bad)}
 @media (max-width:600px){ .chip{min-height:36px} }
 /* lesson snippets ("You'll see this as"): log lines and rule tables keep their columns and scroll sideways on phones */
 .model pre{margin:0 0 6px;white-space:pre;overflow-x:auto;font:inherit;font-size:.85em;color:var(--term-text)}
+/* Animated lesson scenes ("Watch it", see scenes.js): theme variables only; solid = network/focus, dashed = host */
+.scene{border:1px solid var(--line);background:var(--panel2);padding:12px 12px 10px;margin:6px 0 4px;outline:none;max-width:620px}
+.scene:focus-within{border-color:var(--accent)}
+.scene svg{display:block;width:100%;max-width:520px;height:auto;margin:0 auto;font-family:inherit}
+.scene .sc{transition:opacity .4s cubic-bezier(.2,.7,.2,1),fill .4s cubic-bezier(.2,.7,.2,1),stroke .4s cubic-bezier(.2,.7,.2,1),transform .45s cubic-bezier(.2,.7,.2,1)}
+.scene .sc-head{fill:var(--text);font-size:16px;font-weight:700}
+.scene .sc-cell{fill:transparent;stroke:var(--line);stroke-width:1}
+.scene .sc-cell.net{fill:var(--accent-soft);stroke:var(--accent)}
+.scene .sc-cell.host{fill:transparent;stroke:var(--accent2);stroke-dasharray:3 2;stroke-width:1.4}
+.scene .sc-bitt{fill:var(--text);font-size:15px;font-weight:600}
+.scene .sc-bitt.dim{opacity:.6}
+.scene .sc-bitt.focus{fill:var(--accent2)}
+.scene .sc-oct{fill:var(--muted);font-size:15px}
+.scene .sc-oct.focus{fill:var(--text);font-weight:700}
+.scene .sc-bar{fill:var(--accent);transform-box:fill-box;transform-origin:left center;transform:scaleX(0)}
+.scene .sc-bar.on{transform:scaleX(1)}
+.scene .sc-legend{font-size:15px;letter-spacing:.06em}
+.scene .sc-l-net{fill:var(--accent)} .scene .sc-l-host{fill:var(--accent2)}
+.scene .sc-res{fill:var(--text);font-size:16px;font-weight:700}
+.scene .hide{opacity:0}
+.scene .sc-flash{animation:scflash .45s ease}
+@keyframes scflash{from{opacity:.15}to{opacity:1}}
+.scene-capbox{display:grid;margin:10px 0 0}
+.scene-capbox>*{grid-area:1/1;margin:0}
+.scene-sizer{visibility:hidden}
+.scene-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.scene-ctl button{padding:6px 12px}
+@media (max-width:600px){ .scene{padding:8px} }
+.scene-ctl button:disabled{opacity:.4;cursor:default;box-shadow:none;border-color:var(--line);color:var(--muted)}
+.scene-pos{margin-left:auto}
+@media (prefers-reduced-motion: reduce){ .scene .sc{transition:none} .scene .sc-flash{animation:none} }

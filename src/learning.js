@@ -92,6 +92,7 @@ function vLesson(id, mission, opts){
   view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · mastery '+v+'% ('+st+') · about 2 minutes</p>'+
     '<div class="card"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+
     '<h2>The core idea</h2>'+L.idea+
+    (SCENES[id] ? '<h2>Watch it</h2><div id="scene" role="group" aria-label="Animated explainer: '+esc(SCENES[id].title)+'"></div>' : '')+
     (L.seen ? '<h2>You\'ll see this as</h2><div class="model">'+L.seen+'</div>' : '')+
     '<h2>Worked example</h2><div class="model">'+L.example+'</div>'+
     (L.prevent ? '<h2>How to prevent it</h2>'+L.prevent : '')+
@@ -102,6 +103,7 @@ function vLesson(id, mission, opts){
     (!PHONE && !preview && labForLesson(id) ? '<h2>Try it for real (optional, on your PC)</h2><p>In Ubuntu (WSL): <code>sq-lab start '+esc(labForLesson(id).id)+'</code>. '+esc(labForLesson(id).summary)+' <a href="#" id="toLabs">Open Labs</a></p>' : '')+
     (preview ? '<p class="small" style="margin-top:16px">🔒 Preview: reading this records nothing. '+esc(track(s.tid).name)+' opens when '+unlockText(s.tid)+'.</p><div class="row"><button id="back">Back</button></div></div>'
       : '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: '+(fromPlan ? PRACTICE_N+' exercises (today’s plan)' : '6 fresh problems')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div>');
+  if(SCENES[id]) mountScene($('#scene'), SCENES[id]); else destroyScene();
   if(preview){ $('#back').onclick = ()=>go(opts.back || 'skills'); return; }
   if($('#toLabs')) $('#toLabs').onclick = e=>{ e.preventDefault(); markRead(); go('labs'); };
   $('#prac').onclick = ()=>{ markRead(); startSkill(s, fromPlan ? PRACTICE_N : 6, mission || null); };

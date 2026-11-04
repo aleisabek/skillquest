@@ -120,6 +120,17 @@ Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) �
 
 Note on new skills: adding Level 1 skills to a path track lowers that track's Level 1 average until you learn them, so its unstarted Level 2 skills can leave the daily plan for a while (started ones still return in the slipping slot). That's intended: new foundations come first.
 
+## Animated lessons ("Watch it")
+
+`src/scenes.js` holds small animated explainers shown in a lesson between "The core idea" and the worked example. They are SVG drawn from data, not video: a few KB each, offline, crisp at any size, and they follow the three themes.
+
+- A scene is `{els, steps}`: `els` is the drawing, each step changes some elements' class, text or style. `sceneState(scene, n)` applies steps 0..n, so every step is a complete picture; Back, Replay and reduced motion use it, and so do the tests. CSS transitions animate between pictures.
+- Never autoplays: it opens paused on step 1 with Back, Play and Next buttons (Play moves on at once, and reads Replay on the last step); ← / → / Space work only while focus is inside the scene, and focus moves to the other button when one is disabled. The caption is an `aria-live` region in a fixed-height box (the buttons never jump); the SVG has its own short description. Elements can be grouped (`parentId`) and a step can set its own time (`ms`).
+- Only one scene is live; `go()` and a new lesson destroy it, and its animation loop (`sceneTick`) stops itself once the scene leaves the page or the tab is hidden.
+- Colours come only from theme classes; meaning is also carried by shape and label (solid network bits, dashed host bits). Reduced motion turns transitions off but keeps stepping.
+- Numbers are computed, never drawn by hand: the Subnetting scene uses `subnetMath()` on the lesson's own worked example, and a test checks the lesson text says the same values.
+- `feature-scenes` checks every scene's data: a real lesson, 3 to 10 steps, captions, known elements, deterministic and changing steps, no hard-coded colours or outside assets, under 60 KB in total. `feature-scenes-browser` opens each scene in headless Chrome or Edge in all three themes and checks the controls, keys, no autoplay, reduced motion, that labels stay at 12px or more on a 360px screen, real key presses only act inside the scene, and that leaving mid-animation stops it with no errors. It skips when no browser is installed, but must run in CI.
+
 ## Cloud Security (path stage)
 
 The `cloud` track opens only when Security and Networking Level 1 each average 70% (`PATH.after`) and stays open once started. Later-stage tracks together take at most one of the day's three lessons (`PATH.gatedMax`); one gets the third slot when nothing has really slipped (under 70), or whenever that track hasn't been practiced in 3 days. Until a track opens, the Skills map and Tracks show it locked with the real distance to unlock, plus a read-only sample lesson that records nothing; Browse, drills and Job readiness practice stay closed. Product names follow 2026 naming (vendor-neutral concepts first); `feature-names` fails on outdated names (e.g. Azure AD) unless written as "formerly …".
