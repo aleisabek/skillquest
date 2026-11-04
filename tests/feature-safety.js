@@ -18,7 +18,7 @@ vm.runInContext(before + '\n' + [
   grab('load'), grab('save'), line('function warnSave('), line('const PREV'), line('function snapshot('), line('function prevSnapshot('), grab('undoLast'), line('function hasProgress('),
   grab('migrateTerm'), line('function dayStr('), line('function addDays('), line('function esc('),
   line('const DATE_RE'), line('const isObj'), line('const clampNum'), line('const okDate'), grab('cleanMap'), grab('sanitizeBackup'), grab('cleanEntry'), line('const SAFE_TAGS'), grab('safeHTML'),
-  grab('rateCard'), grab('migrateQuiz'), grab('isFullDay'), grab('recountStreak'), grab('mergeProgress'),
+  grab('rateCard'), grab('migrateQuiz'), grab('isFullDay'), grab('recountStreak'), line('const stableStr'), line('const tieLow'), grab('mergeProgress'),
   'globalThis.T = { load, save, snapshot, undoLast, sanitizeBackup, safeHTML, rateCard, mergeProgress, dayStr, addDays, KEY, PREV, DEFAULT, QUIZ, CERTS,',
   '  get S(){ return S; }, set S(v){ S = v; }, get blocked(){ return saveBlocked; }, get failed(){ return saveFailed; }, reset(){ saveBlocked = saveFailed = saveWarned = false; } };'
 ].join('\n'), ctx);

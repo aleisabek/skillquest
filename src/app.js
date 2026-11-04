@@ -68,10 +68,21 @@ function replaceProgress(what, next, force){
   S = before; saveBlocked = blocked; putPrevRaw(oldPrev);
   return 'nosave';
 }
-/* Say what really happened; if the undo copy couldn't be kept, ask before going ahead without it */
+/* Storage is blocked outright (some private windows and embedded viewers) when it can't be used at all: even a tiny
+   write fails and either nothing is stored or the refusal isn't about space. A browser that is merely full (a quota
+   error while data is stored) is not blocked: freeing space fixes it, so no "go ahead without undo" is offered there. */
+function storageBlocked(){
+  try{ localStorage.setItem(KEY+'.probe', '1'); localStorage.removeItem(KEY+'.probe'); return false; }
+  catch(e){ try{ return localStorage.length === 0 || !/quota/i.test((e && e.name || '')+' '+(e && e.message || '')); }catch(e2){ return true; } }
+}
+/* Say what really happened. If the undo copy couldn't be kept, nothing changes; only where storage is blocked
+   outright (so restoring could never work otherwise) is going ahead offered, and Cancel stays the default. */
 function replaceDone(r, done, retry){
   header();
-  if(r === 'nosnap') return askConfirm('Browser storage refused the undo copy, so this can\'t be undone. Go ahead anyway?', 'Go ahead without undo', ()=>replaceDone(retry(), done, retry));
+  if(r === 'nosnap'){
+    if(!storageBlocked()) return toast('Nothing changed: browser storage refused the undo copy (it may be full). Free some space or download a backup, then try again.');
+    return askConfirm('This browser blocks storage, so no undo copy can be kept. If you go ahead, this cannot be undone, and it only lasts until you close the page. Go ahead?', 'Go ahead, no undo', ()=>replaceDone(retry(), done, retry));
+  }
   vProgress();
   if(r === 'ok') toast(done+' Undo is on this page if it looks wrong.');
   else if(r === 'noundo') toast(done+' There is no undo for this one.');
@@ -142,15 +153,24 @@ function downloadBackup(){
   toast('Backup downloaded. Keep it somewhere safe, like OneDrive or a USB drive.');
 }
 /* Combine progress from two devices (e.g. phone + PC) instead of overwriting one with the other.
-   For each kind of data, keep the most progress: higher scores, later dates, and both sets of entries. */
+   For each kind of data, keep the most progress: higher scores, later dates, and both sets of entries.
+   Order doesn't matter: merging phone into PC gives the same progress as PC into phone, because every conflict is
+   settled by a rule that looks only at the two values, and a full tie falls back to stableStr (never "whichever came
+   first"). Only this device's own view state (today's plan, recently shown items) stays with the device you merge into. */
+const stableStr = x=>JSON.stringify(x, (k, v)=>v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(j=>[j, v[j]])) : v);
+const tieLow = (x, y)=>stableStr(x) <= stableStr(y) ? x : y;   /* same answer whichever way round */
 function mergeProgress(a, b){
+  /* rename old skill names on both sides first, so a conflict between devices always goes through the rules below
+     (migrateTerm's own "most practised" choice is only for renamed skills within one device) */
+  a = migrateTerm(structuredClone(a)); b = migrateTerm(structuredClone(b));
   const m = Object.assign(structuredClone(DEFAULT), structuredClone(a));
   const maxNum = k=>{ m[k] = Math.max(a[k]||0, b[k]||0); };
   ['xp','best'].forEach(maxNum);
   const later = (x,y)=>(x||'') >= (y||'') ? x : y;
-  /* streak: take it from whichever device had a full day most recently, then recount it from the combined
-     days (after days are merged below), so days done on different devices add up */
+  /* streak: take it from whichever device had a full day most recently (the longer streak on the same day), then
+     recount it from the combined days (after days are merged below), so days done on different devices add up */
   if((b.lastFull||'') > (a.lastFull||'')){ m.streak = b.streak; m.lastFull = b.lastFull; }
+  else if((b.lastFull||'') === (a.lastFull||'')) m.streak = Math.max(a.streak||0, b.streak||0);
   m.lastBackup = later(a.lastBackup, b.lastBackup);
   /* simple maps: union; on conflict keep the "more done" value */
   for(const k of ['quiz','term','sql','lessons','labs','practice','notes']){
@@ -158,7 +178,7 @@ function mergeProgress(a, b){
     for(const [x,v] of Object.entries(b[k]||{})){
       const o = m[k][x];
       if(o === undefined) m[k][x] = v;
-      else if(k === 'notes') m[k][x] = String(v).length > String(o).length ? v : o;   /* keep the longer note */
+      else if(k === 'notes') m[k][x] = String(v).length !== String(o).length ? (String(v).length > String(o).length ? v : o) : tieLow(o, v);   /* keep the longer note */
       else if(typeof o === 'string' && typeof v === 'string') m[k][x] = later(o, v);   /* dates: keep the latest */
       else if(o === true && typeof v === 'string') m[k][x] = v;   /* a real date beats an old "done" flag */
     }
@@ -178,22 +198,36 @@ function mergeProgress(a, b){
   /* days: union of completed steps (a flag set on either device stays set) */
   m.days = structuredClone(a.days||{});
   for(const [d,v] of Object.entries(b.days||{})){ const md = m.days[d] = Object.assign({}, m.days[d]||{});
-    for(const [k,x] of Object.entries(v||{})) md[k] = typeof x === 'number' ? Math.max(md[k]||0, x) : (md[k] === true || x === true) ? true : x; }
+    for(const [k,x] of Object.entries(v||{})) md[k] = (md[k] === true || x === true) ? true : md[k] === undefined ? x
+      : typeof x === 'number' && typeof md[k] === 'number' ? Math.max(md[k], x) : tieLow(md[k], x); }
   /* flashcards: keep the most recently reviewed record (review day = due minus its gap), so a lapse on one device
      isn't erased by an older, higher box from the other; on a tie keep the higher box */
   const reviewed = c=>addDays(c.due, -(BOX_DAYS[c.box] || 0));
   m.cards = Object.assign({}, a.cards||{});
-  for(const [x,v] of Object.entries(b.cards||{})){ const o = m.cards[x]; if(!o || reviewed(v) > reviewed(o) || (reviewed(v) === reviewed(o) && v.box > o.box)) m.cards[x] = v; }
-  /* skill mastery: keep the record with more practice, or the more recent one */
-  m.mastery = Object.assign({}, a.mastery||{}); for(const [x,v] of Object.entries(b.mastery||{})){ const o = m.mastery[x]; if(!o || v.n > o.n || (v.n===o.n && (v.last||'') > (o.last||''))) m.mastery[x] = v; }
+  for(const [x,v] of Object.entries(b.cards||{})){ const o = m.cards[x];
+    m.cards[x] = !o ? v : reviewed(v) !== reviewed(o) ? (reviewed(v) > reviewed(o) ? v : o) : v.box !== o.box ? (v.box > o.box ? v : o) : tieLow(o, v); }
+  /* skill mastery: the newer record wins (Alei, 2026-11-04), so a recent lapse can't be erased by an older record
+     that simply had more practice; on the same day the lower score wins, because a tie shouldn't claim more skill.
+     This is for progress records from two devices. (A future pilot attempt with one ID finished differently on two
+     devices is a different case: keep both, flag it unresolved, and give no credit until it's resolved.) */
+  const newerSkill = (o, v)=>{
+    if((v.last||'') !== (o.last||'')) return (v.last||'') > (o.last||'') ? v : o;
+    if((v.s||0) !== (o.s||0)) return (v.s||0) < (o.s||0) ? v : o;
+    return tieLow(o, v);
+  };
+  m.mastery = Object.assign({}, a.mastery||{}); for(const [x,v] of Object.entries(b.mastery||{})){ const o = m.mastery[x]; m.mastery[x] = o ? newerSkill(o, v) : v; }
   /* generated-problem counters: keep the larger totals */
-  m.gen = Object.assign({}, a.gen||{}); for(const [x,v] of Object.entries(b.gen||{})) if(!m.gen[x] || v.total > m.gen[x].total) m.gen[x] = v;
+  m.gen = Object.assign({}, a.gen||{}); for(const [x,v] of Object.entries(b.gen||{})){ const o = m.gen[x];
+    m.gen[x] = !o ? v : v.total !== o.total ? (v.total > o.total ? v : o) : tieLow(o, v); }
   /* journal: union by question; a mistake cleared on either device stays cleared */
-  const J = new Map(); for(const e of [...(a.journal||[]), ...(b.journal||[])]){ const o = J.get(e.key+'|'+e.at); if(!o || (e.done && !o.done) || (e.hits||[]).length > (o.hits||[]).length) J.set(e.key+'|'+e.at, e); }
-  m.journal = [...J.values()].sort((x,y)=>(y.at||'').localeCompare(x.at||'')).slice(0, JOURNAL_MAX);
+  /* the same entry from both devices: a cleared one beats an open one, then more retries, then a fixed tie-break */
+  const journalPick = (o, e)=>!!e.done !== !!o.done ? (e.done ? e : o) : (e.hits||[]).length !== (o.hits||[]).length ? ((e.hits||[]).length > (o.hits||[]).length ? e : o) : tieLow(o, e);
+  const J = new Map(); for(const e of [...(a.journal||[]), ...(b.journal||[])]){ const k = e.key+'|'+e.at, o = J.get(k); J.set(k, o ? journalPick(o, e) : e); }
+  const byKeyThen = (x,y)=>(y.at||'').localeCompare(x.at||'') || stableStr(x).localeCompare(stableStr(y));
+  m.journal = [...J.values()].sort(byKeyThen).slice(0, JOURNAL_MAX);
   /* exam history: union, newest first */
-  const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]) E.set(e.cert+e.date+e.pct+e.n+e.secs, e);
-  m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date)).slice(0, 50);
+  const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]){ const k = e.cert+e.date+e.pct+e.n+e.secs, o = E.get(k); E.set(k, o ? tieLow(o, e) : e); }
+  m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date) || stableStr(x).localeCompare(stableStr(y))).slice(0, 50);
   if(a.typed === false && b.typed === false) m.typed = false; else delete m.typed;
   return recountStreak(migrateQuiz(migrateTerm(m)));
 }

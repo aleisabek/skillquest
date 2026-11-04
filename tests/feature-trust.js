@@ -112,21 +112,26 @@ expect(sqlOK(SQLT.find(t => /"printer" anywhere/.test(t[1])), "SELECT * FROM tic
 /* ---------- 5. storage: undo copy first, and only true success is reported ---------- */
 {
   const store = {}, toasts = [], failKeys = new Set();
-  const ctx = { console, structuredClone, full: false };
-  ctx.localStorage = { getItem: k => k in store ? store[k] : null, setItem: (k, v) => { if (ctx.full || failKeys.has(k)) throw new Error('QuotaExceeded'); store[k] = String(v); }, removeItem: k => { delete store[k]; } };
+  const ctx = { console, structuredClone, full: false, blocked: false };
+  /* full = out of space (a quota error, data still stored); blocked = the browser refuses storage altogether */
+  const refuse = () => { if (ctx.blocked) { const e = new Error('The operation is insecure.'); e.name = 'SecurityError'; throw e; } };
+  ctx.localStorage = { get length() { return ctx.blocked ? 0 : Object.keys(store).length; }, getItem: k => { refuse(); return k in store ? store[k] : null; },
+    setItem: (k, v) => { refuse(); if (ctx.full || failKeys.has(k)) { const e = new Error('Quota exceeded'); e.name = 'QuotaExceededError'; throw e; } store[k] = String(v); }, removeItem: k => { refuse(); delete store[k]; } };
   vm.createContext(ctx);
   vm.runInContext(before + '\n' + [
     line('const KEY'), line('const DEFAULT'), line('let saveBlocked'), line('const QUIZ_FADE'), 'var S;', 'globalThis.toasts = [];',
-    'function toast(m){ toasts.push(m); } function header(){}',
+    'function toast(m){ toasts.push(m); } function header(){} function vProgress(){}',
+    'globalThis.asked = []; function askConfirm(msg, yes, onYes){ asked.push({msg, yes, onYes}); }',
+    grab('storageBlocked'), grab('replaceDone'),
     grab('save'), line('function warnSave('), line('const PREV'), line('function snapshot('), line('function prevSnapshot('),
     line('function prevRaw('), line('function putPrevRaw('), grab('undoLast'), grab('replaceProgress'), grab('importBackup'),
     grab('migrateTerm'), line('function dayStr('), line('function addDays('), line('function esc('),
     line('const DATE_RE'), line('const isObj'), line('const clampNum'), line('const okDate'), grab('cleanMap'), grab('sanitizeBackup'), grab('cleanEntry'), line('const SAFE_TAGS'), grab('safeHTML'),
-    grab('migrateQuiz'), grab('isFullDay'), grab('recountStreak'), grab('mergeProgress'),
-    'globalThis.T = { save, undoLast, importBackup, replaceProgress, KEY, PREV, DEFAULT, get S(){ return S; }, set S(v){ S = v; }, reset(){ saveBlocked = saveFailed = saveWarned = false; } };'
+    grab('migrateQuiz'), grab('isFullDay'), grab('recountStreak'), line('const stableStr'), line('const tieLow'), grab('mergeProgress'),
+    'globalThis.T = { save, undoLast, importBackup, replaceProgress, replaceDone, KEY, PREV, DEFAULT, get S(){ return S; }, set S(v){ S = v; }, reset(){ saveBlocked = saveFailed = saveWarned = false; } };'
   ].join('\n'), ctx);
   const T = ctx.T, K = T.KEY, P = T.PREV;
-  const fresh = xp => { for (const k of Object.keys(store)) delete store[k]; failKeys.clear(); ctx.full = false; ctx.toasts.length = 0; T.reset();
+  const fresh = xp => { for (const k of Object.keys(store)) delete store[k]; failKeys.clear(); ctx.full = ctx.blocked = false; ctx.toasts.length = 0; T.reset();
     T.S = Object.assign(structuredClone(T.DEFAULT), { xp }); T.save(); };
   const backup = JSON.stringify(Object.assign(structuredClone(T.DEFAULT), { xp: 500 }));
   const oldUndo = JSON.stringify({ at: '2026-10-01', what: 'merge', S: Object.assign(structuredClone(T.DEFAULT), { xp: 1 }) });
@@ -155,6 +160,19 @@ expect(sqlOK(SQLT.find(t => /"printer" anywhere/.test(t[1])), "SELECT * FROM tic
   r = T.importBackup(backup, 'merge', true);
   expect(r === 'session' && T.S.xp >= 500, 'blocked storage: a chosen merge still applies for this session', r, T.S.xp);
   expect(T.importBackup('not a backup', 'merge') === 'bad', 'a broken file is reported as bad');
+
+  /* going ahead without undo is offered only where storage is blocked outright, never when the undo copy merely failed */
+  fresh(40); failKeys.add(P); ctx.asked.length = 0;
+  T.replaceDone(T.importBackup(backup, 'replace'), 'Backup restored.', () => T.importBackup(backup, 'replace', true));
+  expect(ctx.asked.length === 0 && T.S.xp === 40 && ctx.toasts.some(m => /^Nothing changed/.test(m)), 'storage that works but refused the undo copy: abort, no bypass offered');
+  fresh(40); ctx.full = true; T.save(); ctx.asked.length = 0; ctx.toasts.length = 0;   /* exactly full: even the probe fails, but data is stored */
+  T.replaceDone(T.importBackup(backup, 'replace'), 'Backup restored.', () => T.importBackup(backup, 'replace', true));
+  expect(ctx.asked.length === 0 && T.S.xp === 40 && ctx.toasts.some(m => /^Nothing changed/.test(m)), 'a full (not blocked) browser: abort, no bypass offered');
+  fresh(40); ctx.blocked = true; T.save(); ctx.asked.length = 0;
+  T.replaceDone(T.importBackup(backup, 'replace'), 'Backup restored.', () => T.importBackup(backup, 'replace', true));
+  expect(ctx.asked.length === 1 && /cannot be undone/.test(ctx.asked[0].msg) && T.S.xp === 40, 'blocked storage: asks first, says it cannot be undone, changes nothing yet');
+  ctx.asked[0].onYes();
+  expect(T.S.xp === 500 && ctx.toasts.some(m => /until you close the page/.test(m)), 'blocked storage, confirmed: restored for this session, and it says so');
 }
 
 /* ---------- 6. recorder: a late microphone answer never records ---------- */

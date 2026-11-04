@@ -13,7 +13,7 @@ vm.runInContext(before + '\n' + [
   line('const DEFAULT'), line('const QUIZ_FADE'), line('const QUIZ_DAYS'),
   line('function dayStr(').replace('d = d || new Date();', 'if(!d) return TODAY;'), line('function addDays('), line('function dayNum('), line('function esc('),
   line('function quizId('), line('function cardId('), grab('migrateTerm'), grab('migrateQuiz'), line('function provenTwice('), grab('quizRight'), grab('quizStatus'),
-  grab('isFullDay'), grab('recountStreak'), grab('mergeProgress'),
+  grab('isFullDay'), grab('recountStreak'), line('const stableStr'), line('const tieLow'), grab('mergeProgress'),
   line('const DATE_RE'), line('const isObj'), line('const clampNum'), line('const okDate'), grab('cleanMap'), grab('sanitizeBackup'), grab('cleanEntry'), line('const SAFE_TAGS'), grab('safeHTML'),
   'globalThis.T = { DEFAULT, migrateQuiz, quizRight, quizStatus, mergeProgress, sanitizeBackup, recordSkill, isStrong, skillStatus, journalResult, addMistake, QUIZ,',
   '  get S(){ return S; }, set S(v){ S = v; }, set today(v){ TODAY = v; } };'
