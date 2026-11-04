@@ -69,7 +69,8 @@ need_attempt() { if [ -z "${ATTEMPT:-}" ] || [ ! -d "$DIR" ]; then echo "No atte
 ask() { # ask VAR "question" option... : numbered choice read from the terminal; Ctrl-C leaves the attempt unfinished
   local var=$1 q=$2 i a; shift 2
   echo; echo "${B}$q${N}"; i=1; for a in "$@"; do echo "  $i) $a"; i=$((i+1)); done
-  while :; do read -r -p "Number: " a < /dev/tty || exit 1; [[ "$a" =~ ^[0-9]+$ ]] && [ "$a" -ge 1 ] && [ "$a" -le $# ] && break; done
+  bind 'set disable-completion on' 2>/dev/null
+  while :; do read -e -r -p "Number: " a < /dev/tty || exit 1; [[ "$a" =~ ^[0-9]+$ ]] && [ "$a" -ge 1 ] && [ "$a" -le $# ] && break; done
   printf -v "$var" '%s' "$a"
 }
 
@@ -133,7 +134,7 @@ case "$cmd" in
     run_checks
     [ -n "$Q1" ] || ask Q1 "What blocked access?" "${Q1_TEXT[@]}"
     [ -n "$Q2" ] || ask Q2 "Which other cause did you rule out, and what showed it?" "${Q2_TEXT[@]}"
-    if [ -z "$NOTE" ] && [ -t 0 ]; then echo; read -r -p "Anything to add? One line, optional (Enter to skip): " NOTE < /dev/tty || NOTE=""; fi
+    if [ -z "$NOTE" ] && [ -t 0 ]; then echo; read -e -r -p "Anything to add? One line, optional (Enter to skip): " NOTE < /dev/tty || NOTE=""; fi
     mapfile -t RES < <(ev finish "$LAB_ROOT" "$LAB" "$Q1" "$Q2" "$NOTE")
     case "${RES[0]:-}" in
       independent-pass) echo; echo "${G}${B}Passed on your own.${N}";;

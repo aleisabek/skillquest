@@ -12,7 +12,7 @@ Records live in ~/sq-labs/.evidence and survive `sq-lab reset`.
   sq-evidence.py abandon ROOT LAB                            -> finalizes an unfinished attempt as abandoned
   sq-evidence.py report ROOT LAB                             -> prints one line: SQR2 {json} (ASCII only, no colour)
 """
-import datetime, glob, hashlib, json, os, sys, uuid
+import datetime, glob, hashlib, json, os, re, sys, uuid
 
 SCHEMA = 2
 CHECKER = {'name': 'sq-lab', 'version': '2.0'}
@@ -69,7 +69,8 @@ def current(root, lab):
 
 
 def clean(s, n):
-    s = ''.join(c if c.isprintable() else ' ' for c in str(s))
+    s = re.sub(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?|O.|.)?', '', str(s))  # stray arrow keys etc.: drop the whole escape sequence
+    s = ''.join(c if c.isprintable() else ' ' for c in s)
     return s[:n]
 
 
