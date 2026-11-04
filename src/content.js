@@ -24,7 +24,7 @@ const CARD_TOPICS = {files:'Files & names', read:'Reading & identifying', find:'
   /* other tracks (prefixed keys so they never clash with the Linux ones) */
   'n-addr':'Addressing & subnets', 'n-proto':'Protocols, ports & models', 'n-tools':'Troubleshooting & tools', 'n-infra':'Network infrastructure', 's-core':'Core concepts', 's-crypto':'Cryptography', 's-threats':'Threats & attacks', 's-defense':'Defenses & tools', 's-ops':'Detection & response', 'u-method':'Troubleshooting', 'u-m365':'Microsoft 365, Entra & Intune', 'u-process':'Tickets & process', 'u-life':'Onboarding, assets & offboarding', 'q-design':'Test design', 'q-types':'Test types & strategy', 'q-process':'Process & planning', 'q-bugs':'Bugs & defects', 'c-git':'Git', 'c-api':'APIs & web', 'c-python':'Python & scripting', 'c-practice':'Engineering practice', 'd-query':'Querying basics', 'd-agg':'Aggregation & joins', 'd-design':'Design, changes & safety',
   'cl-model':'Shared responsibility', 'cl-iam':'Identity & access', 'cl-log':'Logging & detection', 'cl-net':'Network controls', 'cl-data':'Data & keys',
-  'os-scope':'Scoping & engagements', 'os-web':'Web flaws', 'os-cred':'Passwords & credentials', 'os-report':'Frameworks & reporting'};
+  'os-scope':'Scoping & engagements', 'os-web':'Web flaws', 'os-cred':'Passwords & credentials', 'os-report':'Frameworks & reporting', 'u-remote':'Remote access'};
 /* Bandit study guide: which topics to review, roughly in the order the game needs them. Techniques only, never level solutions. */
 const BANDIT_GUIDE = [['files','read'],['find','filter'],['encode','archive'],['net'],['priv','shell'],['git']];
 
@@ -419,7 +419,11 @@ const CARDS = [
  ['offsec',2,'ATT&CK: tactic vs technique','Tactic = the attacker\'s goal (why), e.g. Persistence. Technique = how, with an ID, e.g. T1053 Scheduled Task/Job. One technique can serve several tactics.','os-report'],
  ['offsec',2,'Cyber Kill Chain','Reconnaissance, Weaponization, Delivery, Exploitation, Installation, Command and Control, Actions on Objectives. Breaking any link stops the attack.','os-report'],
  ['offsec',2,'CISA KEV catalog','Known Exploited Vulnerabilities: CVEs confirmed as exploited in the wild. In KEV and internet-facing means fix first, whatever the CVSS score.','os-report'],
- ['offsec',2,'Parts of a finding','Title, severity, affected asset, evidence (redacted), business impact, remediation, references and retest status. Critical issues get flagged to the client right away.','os-report']
+ ['offsec',2,'Parts of a finding','Title, severity, affected asset, evidence (redacted), business impact, remediation, references and retest status. Critical issues get flagged to the client right away.','os-report'],
+ /* ---- From the career project's reel triage (3 Nov 2026), checked against official docs ---- */
+ ['support',2,'Turn on Windows\' built-in SSH server','<code>Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0</code>, then <code>Start-Service sshd</code> (Microsoft Learn; Windows Server 2025 has it preinstalled). Safe use: keys only, reachable only from trusted networks, never port 22 open to the internet with password logins.','u-remote'],
+ ['sec',2,'File upload validation','Allow-list the extensions you need, check the real file type (the Content-Type header can be spoofed), rename files, limit their size, store them outside the webroot, and scan them for malware (OWASP).','s-defense'],
+ ['sec',2,'Webhook signature verification','The sender signs each request body with a shared secret (HMAC-SHA256). The receiver recomputes it over the raw body, compares with a constant-time check, and rejects stale timestamps to stop replays (GitHub, Stripe docs).','s-defense']
 ];
 
 /* Quiz: [track, level, question, options, correctIndex, explanation] */
