@@ -2,8 +2,8 @@ const fs = require('fs');
 const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const grab = name => { const i = js.indexOf('function ' + name + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
 const line = name => { const i = js.indexOf('function ' + name + '('); return js.slice(i, js.indexOf('\n', i)); };
-eval(js.split('/* ===================== STATE')[0] + ';' + line('shuffle') + ';' + line('esc') + ';' + grab('tableHTML') + ';' + grab('sqlNorm') + ';' + line('norm') +
-  ';global.TG=TGEN;global.SG=SGEN;global.SQ=SQLT;global.SN=sqlNorm;global.NM=norm;global.DBX=DB');
+eval(js.split('/* ===================== STATE')[0] + ';' + line('shuffle') + ';' + line('esc') + ';' + grab('tableHTML') + ';' + grab('sqlNorm') + ';' + line('norm') + ';' + grab('termNorm') +
+  ';global.TG=TGEN;global.SG=SGEN;global.SQ=SQLT;global.SN=sqlNorm;global.NM=x => { const r = termNorm(x); return r === null ? String.fromCharCode(0) : r; };global.DBX=DB');
 let bad = 0, n = 0;
 const fail = (...a) => { bad++; if (bad < 15) console.log('FAIL', ...a); };
 

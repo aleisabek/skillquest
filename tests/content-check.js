@@ -9,7 +9,10 @@ const ids=TRACKS.map(t=>t.id);
 let bad=0;
 CARDS.forEach((c,i)=>{ if(!ids.includes(c[0])) {console.log('card track',i);bad++} });
 QUIZ.forEach((q,i)=>{ if(!ids.includes(q[0])||q[3].length!==4||q[4]<0||q[4]>3){console.log('quiz bad',i);bad++} });
-const norm=x=>x.trim().replace(/\s+/g,' ').replace(/["']/g,'');
+// answers are checked exactly as the Terminal checks them: termNorm (quote-aware) in front of norm
+const fnLine=n=>{const i=js.indexOf('function '+n+'(');return js.slice(i,js.indexOf('\n',i));};
+const fnGrab=n=>{const i=js.indexOf('function '+n+'(');return js.slice(i,js.indexOf('\n}',i)+2);};
+const norm=new Function(fnLine('norm')+';'+fnGrab('termNorm')+';return '+"x => { const r = termNorm(x); return r === null ? String.fromCharCode(0) : r; }"+';')();
 const extra={ 'ls -la':['ls -al','ls -a -l'], 'cd ~':['cd','cd ~/'], 'grep "failed" auth.log':['grep -i failed auth.log','cat auth.log | grep failed'],
  'tail -n 20 app.log':['tail -20 app.log','tail -n20 app.log'], 'chmod +x backup.sh':['chmod 755 backup.sh','chmod u+x backup.sh'],
  'ps aux':['ps -ef','top'], 'find ~ -name "report.pdf"':["find ~ -name 'report.pdf'",'find $HOME -name report.pdf'], 'ping -c 4 google.com':['ping -c4 google.com'],

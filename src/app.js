@@ -24,23 +24,59 @@ function load(){
   try{ migrateQuiz(st); recountStreak(st); }catch(e){}   /* upgrades old quiz answers and repairs a streak shortened by an older merge; never blocks loading */
   return st;
 }
+/* true when progress reached storage */
 function save(){
-  if(saveBlocked) return warnSave('Not saved: your earlier progress could not be read. Open Today to choose what to do.');
-  try{ localStorage.setItem(KEY, JSON.stringify(S)); saveFailed = false; }
-  catch(e){ saveFailed = true; warnSave('Progress NOT saved: browser storage is full or blocked. Download a backup from Progress now.'); }
+  if(saveBlocked){ warnSave('Not saved: your earlier progress could not be read. Open Today to choose what to do.'); return false; }
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); saveFailed = false; return true; }
+  catch(e){ saveFailed = true; warnSave('Progress NOT saved: browser storage is full or blocked. Download a backup from Progress now.'); return false; }
 }
 function warnSave(msg){ if(saveWarned) return; saveWarned = true; try{ toast(msg); }catch(e){} }
 /* Before anything that replaces progress (restore, merge, erase), keep the current state so it can be undone once. */
 const PREV = KEY+'.prev';
 function snapshot(what){ try{ localStorage.setItem(PREV, JSON.stringify({at:dayStr(), what, S})); return true; }catch(e){ return false; } }
 function prevSnapshot(){ try{ const p = JSON.parse(localStorage.getItem(PREV)); return p && p.S ? p : null; }catch(e){ return null; } }
+function prevRaw(){ try{ return localStorage.getItem(PREV); }catch(e){ return null; } }
+function putPrevRaw(raw){ try{ if(raw == null) localStorage.removeItem(PREV); else localStorage.setItem(PREV, raw); }catch(e){} }
+/* The undo copy is used up only once the restored progress has actually saved; otherwise nothing changes. */
 function undoLast(){
   const p = prevSnapshot();
   if(!p){ toast('Nothing to undo'); return false; }
+  const before = S, blocked = saveBlocked;
   S = recountStreak(migrateQuiz(migrateTerm(Object.assign(structuredClone(DEFAULT), p.S)))); saveBlocked = false;
+  if(!save()){
+    S = before; saveBlocked = blocked;
+    toast('Not undone: browser storage refused to save it. The undo is still here; free some space and try again.');
+    return false;
+  }
   try{ localStorage.removeItem(PREV); }catch(e){}
-  save(); header(); toast('Undone: progress is back to how it was before the '+p.what);
+  header(); toast('Undone: progress is back to how it was before the '+p.what);
   return true;
+}
+/* Replace progress (restore, merge, erase) with next(): keep the undo copy first, and keep the change only if it saves.
+   'ok'; 'nosnap' = the undo copy couldn't be stored, so nothing changed (unless force); 'nosave' = storage refused the
+   new progress, so the old progress and the earlier undo copy are put back; 'noundo' = saved, but you chose to go on
+   without an undo copy (an older one is removed, so Undo can't bring back something unrelated); 'session' = storage
+   isn't working at all, so the change lasts until the page closes. */
+function replaceProgress(what, next, force){
+  const before = structuredClone(S), blocked = saveBlocked, oldPrev = prevRaw(), storageDown = saveFailed;
+  const snapped = snapshot(what);
+  if(!snapped && !force) return 'nosnap';
+  if(!snapped) putPrevRaw(null);
+  S = next(); saveBlocked = false;
+  if(save()) return snapped ? 'ok' : 'noundo';
+  if(!snapped || storageDown){ if(!snapped) putPrevRaw(oldPrev); return 'session'; }   /* nothing new was stored, so the earlier undo still fits */
+  S = before; saveBlocked = blocked; putPrevRaw(oldPrev);
+  return 'nosave';
+}
+/* Say what really happened; if the undo copy couldn't be kept, ask before going ahead without it */
+function replaceDone(r, done, retry){
+  header();
+  if(r === 'nosnap') return askConfirm('Browser storage refused the undo copy, so this can\'t be undone. Go ahead anyway?', 'Go ahead without undo', ()=>replaceDone(retry(), done, retry));
+  vProgress();
+  if(r === 'ok') toast(done+' Undo is on this page if it looks wrong.');
+  else if(r === 'noundo') toast(done+' There is no undo for this one.');
+  else if(r === 'session') toast(done+' Browser storage isn\'t saving, so this lasts until you close the page. Download a backup to keep it.');
+  else if(r === 'nosave') toast('Nothing changed: browser storage refused to save it. Free some space or download a backup, then try again.');
 }
 function hasProgress(st){ st = st || S; return st.xp > 0 || Object.keys(st.mastery||{}).length > 0 || Object.keys(st.cards||{}).length > 0; }
 /* 2026-10-27: Terminal skills were renamed to match the flashcard deck's topics. Progress under an old name
@@ -842,6 +878,38 @@ function startTerm(n, mission, lv, sk){
   termStep(s);
 }
 function norm(x){ return x.trim().replace(/\s+/g,' ').replace(/["']/g,''); }
+/* What a typed command is checked against: norm(x), which the answer patterns are written for, but only when its quotes
+   don't change the words the shell sees. 'ls -la' is one word (a command named "ls -la"), and '-l -a' is one argument
+   rather than two flags, so both return null; so does a quote left open. Quotes around an argument are fine
+   (grep "failed login" f, cut -d' ', alias ll='ls -la'), and a backslash escapes one character (it\'s, -exec ... \;). */
+function termNorm(x){
+  let quote = '', tok = '', inTok = false, opened = false, cmd = true, wrap = false, bad = false;
+  const end = ()=>{
+    if(!inTok) return;
+    if(cmd && /\s/.test(tok)) bad = true;                 /* the command name itself contains a space */
+    if(opened && /^-\S*\s/.test(tok)) bad = true;         /* a quoted group of flags is a single argument */
+    /* sudo, time, env... run the next word as a command, so it is a command name too (their own flags aside) */
+    const runs = cmd && (/^(sudo|time|env|nohup|watch|xargs)$/.test(tok) || (wrap && tok[0] === '-'));
+    tok = ''; inTok = false; opened = false; cmd = wrap = runs;
+  };
+  for(let i=0; i<x.length; i++){
+    const c = x[i];
+    if(quote === "'"){ if(c === "'") quote = ''; else tok += c; continue; }
+    if(quote === '"'){
+      if(c === '\\' && /["\\$`]/.test(x[i+1] || '')) tok += x[++i];
+      else if(c === '"') quote = ''; else tok += c;
+      continue;
+    }
+    if(c === '\\'){ tok += x[i+1] || ''; i++; inTok = true; }
+    else if(c === "'" || c === '"'){ if(!inTok) opened = true; inTok = true; quote = c; }
+    else if(/\s/.test(c)) end();
+    else if(/[|;&]/.test(c)){ end(); cmd = true; }       /* the next word starts a new command */
+    else { tok += c; inTok = true; }
+  }
+  if(quote) return null;
+  end();
+  return bad ? null : norm(x);
+}
 function termStep(s){
   if(s.i >= s.items.length){
     if(s.mission) finishMission(s);
@@ -854,17 +922,29 @@ function termStep(s){
     (t.out ? t.out.map(l=>'<div class="line'+(/^\$ /.test(l) ? '' : ' outp')+'">'+esc(l)+'</div>').join('') : '')+
     '<div class="task"># TASK: '+esc(t[0])+'</div>'+
     s.lines.map(l=>'<div class="line '+l[1]+'">'+esc(l[0])+'</div>').join('')+
-    '<div class="inrow"><span class="ok">alei@skillquest:~$</span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command"></div></div>'+
-    '<div class="row" style="margin-top:12px"><button id="hint">Hint</button><button id="show">Show answer</button><button id="skip">Skip</button></div>';
+    (s.settled ? '' : '<div class="inrow"><span class="ok">alei@skillquest:~$</span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command"></div>')+'</div>'+
+    /* once solved the task is settled: no input, and nothing moves on until you choose Next (no timer to outlive the page) */
+    (s.settled ? '<div class="row" style="margin-top:12px"><button class="primary" id="tnext">'+(s.i + 1 < s.items.length ? 'Next task' : 'See results')+'</button></div>'
+      : '<div class="row" style="margin-top:12px"><button id="hint">Hint</button><button id="show">Show answer</button><button id="skip">Skip</button></div>');
+  const next = ()=>{ s.i++; s.lines=[]; s.hinted=false; s.wrong=false; s.shown=false; s.settled=false; termStep(s); };
+  if(s.settled){
+    const nb = $('#tnext'); nb.focus();
+    nb.onclick = next;
+    nb.onkeydown = e=>{ if(e.repeat && (e.key === 'Enter' || e.key === ' ')) e.preventDefault(); };   /* a held Enter doesn't skip ahead */
+    return;
+  }
   const inp = $('#cmd'); inp.focus();
   /* Mastery: first try with no hint = sure; wrong tries or a hint = guess; shown answer or skip = miss. */
   const sid = isGen && t.sk ? skillIdFor('term', 'linux', t.sk) : null;
-  const next = ()=>{ s.i++; s.lines=[]; s.hinted=false; s.wrong=false; s.shown=false; termStep(s); };
   inp.onkeydown = e=>{
     if(e.key!=='Enter') return;
+    e.preventDefault();   /* this Enter must not also press the Next button that appears */
+    if(s.settled) return;
     const v = inp.value; if(!v.trim()) return;
     s.lines.push(['$ '+v, '']);
-    if(t[1].some(re=>re.test(norm(v)))){
+    const typed = termNorm(v);
+    if(typed !== null && t[1].some(re=>re.test(typed))){
+      s.settled = true;
       /* A shown answer typed back in is practice only: no XP, not counted as solved. */
       const pts = s.shown ? 0 : s.hinted ? 8 : 15;
       if(isGen){ const g = S.gen.terminal = S.gen.terminal || {right:0,total:0}; g.total++; if(!s.shown) g.right++; } else if(!s.shown) S.term[t[2]] = true;
@@ -872,10 +952,10 @@ function termStep(s){
       if(sid) recordSkill(sid, !s.shown, !s.hinted && !s.wrong);
       if(pts) addXP(pts); else save();
       s.lines.push([s.shown ? '✔ Locked in (no XP, the answer was shown).' : '✔ Correct (+'+pts+' XP). Model answer: '+t[2], 'ok']);
-      termStep(s); setTimeout(next, 1100);
+      termStep(s);
     } else {
       s.wrong = true; s.last = v;
-      s.lines.push(['✘ Not that one. Try again, or use Hint.', 'no']); termStep(s);
+      s.lines.push([typed === null ? '✘ Check the quotes: they change which words the shell sees (\'ls -la\' is one word, not ls plus -la).' : '✘ Not that one. Try again, or use Hint.', 'no']); termStep(s);
     }
   };
   $('#hint').onclick=()=>{ s.hinted=true; s.lines.push(['hint: '+t[3], '']); termStep(s); };
@@ -940,8 +1020,14 @@ function schemaHTML(open){
     '<p class="small"><b>tickets</b> (assigned_to points to users.id)</p>'+tableHTML(TK.cols, TK.rows)+
     '<p class="small"><b>users</b></p>'+tableHTML(US.cols, US.rows)+'</details>';
 }
+/* Spacing, keyword case and a final semicolon don't matter; the case of text inside quotes does, because
+   WHERE department = 'it' finds no rows when the data says 'IT'. Text right after LIKE is lowercased, since SQLite's
+   LIKE ignores case (for these plain ASCII values). Double quotes count as single quotes, as before. */
 function sqlNorm(x){
-  return x.trim().replace(/;+\s*$/,'').toLowerCase().replace(/"/g,"'").replace(/\s+/g,' ').replace(/\s*([,=()<>*])\s*/g,'$1').trim();
+  const parts = x.trim().replace(/;+\s*$/,'').replace(/"/g,"'").split("'");   /* odd parts are the quoted text */
+  for(let i=0; i<parts.length; i+=2) parts[i] = parts[i].toLowerCase().replace(/\s+/g,' ').replace(/\s*([,=()<>*])\s*/g,'$1');
+  for(let i=1; i<parts.length; i+=2) if(/\blike ?$/.test(parts[i-1])) parts[i] = parts[i].toLowerCase();
+  return parts.join("'").trim();
 }
 function sqlPct(lv){ const t = SQLT.filter(q=>q[0]===lv); return Math.round(t.filter(q=>S.sql[q[3]]).length / t.length * 100); }
 function vSQL(){
@@ -999,12 +1085,15 @@ function sqlStep(s){
       if(pts) addXP(pts); else save();
       const r = t[5]();
       out.innerHTML = '<div class="explain">✅ <b>'+(s.shown ? 'Locked in (no XP, the answer was shown).' : 'Correct (+'+pts+' XP).')+'</b> Model answer: <code>'+esc(t[3])+'</code></div>'+
-        (r.msg ? '<p>'+esc(r.msg)+'</p>' : '<p class="small">Result: '+r.rows.length+' row'+(r.rows.length===1?'':'s')+'</p>'+tableHTML(r.cols, r.rows))+
+        (r.msg ? '<p>'+esc(r.msg)+'</p>' : '<p class="small">Expected result (from the model answer, which your query matched): '+r.rows.length+' row'+(r.rows.length===1?'':'s')+'</p>'+tableHTML(r.cols, r.rows))+
         '<div class="row" style="margin-top:10px"><button class="primary" id="nx">Next challenge</button></div>';
       $('#run').disabled = true; $('#nx').onclick = next; $('#nx').focus();
     } else if(/^(update|delete)\b/.test(q) && !/ where /.test(q)){
       s.wrong = true;
       out.innerHTML = '<div class="explain">⚠️ <b>Careful!</b> An UPDATE or DELETE without WHERE changes <b>every row</b> in the table. Add a WHERE clause.</div>';
+    } else if(t[2].some(re=>new RegExp(re.source, 'i').test(q))){
+      s.wrong = true;   /* right query, wrong capitals inside the quotes: = compares text exactly */
+      out.innerHTML = '<div class="explain">❌ Almost: text in quotes must match the data exactly, capital letters included. <code>= \'it\'</code> finds nothing when the table says <code>IT</code>.</div>';
     } else {
       s.wrong = true;
       out.innerHTML = '<div class="explain">❌ Not quite. Check the table and column names, the quotes around text, and the order of clauses (SELECT, FROM, WHERE, GROUP BY, HAVING, ORDER BY, LIMIT).</div>';
@@ -1164,7 +1253,8 @@ function vProgress(){
   $('#exp').onclick=()=>{ downloadBackup(); vProgress(); };
   $('#cpb').onclick = copyBackupText;
   $('#pasteMerge').onclick = ()=>{
-    if(importBackup($('#pasteBk').value.trim(), 'merge')){ vProgress(); toast('Backup merged in. If it looks wrong, use Undo on this page.'); }
+    const raw = $('#pasteBk').value.trim(), r = importBackup(raw, 'merge');
+    if(r !== 'bad') replaceDone(r, 'Backup merged in.', ()=>importBackup(raw, 'merge', true));
     else toast('That text isn\'t a complete SkillQuest backup. Copy it again on the other device and paste all of it.');
   };
   let importMode = 'merge';
@@ -1172,22 +1262,24 @@ function vProgress(){
   $('#impb').onclick = ()=>askConfirm('Replace ALL progress on this device with a backup file? Use "Merge" to keep both. (You can undo it afterwards.)', 'Choose file to replace with', ()=>{ importMode = 'replace'; $('#imp').click(); });
   $('#imp').onchange = e=>{ const f = e.target.files[0]; if(!f) return; const rd = new FileReader();
     rd.onload = ()=>{
-      if(importBackup(rd.result, importMode)){ vProgress(); toast((importMode === 'merge' ? 'Backup merged in' : 'Backup restored')+'. Undo is on this page if it looks wrong.'); }
+      const mode = importMode, r = importBackup(rd.result, mode);
+      if(r !== 'bad') replaceDone(r, mode === 'merge' ? 'Backup merged in.' : 'Backup restored.', ()=>importBackup(rd.result, mode, true));
       else toast('That file is not a SkillQuest backup');
       e.target.value = ''; };
     rd.readAsText(f); };
-  $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device? You can undo it once from this page.', 'Erase everything', ()=>{ snapshot('reset'); S=structuredClone(DEFAULT); saveBlocked = false; save(); header(); vProgress(); });
+  $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device? You can undo it once from this page.', 'Erase everything', ()=>{
+    const erase = force=>replaceProgress('reset', ()=>structuredClone(DEFAULT), force);
+    replaceDone(erase(false), 'Progress erased.', ()=>erase(true)); });
   const un = $('#undo'); if(un) un.onclick = ()=>{ undoLast(); vProgress(); };
 }
-/* Bring a backup in: clean it, keep an undo snapshot, then merge or replace. false = not a usable backup. */
-function importBackup(raw, mode){
+/* Bring a backup in: clean it, then merge or replace through replaceProgress (undo copy first, kept only if it saves).
+   'bad' = not a usable backup; otherwise replaceProgress's answer. */
+function importBackup(raw, mode, force){
   let b = null;
   try{ b = sanitizeBackup(JSON.parse(raw)); }catch(e){}
-  if(!b) return false;
-  snapshot(mode === 'merge' ? 'merge' : 'restore');
-  S = mode === 'merge' ? mergeProgress(S, b) : recountStreak(migrateQuiz(migrateTerm(Object.assign(structuredClone(DEFAULT), b))));
-  saveBlocked = false; save(); header();
-  return true;
+  if(!b) return 'bad';
+  return replaceProgress(mode === 'merge' ? 'merge' : 'restore',
+    ()=>mode === 'merge' ? mergeProgress(S, b) : recountStreak(migrateQuiz(migrateTerm(Object.assign(structuredClone(DEFAULT), b)))), force);
 }
 
 /* ---------- Guide ---------- */

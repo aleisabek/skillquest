@@ -3,7 +3,8 @@
 const fs = require('fs');
 const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const line = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n', i)); };
-eval(js.split('/* ===================== STATE')[0] + ';' + line('norm') + ';' + line('shuffle') + ';global.A = {TGEN, norm};');
+const grab = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
+eval(js.split('/* ===================== STATE')[0] + ';' + line('norm') + ';' + grab('termNorm') + ';' + line('shuffle') + ';global.A = {TGEN, norm: x => { const r = termNorm(x); return r === null ? String.fromCharCode(0) : r; }};');
 let bad = 0, checked = 0; const fail = (...a) => { bad++; if (bad < 25) console.log('FAIL', ...a); };
 
 // [task text pattern, function from the regex match to an alternative answer]

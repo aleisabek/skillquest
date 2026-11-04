@@ -95,7 +95,7 @@ Six top tabs group the screens, with sub-tabs: Today Â· Study (Skills, Tracks) Â
 
 - Saved data that can't be read is copied to `skillquest-v1.corrupt-<time>` and never saved over; Today asks whether to restore a backup or start fresh.
 - If the browser refuses to save (storage full or blocked), Today says so and offers a backup.
-- Merge, restore and reset keep a snapshot first, so the last one can be undone from Progress.
+- Merge, restore and reset keep a snapshot first, so the last one can be undone from Progress. If the browser refuses that undo copy, nothing changes until you choose to go ahead without undo; if it refuses the new progress, the old progress and the earlier undo copy are put back and the page says so. Undo uses up its copy only after the restored progress has saved. When storage doesn't work at all, a chosen restore or merge lasts for that session and the page tells you to download a backup.
 - Imported backups are cleaned before use (`sanitizeBackup`): only known fields with the right types are kept, fixed journal questions are re-read from `QUIZ`, and other markup is reduced to safe formatting tags. Old backups still restore.
 - A fresh browser or profile shows a "merge a backup" card instead of silently looking like a new start.
 - Flashcards not yet due are practice only (no box change, no XP); missed cards are asked once more at the end of the session.
@@ -115,6 +115,7 @@ Six top tabs group the screens, with sub-tabs: Today Â· Study (Skills, Tracks) Â
 - Append-only: every existing item in the five content arrays is still in the same position (`content-snapshot.json`).
 - Public deck export: every Linux card exported unchanged, the page script parses, the logo is wired in, no job, interview or other-track content is included (the blocklist is read from `JOBS` and the ticket scenarios, so new employers are covered), and re-exporting unchanged cards gives a byte-identical page.
 - Progress safety (`feature-safety`): unreadable saves are never overwritten, failed saves are reported, tampered backups are cleaned (no live markup, no crash from unknown exam types, `__proto__` ignored), old backups restore, undo works, and early flashcard review can't raise a box.
+- Answer meaning and honest progress (`feature-trust`): quotes that merge words don't pass (`'ls -la'`), grep/rsync flags that change the result (`-v`, `-c`, `-l`, `-q`, `-o`, `-I`, `rsync -n`) are never credited, quoted SQL text keeps its case (`'it'` isn't `'IT'`; LIKE ignores case, as in SQLite), a solved Terminal task is credited once and waits for Next, restore/merge/erase/undo never lose the undo copy or claim a save that failed, and a microphone permission that arrives after you left never records. Each was checked by putting the old bug back and watching the test fail.
 - Checks run in parallel (the SQLite check waits for the generator check that writes its cases).
 - Lessons (`feature-lessons`): every lesson has why / idea / example / mistakes / say. Lessons in the newer format also have `seen` ("You'll see this as": a real log line or config) and `spot` ("Spot the problem": `{q, a}`), and must explain every acronym the first time (`ACRONYM (expansion)` or `expansion (ACRONYM)`; a short list of common ones is exempt). Security lessons may not mention trading.
 
