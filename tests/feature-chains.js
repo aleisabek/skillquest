@@ -5,7 +5,7 @@ const fs = require('fs');
 const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const line = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n', i)); };
 const grab = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
-eval(js.split('/* ===================== STATE')[0] + ';' + line('norm') + ';' + line('shuffle') + ';global.C = {TCHAIN, TGEN, buildChain, chainSet, chainKey, norm};');
+eval(js.split('/* ===================== STATE')[0] + ';' + line('norm') + ';' + grab('termNorm') + ';' + line('shuffle') + ';global.C = {TCHAIN, TGEN, buildChain, chainSet, chainKey, norm: x => { const r = termNorm(x); return r === null ? String.fromCharCode(0) : r; }};');
 let bad = 0, steps = 0; const fail = (...a) => { bad++; if (bad < 25) console.log('FAIL', ...a); };
 const WRONG = ['ls', 'cd /', 'rm -rf /', 'cat', 'systemctl', 'echo hi', 'sudo'];
 const skills = new Set(C.TGEN.map(g => g.sk));
