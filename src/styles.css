@@ -219,6 +219,27 @@ input.typed.no{border-color:var(--bad)}
 .scene .sc-l-net{fill:var(--accent)} .scene .sc-l-host{fill:var(--accent2)}
 .scene .sc-res{fill:var(--text);font-size:16px;font-weight:700}
 .scene .hide{opacity:0}
+.scene .ghost{opacity:.15}
+.scene .sc-sub{fill:var(--muted);font-size:15px}
+.scene .sc-lab{fill:var(--muted);font-size:15px}
+.scene .sc-val{fill:var(--text);font-size:15px;font-weight:700}
+.scene .sc-val.focus{fill:var(--accent2)}
+.scene .sc-rule{stroke:var(--muted);stroke-width:1.2}
+.scene .sc-block{fill:var(--accent-soft);stroke:var(--accent);stroke-width:1.2}
+.scene .sc-tick{fill:var(--muted);font-size:15px}
+.scene .sc-tick.focus{fill:var(--accent2);font-weight:700}
+.scene .sc-mark{fill:var(--accent2);font-size:15px;font-weight:700}
+/* Try it panel under a scene */
+.scene-try{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.scene-try h3{margin:0 0 8px;font-size:.95rem;color:var(--accent)}
+.scene-try .try-in{gap:12px;align-items:center}
+.scene-try label{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.scene-try input.typed{min-width:0;width:12em;flex:none}
+.scene-try input[type=range]{width:9em;accent-color:var(--accent)}
+.scene-try table{border-collapse:collapse;margin:8px 0;font-size:.9rem}
+.scene-try th,.scene-try td{border:1px solid var(--line);padding:4px 8px;text-align:left;font-weight:400}
+.scene-try th{color:var(--muted)}
+.scene-try code{white-space:nowrap;overflow-wrap:normal}
 .scene .sc-flash{animation:scflash .45s ease}
 @keyframes scflash{from{opacity:.15}to{opacity:1}}
 .scene-capbox{display:grid;margin:10px 0 0}
@@ -226,7 +247,7 @@ input.typed.no{border-color:var(--bad)}
 .scene-sizer{visibility:hidden}
 .scene-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
 .scene-ctl button{padding:6px 12px}
-@media (max-width:600px){ .scene{padding:8px} }
+@media (max-width:600px){ .scene{padding:8px} .scene-ctl button{padding:6px 9px} .scene-ctl [data-a=play]{min-width:6.6em} .scene-pos{flex-basis:100%;text-align:right} }
 .scene-ctl button:disabled{opacity:.4;cursor:default;box-shadow:none;border-color:var(--line);color:var(--muted)}
 .scene-pos{margin-left:auto}
 @media (prefers-reduced-motion: reduce){ .scene .sc{transition:none} .scene .sc-flash{animation:none} }
