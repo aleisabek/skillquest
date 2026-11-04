@@ -245,6 +245,8 @@ input.typed.no{border-color:var(--bad)}
 .scene-capbox{margin:10px 0 0}
 .scene-live{display:flex;flex-direction:column;gap:8px}
 .scene-capbox p{margin:0}
+.scene-cap{white-space:pre-line}
+.scene-cap strong{color:var(--accent,inherit)}
 .scene-opts{display:flex;flex-wrap:wrap;gap:8px}
 .scene-choices:empty,.scene-verdict:empty{display:none}
 .scene-opts button{padding:5px 10px;font-size:.92em}

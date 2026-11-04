@@ -87,12 +87,12 @@ pf_check() {
 pf_explain() {
   pf_vars
   case "$FAULT" in
-    file-r) echo "What was wrong: the config's own mode was --w------- (200), so even you, its owner, had no r."
+    file-r) echo "${B}What was wrong:${N} the config's own mode was --w------- (200), so even you, its owner, had no r."
             echo "Every folder on the path had x for you, so the path was never the problem (namei -l $REL shows each one)."
-            echo "Least-privilege fix: chmod u+r $REL (or chmod 600). Plain chmod +r would also give the group and others r.";;
-    dir-x)  echo "What was wrong: the config itself was fine (-rw-------), but the folder $BADDIR was drw------- (600)."
+            echo "${B}Least-privilege fix:${N} chmod u+r $REL (or chmod 600). Plain chmod +r would also give the group and others r.";;
+    dir-x)  echo "${B}What was wrong:${N} the config itself was fine (-rw-------), but the folder $BADDIR was drw------- (600)."
             echo "Without x on a folder you can't pass through it to open anything inside, even with r (ls lists names but shows ? for details)."
             echo "ls -l couldn't even show the file's mode until that folder was fixed; namei -l $REL shows every folder on the way."
-            echo "Least-privilege fix: chmod u+x $BADDIR (or chmod 700). 711 or 755 would let others pass through too.";;
+            echo "${B}Least-privilege fix:${N} chmod u+x $BADDIR (or chmod 700). 711 or 755 would let others pass through too.";;
   esac
 }

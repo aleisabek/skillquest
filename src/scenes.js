@@ -9,6 +9,17 @@ const SCENES = {};
 /* A step may ask first: {say:'question', ask:{options:[[label, right?], ...]}}. The step after it shows the answer. */
 const SCENE_REPLY = {right:'Right. Next shows why.', wrong:'Not quite. Next shows what happens.'};
 const SCENE_MS = 2600;   /* playing: time on a step, plus a little per caption character, unless the step sets ms */
+/* A caption may hold several lines (split on \n). When there are several lines, each one that starts with a short label ("Established:") gets it in bold,
+   so different kinds of statement never run together. textContent stays exactly the step's say. */
+function capText(el, say){
+  el.textContent = '';
+  const multi = say.includes('\n');
+  say.split('\n').forEach((line, i)=>{
+    if(i) el.append('\n');
+    const m = multi ? /^([A-Z][a-z]*(?: [a-z0-9]+){0,2}:)( .+)$/.exec(line) : null;
+    if(m){ const b = document.createElement('strong'); b.textContent = m[1]; el.append(b, m[2]); } else el.append(line);
+  });
+}
 const sceneDelay = st=>st.ms || SCENE_MS + st.say.length * 22;
 
 /* The complete picture after step n: each element's class list (c), text (t) and style (s) */
@@ -51,7 +62,7 @@ function mountScene(host, sc){
   const opts = ask=>'<div class="scene-opts">'+ask.options.map((o, i)=>'<button type="button" data-o="'+i+'" aria-pressed="false">'+esc(o[0])+'</button>').join('')+'</div>';
   const capBox = document.createElement('div'); capBox.className = 'scene-capbox';
   const live = document.createElement('div'); live.className = 'scene-live';
-  const cap = document.createElement('p'); cap.className = 'scene-cap'; cap.setAttribute('aria-live', 'polite');
+  const cap = document.createElement('p'); cap.className = 'scene-cap'; cap.setAttribute('aria-live', 'polite'); cap.setAttribute('aria-atomic', 'true');
   const choices = document.createElement('div'), reply = document.createElement('p'); choices.className = 'scene-choices';
   reply.className = 'scene-verdict small'; reply.setAttribute('aria-live', 'polite');
   live.append(cap, choices, reply); capBox.appendChild(live);
@@ -97,7 +108,7 @@ function mountScene(host, sc){
     changed.forEach(x=>x.classList.remove('sc-flash'));
     if(changed.length) void svg.getBoundingClientRect();
     changed.forEach(x=>x.classList.add('sc-flash'));
-    cap.textContent = sc.steps[n].say;
+    capText(cap, sc.steps[n].say);
     drawAsk(n);
     ctl.querySelector('.scene-pos').textContent = 'Step '+(n+1)+' of '+(last+1);
     /* a button about to be disabled can't keep focus: hand it to its partner (enabled first, or the browser refuses
@@ -253,7 +264,7 @@ function subnetScene(ip, prefix){
     {say: 'Keep the network bits '+netPart+' and set all '+host+' device bits to 1: '+bin8(m.bcOct[k])+' = '+m.netOct[k]+'+'+(m.block - 1)+' = '+m.bcOct[k]+'. That is the broadcast address '+m.bc+', the last in the subnet: a packet sent there goes to every device on it.',
      set: Object.assign({zrl:{t:'broadcast'}, zrv:{c:'focus', t:'= '+m.bcOct[k]}, res1:{c:'', t:'network '+tail(m.net)+' · broadcast '+tail(m.bc)}},
        group(8, i=>inNet(i) ? {} : {['zrt'+i]:{t:1, c:'focus'}}))},
-    {say: host+' device bits make 2^'+host+' = '+m.total+' addresses, so the octet is cut into blocks of '+m.block+'. Shortcut: 256 − '+m.maskOct[k]+' (the mask) = '+m.block+'. Blocks start at 0, '+m.block+', '+2 * m.block+', '+3 * m.block+'… and '+o+' lands in '+lo+' to '+hi+'.',
+    {say: host+' device bits make 2^'+host+' = '+m.total+' addresses, so the octet is cut into blocks of '+m.block+'.\nShortcut: 256 − '+m.maskOct[k]+' (the mask) = '+m.block+'.\nBlocks start at 0, '+m.block+', '+2 * m.block+', '+3 * m.block+'… and '+o+' lands in '+lo+' to '+hi+'.',
      set: Object.assign(to(['nblock', 'nmark', 'nline'].concat(ticks.map(v=>'nt'+v), ticks.map(v=>'nl'+v)), ''),
        {[lastNetCol]:{c:'focus'}}, known.has('nl'+lo) ? {['nl'+lo]:{c:'focus'}} : {}, known.has('nl'+(hi + 1)) ? {['nl'+(hi + 1)]:{c:'focus', t:hi}} : {})},
     {say: 'Inside the block: '+tail(m.net)+' is the network, '+tail(m.bc)+' the broadcast, and the '+m.usable+' addresses between them ('+tail(m.first)+' to '+tail(m.last)+') can go to devices. '+tail(ip)+' is one of them, so it is a valid device address.',
@@ -369,7 +380,7 @@ function permScene(){
      ask:{options:[['owner set ('+a.sym[0]+')', false], ['group set ('+a.sym[1]+')', false], ['others set ('+a.sym[2]+')', true]]}, set:{}},
     {say: 'The app runs as '+E.user+'. Linux applies exactly one set: the owner\'s if you own the file, else the group\'s if you\'re in its group, else everyone else\'s. '+E.user+' is neither, so it gets ---: denied.',
      set: Object.assign(ladder(who, '---: denied'), {res:{c:'', t:rights(a, who)}})},
-    {say: 'sudo chown '+E.owner+':'+E.newGroup+' '+E.file+' makes '+E.newGroup+' the file\'s group. Now check 2 matches, so the group set applies, but it is still ---. chown alone doesn\'t fix it.',
+    {say: 'sudo chown '+E.owner+':'+E.newGroup+' '+E.file+' makes '+E.newGroup+' the file\'s group. Now check 2 matches, so the group set applies, but it is still ---.\nchown alone doesn\'t fix it.',
      set: Object.assign(ladder(whoAfter, 'yes: '+a.sym[1]), file(a, E.newGroup), {cmd:{t:'# chown '+E.owner+':'+E.newGroup+' '+E.file}, sw1:{t:E.newGroup}, qt1:{c:'', t:'2 group: '+E.newGroup}, res:{t:rights(a, whoAfter)}})},
     {say: 'chmod 640 sets each set from one digit: 6 = 4+2 = rw- for the owner, 4 = r-- for the group, 0 = --- for others. Exactly one bit changed: the group\'s r.',
      set: Object.assign(cells(b), digits(b), file(b, E.newGroup), {cmd:{t:'# chmod '+b.digits+' '+E.file}})},
@@ -451,16 +462,16 @@ function fwScene(){
   const P = FW_PACKETS, go = (k, order, decide)=>run(P[k][0], P[k][1], order || order0, decide).r;
   const quiet = scC(['pk', 'pkt', 'pg', 'vd'], 'hide');
   const steps = [
-    {say: 'This firewall (like iptables or a network ACL) checks each packet against its rules from the top down; the first match decides. (AWS security groups differ: allow-only, no order.)',
+    {say: 'This firewall (like iptables or a network ACL) checks each packet against its rules from the top down; the first match decides.\nNote: AWS security groups differ: allow-only, no order.',
      set: Object.assign(place(order0), quiet, scC(['lg0', 'lg1', 'lg2', 'lg3', 'lg4'], 'hide'))},
-    {say: 'Packet: '+P[0][0]+' to port '+P[0][1]+'. Rule 1: is '+P[0][0]+' in 10.0.5.0/24? Yes: /24 means the first three numbers (10.0.5) must match, and they do. Port 22 matches too.',
+    {say: 'Packet: '+P[0][0]+' to port '+P[0][1]+'.\nRule 1: is '+P[0][0]+' in 10.0.5.0/24? Yes: /24 means the first three numbers (10.0.5) must match, and they do.\nPort 22 matches too.',
      set: go(0, order0, false)},
     {say: 'First match wins: rule 1 allows it, and rules 2 to 4 are never read, not even the deny for port 22 right below it. That deny only sees packets rule 1 lets past.',
      set: Object.assign(go(0, order0, true), logLine(0, P[0][0], P[0][1], order0))},
     {say: 'Next packet: '+P[1][0]+' to port 22. Which rule decides what happens to it?',
      ask:{options:[['rule 1 (allow)', false], ['rule 2 (deny)', true], ['rule 4 (deny all)', false]]},
      set: Object.assign(place(order0), {pk:{c:''}, pkt:{c:'', t:P[1][0]+' → port '+P[1][1]}, pg:{c:'hide'}, vd:{c:'hide'}})},
-    {say: 'Packet: '+P[1][0]+' to port 22. Rule 1: not in 10.0.5.0/24, so no match; move down. Rule 2: any source, port 22: a match, so it is denied. Only the admin subnet gets SSH.',
+    {say: 'Packet: '+P[1][0]+' to port 22.\nRule 1: not in 10.0.5.0/24, so no match; move down.\nRule 2: any source, port 22: a match, so it is denied.\nOnly the admin subnet gets SSH.',
      set: Object.assign(go(1, order0, true), logLine(1, P[1][0], P[1][1], order0))},
     {say: 'Same sender, port 443 (HTTPS). Rule 1 fails on source, rule 2 on port (it is for 22 only). Rule 3 allows any source on 443, so the packet is allowed.',
      set: Object.assign(go(2, order0, true), logLine(2, P[2][0], P[2][1], order0))},
@@ -640,18 +651,18 @@ function iamScene(){
      set: marks(P, RQ[0], [1])},
     {say: 'Both statements match the delete request: the Allow (written first) and the Deny. What does AWS decide?',
      ask:{options:[['allowed', false], ['denied', true], ['depends on the order', false]]}, set:{}},
-    {say: 'Question 1: does any Deny match? Yes, so the request is denied and AWS stops there. The Allow is never weighed against it: an explicit Deny always wins.',
+    {say: 'Question 1: does any Deny match? Yes, so the request is denied and AWS stops there.\nThe rule: an explicit Deny always wins; the Allow is never weighed against it.',
      set: gates(iamEval(P, RQ[0][0], RQ[0][1]).decision)},
     {say: 'Write the Deny first instead: same answer. Unlike firewall rules, statement order means nothing here, because any matching Deny wins wherever it sits.',
      set: slots([1, 0])},
-    {say: 'New request: read the same file (s3:GetObject). The Deny covers only DeleteObject, so it doesn\'t match. Question 1: no. Question 2: the Allow matches, so it\'s allowed.',
+    {say: 'New request: read the same file (s3:GetObject).\nQuestion 1: no, the Deny covers only DeleteObject.\nQuestion 2: the Allow matches, so it\'s allowed.',
      set: decide(P, RQ[1])},
     {say: 'New request: ec2:StartInstances. Neither statement mentions EC2 at all. What happens?',
      ask:{options:[['allowed', false], ['denied', true]]},
      set: Object.assign(req(RQ[2]), blank, unGate)},
-    {say: 'ec2:StartInstances isn\'t an S3 action, so neither statement matches. No Deny, no Allow: question 3 applies and it\'s denied by default. Nothing has to forbid it.',
+    {say: 'ec2:StartInstances isn\'t an S3 action, so neither statement matches.\nResult: no Deny, no Allow, so question 3 applies and it\'s denied by default.\nThe rule: nothing has to forbid it.',
      set: decide(P, RQ[2])},
-    {say: 'Least privilege: the reporting app\'s Allow becomes s3:GetObject on reports/*. Deleting reports/q3.csv now matches nothing, so it\'s denied by default. With only this policy, stolen role credentials can\'t delete.',
+    {say: 'Least privilege: the reporting app\'s Allow becomes s3:GetObject on reports/*.\nResult: deleting reports/q3.csv now matches nothing, so it\'s denied by default.\nWith only this policy, stolen role credentials can\'t delete.',
      set: Object.assign(blank, slots([0, 1]), {sav0:{t:IAM_NARROW.Action}, srv0:{t:IAM_NARROW.Resource}}, decide(NP, RQ[3]))},
     {say: 'Its real job still works: reading reports/q3.csv matches the narrow Allow. Grant exactly the actions and resources a job needs; everything else is denied by default.',
      set: decide(NP, RQ[4])}
@@ -766,15 +777,15 @@ function pilotScene(){
      set: Object.assign(show(6), {l5:{c:''}})},
     {say: 'The owner set is -w-: write, but no r. What does this establish so far?',
      ask:{options:[['the file blocks you; the folders are unchecked', true], ['the folders are fine too', false], ['nothing yet', false]]}, set:{}},
-    {say: 'Established: the owner set lacks r, which explains the error. Not established: whether each folder on the path lets you through (x). One fault never rules out a second one.',
+    {say: 'What the evidence shows so far:\nEstablished: the owner set lacks r, which explains the error.\nNot yet established: whether each folder on the path lets you through (x).\nWhy it matters: one fault never rules out a second one.',
      set: {est:{t:'established: owner set lacks r'}, unk:{t:'unknown: x on the folder '+E.dir}}},
-    {say: 'namei -l lists every part of the path. '+E.dir+' is drwx------: x for you, so the path is fine. That is now checked, not assumed.',
+    {say: 'namei -l lists every part of the path.\nChecked: '+E.dir+' is drwx------, so it has x for you and the path is fine.\nThat is now checked, not assumed.',
      set: Object.assign(show(9), {unk:{t:'checked: '+E.dir+' has x for you'}})},
     {say: 'The fix should give exactly what is missing, to exactly who needs it. Which command is least privilege?',
      ask:{options:[['chmod u+r '+E.file, true], ['chmod +r '+E.file, false], ['chmod 777 '+E.file, false]]}, set:{}},
-    {say: 'chmod u+r adds r for the owner only: now -rw-------. Plain chmod +r usually adds r for the group and others too (umask 022), and 777 gives everyone everything.',
+    {say: 'chmod u+r adds r for the owner only: now -rw-------.\nCompare: plain chmod +r usually adds r for the group and others too (umask 022), and 777 gives everyone everything.',
      set: Object.assign(show(10), {l8:{t:'-rw------- '+E.user+' '+E.user+' app.ini', c:''}, est:{t:'fixed: owner set is now rw-'}})},
-    {say: 'Then check that it works: cat now prints the config. Evidence first, a conclusion no bigger than the evidence, the smallest fix, then verify.',
+    {say: 'Verified: cat now prints the config.\nThe method: evidence first, a conclusion no bigger than the evidence, the smallest fix, then verify.',
      set: Object.assign(show(12), {l1:{c:'skip'}, l11:{c:'ok'}, unk:{t:'verified: cat works'}})}
   ];
   return {id:'pilot', title:'Worked example: a config you own won\'t open', label:'A terminal: cat fails, id and ls -l show you own the file but its owner set lacks r, namei -l shows the folder has x, chmod u+r fixes it, cat works',
