@@ -22,6 +22,9 @@ for (const tid of Object.keys(GEN)) for (const lv of [1, 2]) (GEN[tid][lv] || []
 for (const id of Object.keys(LESSONS)) if (!ids.has(id)) fail('lesson has no exercises (no skill with this id):', id);
 for (const s of skills) if (!LESSONS[s.id]) fail('skill has no lesson:', s.id);
 
+/* every skill knows its level (a generator added after the level stamp would show "Lundefined" and drop out of the path) */
+for (const s of skills) if (!Array.isArray(s.lvs) || !s.lvs.length || s.lvs.some(l => l !== 1 && l !== 2)) fail('skill without a valid level:', s.id, JSON.stringify(s.lvs));
+
 /* each research skill drills its own topic (guards against generators being labelled by position again) */
 const sample = (tid, sk, n = 300) => Array.from({ length: n }, () => { const f = genFor(tid, 0, sk); const g = f[Math.floor(Math.random() * f.length)]; const q = g && g(); return q ? q.d[2].replace(/<[^>]+>/g, '') : ''; });
 const expect = { 'Pre-registration': /strategy test/i, 'Walk-forward testing': /walk-forward/i, 'Holdout data': /holdout|seal/i };

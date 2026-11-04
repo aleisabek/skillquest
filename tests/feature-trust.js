@@ -209,8 +209,13 @@ const recorderRun = async () => {
 {
   const { CERTS, examCoverage, LESSONS } = C.X, cov = id => examCoverage(CERTS.find(c => c.id === id));
   const sec = cov('secplus'), net = cov('netplus');
-  expect(sec.missing.some(d => /Oversight/.test(d.name)) && sec.w < 100, 'Security+ governance has no questions: it must be listed as unmeasured, and coverage under 100%');
-  expect(net.thin.some(d => d.name === 'Network Security'), 'Network+ network security (one fixed question) must be flagged as thin');
+  /* the labels still tell the truth about any domain without questions, or with only a few repeating ones */
+  const fake = examCoverage({ domains: [{ n: 1, name: 'A', w: 60, qs: [1], gens: [['sec', 'CIA triad']], tagged: [] }, { n: 2, name: 'B', w: 30, qs: [], gens: [], tagged: [] }, { n: 3, name: 'C', w: 10, qs: [5], gens: [], tagged: [] }] });
+  expect(fake.missing.map(d => d.name).join() === 'B' && fake.w === 70, 'a domain with no questions must be listed as unmeasured, and left out of the covered weight');
+  expect(fake.thin.map(d => d.name).join() === 'C', 'a domain with a few fixed questions and no generators must be flagged as thin');
+  /* Security+ governance and Network+ network security now have generated questions (gap-filling, 2026-11-04) */
+  expect(!sec.missing.length && !sec.thin.some(d => /Oversight/.test(d.name)), 'Security+ governance should now be measured, with generated questions');
+  expect(!net.missing.length && !net.thin.some(d => d.name === 'Network Security'), 'Network+ network security should now be measured, with generated questions');
   const exam = fs.readFileSync(__dirname + '/../src/exam.js', 'utf8');
   for (const gone of ['Close to ready', 'readiness signal', 'before booking the real one', 'Full practice', 'not covered yet', '<h1>📝 Practice exams'])
     expect(!exam.includes(gone), 'exam pages should no longer say', gone);

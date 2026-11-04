@@ -10,6 +10,7 @@ const L = ctx.L;
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 /* acronyms common enough to need no expansion */
 /* (MITRE is an organization's name, not an acronym to expand) */
+const TWO_WORD = ['PCI DSS'];
 const COMMON = new Set(['IT', 'IP', 'IPv4', 'IPv6', 'MFA', 'SSH', 'VPN', 'HTTP', 'HTTPS', 'DNS', 'URL', 'API', 'SQL', 'NIST', 'HR', 'US', 'PDF', 'CEO', 'OK', 'PIN', 'USB', 'CPU', 'RAM', 'OS', 'ID', 'AM', 'PM', 'MITRE']);
 const text = l => [l.why, l.idea, l.seen, l.example, l.prevent, l.detect, ...(l.mistakes || []), l.say, l.spot && l.spot.q, l.spot && l.spot.a].filter(Boolean).join(' ');
 for (const [id, l] of Object.entries(L)) {
@@ -23,7 +24,8 @@ for (const [id, l] of Object.entries(L)) {
     if (COMMON.has(a) || /^\d/.test(a)) continue;
     /* the FIRST mention must be the explained one: "ACR (expansion)" or "expansion (ACR)" */
     const i = t.search(new RegExp('\\b' + a + 's?\\b'));
-    if (!(t.startsWith(a + ' (', i) || t.startsWith(a + 's (', i) || t[i - 1] === '(')) fail(id, 'acronym not explained at first use:', a);
+    /* listed two-word acronyms ("PCI DSS (Payment Card ...)") are explained by the parenthesis after the last word */
+    if (!(t.startsWith(a + ' (', i) || t.startsWith(a + 's (', i) || t[i - 1] === '(' || TWO_WORD.some(w => w.startsWith(a + ' ') && t.startsWith(w + ' (', i)))) fail(id, 'acronym not explained at first use:', a);
   }
 }
 for (const [id, l] of Object.entries(L)) if (id.startsWith('quiz:sec:') && /trading/i.test(text(l))) fail(id, 'security lesson mentions trading');
