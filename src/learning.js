@@ -35,14 +35,19 @@ function recordSkill(id, correct, sure){
   const m = S.mastery[id] = S.mastery[id] || {s:0, n:0, right:0, last:null};
   m.s = correct ? cur + (100-cur)*(sure ? 0.3 : 0.12) : cur*0.65;
   m.n++; if(correct) m.right++; m.last = dayStr();
+  /* rd: how many different days this skill was answered right (Strong needs QUIZ_DAYS of them) */
+  if(correct && m.lr !== dayStr()){ m.rd = (m.rd || 0) + 1; m.lr = dayStr(); }
   /* misses per skill per day: 2+ in a day brings its lesson back in the daily plan (see lessonNeeded) */
   if(!correct){ S.slip = S.slip || {}; const sl = S.slip[id]; S.slip[id] = sl && sl.day === dayStr() ? {day:sl.day, n:sl.n+1} : {day:dayStr(), n:1}; }
   save();
 }
+/* Strong = a high score that has held up on more than one day, not one good session */
+function isStrong(id){ const m = (S.mastery||{})[id]; return !!m && skillScore(id) >= 85 && (m.rd || 0) >= QUIZ_DAYS; }
 function skillStatus(id){
   const m = (S.mastery||{})[id], v = skillScore(id);
   if(!m) return ['New', ''];
-  if(v >= 85) return ['Strong', 'good'];
+  if(isStrong(id)) return ['Strong', 'good'];
+  if(v >= 85) return ['Strong once', 'mid'];   /* high score, but only one day so far: confirm it on another day */
   if(v < 60 && (m.n >= 3 || m.s >= 60)) return ['Needs review', 'bad'];  /* weak after real practice, or faded over time */
   return ['Learning', 'mid'];
 }
@@ -125,9 +130,9 @@ const STAGES = [
 ];
 function vSkills(){
   const rec = recommend(3), skills = allSkills();
-  const strong = skills.filter(s=>skillScore(s.id)>=85).length, started = skills.filter(s=>(S.mastery||{})[s.id]).length;
+  const strong = skills.filter(s=>isStrong(s.id)).length, started = skills.filter(s=>(S.mastery||{})[s.id]).length;
   view.innerHTML = '<h1>🧠 Skills map</h1><p class="sub">Every skill has a mastery score. Sure, correct answers raise it; misses and time lower it, so old skills come back for review before you forget them.</p>'+
-    '<div class="row" style="margin-bottom:6px"><span class="pill">'+skills.length+' skills</span><span class="pill">'+started+' started</span><span class="pill">'+strong+' strong (85%+)</span>'+
+    '<div class="row" style="margin-bottom:6px"><span class="pill">'+skills.length+' skills</span><span class="pill">'+started+' started</span><span class="pill">'+strong+' strong (85%+ on 2 days)</span>'+
     '<button id="typedT">⌨ Typed answers: '+(typedOn()?'ON':'OFF')+'</button></div>'+
     '<h2>Recommended now</h2><div class="grid">'+rec.map(s=>{ const [st] = skillStatus(s.id);
       return '<div class="card mission"><div class="tag">'+esc(s.area)+'</div><h3>'+s.icon+' '+esc(s.sk)+'</h3><p>'+st+' · mastery '+skillScore(s.id)+'%</p><div class="row">'+
