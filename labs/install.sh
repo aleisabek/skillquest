@@ -5,9 +5,9 @@ set -e
 SRC="$(cd "$(dirname "$0")" && pwd)"
 DEST="$HOME/.skillquest-labs"
 rm -rf "$DEST"; mkdir -p "$DEST"
-cp -r "$SRC/labs" "$SRC/sq-lab" "$DEST/"
+cp -r "$SRC/labs" "$SRC/lib" "$SRC/sq-lab" "$SRC/sq-evidence.py" "$DEST/"
 # Files may come from Windows; make sure they use Linux line endings and are runnable.
-find "$DEST" -type f \( -name '*.sh' -o -name sq-lab \) -exec sed -i 's/\r$//' {} +
+find "$DEST" -type f \( -name '*.sh' -o -name '*.py' -o -name sq-lab \) -exec sed -i 's/\r$//' {} +
 chmod +x "$DEST/sq-lab"
 mkdir -p "$HOME/.local/bin"
 ln -sf "$DEST/sq-lab" "$HOME/.local/bin/sq-lab"

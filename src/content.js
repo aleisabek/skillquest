@@ -423,7 +423,13 @@ const CARDS = [
  /* ---- From the career project's reel triage (3 Nov 2026), checked against official docs ---- */
  ['support',2,'Turn on Windows\' built-in SSH server','<code>Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0</code>, then <code>Start-Service sshd</code> (Microsoft Learn; Windows Server 2025 has it preinstalled). Safe use: keys only, reachable only from trusted networks, never port 22 open to the internet with password logins.','u-remote'],
  ['sec',2,'File upload validation','Allow-list the extensions you need, check the real file type (the Content-Type header can be spoofed), rename files, limit their size, store them outside the webroot, and scan them for malware (OWASP).','s-defense'],
- ['sec',2,'Webhook signature verification','The sender signs each request body with a shared secret (HMAC-SHA256). The receiver recomputes it over the raw body, compares with a constant-time check, and rejects stale timestamps to stop replays (GitHub, Stripe docs).','s-defense']
+ ['sec',2,'Webhook signature verification','The sender signs each request body with a shared secret (HMAC-SHA256). The receiver recomputes it over the raw body, compares with a constant-time check, and rejects stale timestamps to stop replays (GitHub, Stripe docs).','s-defense'],
+ /* ---- Folder permissions, taught before the permissions pilot (r and x tested separately) ---- */
+ ['linux',2,'Folder <b>r</b> vs folder <b>x</b>','r: read the names inside, so ls can list them. x: pass through and open an entry by name, if the entry itself allows it. Every folder on a path needs x for you.','priv'],
+ ['linux',2,'A folder has r but no x: what works?','<code>ls dir</code> lists the names, but you can\'t open or cd into anything inside (<code>ls -l</code> shows ? instead of details).','priv'],
+ ['linux',2,'A folder has x but no r: what works?','You can open a file whose exact name you know (<code>cat dir/notes.txt</code>), but <code>ls dir</code> fails with Permission denied.','priv'],
+ ['linux',2,'Who can delete a file?','Anyone with w and x on the folder it is in, whatever the file\'s own permissions, unless the folder has the sticky bit (like /tmp).','priv'],
+ ['linux',2,'See the permissions of every folder on a path','<code>namei -l /srv/app/conf/app.ini</code> lists owner and permissions for each part. <code>ls -ld dir</code> shows one folder itself.','priv']
 ];
 
 /* Quiz: [track, level, question, options, correctIndex, explanation] */

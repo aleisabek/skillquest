@@ -46,13 +46,10 @@ function mountScene(host, sc){
     if(text != null) n.textContent = text;
     (parent && nodes[parent] || svg).appendChild(n); nodes[id] = n;
   }
-  /* every caption sits in the same grid cell (hidden copies size it), so the box never changes height
-     and the buttons below never move under your thumb. A prediction step's copy includes its choices and the
-     longest reply, so asking doesn't move them either. */
-  const opts = (ask, copy)=>'<div class="scene-opts">'+ask.options.map((o, i)=>'<button type="button" data-o="'+i+'"'+(copy ? ' tabindex="-1"' : ' aria-pressed="false"')+'>'+esc(o[0])+'</button>').join('')+'</div>';
+  /* The buttons sit right under the picture, before the caption in the page order too (so keyboard and screen-reader
+     order match what you see). The caption below them takes each step's own height, and the buttons never move. */
+  const opts = ask=>'<div class="scene-opts">'+ask.options.map((o, i)=>'<button type="button" data-o="'+i+'" aria-pressed="false">'+esc(o[0])+'</button>').join('')+'</div>';
   const capBox = document.createElement('div'); capBox.className = 'scene-capbox';
-  capBox.innerHTML = sc.steps.map(s=>'<div class="scene-sizer" aria-hidden="true"><p>'+esc(s.say)+'</p>'+
-    (s.ask ? opts(s.ask, true)+'<p class="scene-verdict small">'+esc(SCENE_REPLY.wrong)+'</p>' : '')+'</div>').join('');
   const live = document.createElement('div'); live.className = 'scene-live';
   const cap = document.createElement('p'); cap.className = 'scene-cap'; cap.setAttribute('aria-live', 'polite');
   const choices = document.createElement('div'), reply = document.createElement('p'); choices.className = 'scene-choices';
@@ -63,7 +60,7 @@ function mountScene(host, sc){
     '<button type="button" class="primary" data-a="play">Play</button>'+
     '<button type="button" data-a="next">Next<span aria-hidden="true"> ▶</span></button>'+
     '<span class="scene-pos small" aria-hidden="true"></span>';
-  host.append(svg, capBox, ctl);
+  host.append(svg, ctl, capBox);
   host.tabIndex = -1;
   /* optional hands-on panel under the animation (it never touches progress) */
   if(sc.tryIt){ const t = document.createElement('div'); t.className = 'scene-try'; host.appendChild(t); sc.tryIt(t); }
@@ -749,6 +746,39 @@ function leakTry(box){
     draw();
   });
   draw();
+}
+
+/* ---------- Permissions pilot, step 1: the worked example (opened from Labs, not a lesson scene) ----------
+   A config you own won't open. Each check says what it establishes and what it leaves unknown; the conclusion is never
+   bigger than the evidence. Current user only: you own everything, so only the owner set ever applies to you. */
+const PILOT_EX = {user:'student', dir:'cfg', file:'cfg/app.ini'};
+function pilotScene(){
+  const E = PILOT_EX, W = 340, L = ['$ cat '+E.file, 'cat: '+E.file+': Permission denied', '$ id -un', E.user, '$ ls -l '+E.file, '--w------- '+E.user+' '+E.user+' app.ini',
+    '$ namei -l '+E.file, 'drwx------ '+E.user+' '+E.user+' '+E.dir, '--w------- '+E.user+' '+E.user+' app.ini', '$ chmod u+r '+E.file, '$ cat '+E.file, 'port=8080'];
+  const ids = L.map((t, i)=>'l'+i);
+  const els = [scR('term', 4, 4, W - 8, 278, 'sc-box')].concat(L.map((t, i)=>scT('l'+i, 14, 28 + i * 22, t, 'sc-code')),
+    [scT('est', 8, 304, '', 'sc-sub'), scT('unk', 8, 326, '', 'sc-sub')]);
+  const show = n=>scC(ids.slice(0, n), ''), hideAfter = n=>scC(ids.slice(n), 'hide');
+  const steps = [
+    {say: 'You own every file in this lab, but cat '+E.file+' says Permission denied. Start with evidence, not a fix. First: who are you?',
+     set: Object.assign(hideAfter(0), show(2), {l1:{c:'bad'}, est:{t:''}, unk:{t:''}})},
+    {say: 'id -un says '+E.user+'; ls -l shows the file is owned by '+E.user+'. You are the owner, so only the owner set (the first three letters) applies to you; the group set is never consulted.',
+     set: Object.assign(show(6), {l5:{c:''}})},
+    {say: 'The owner set is -w-: write, but no r. What does this establish so far?',
+     ask:{options:[['the file blocks you; the folders are unchecked', true], ['the folders are fine too', false], ['nothing yet', false]]}, set:{}},
+    {say: 'Established: the owner set lacks r, which explains the error. Not established: whether each folder on the path lets you through (x). One fault never rules out a second one.',
+     set: {est:{t:'established: owner set lacks r'}, unk:{t:'unknown: x on the folder '+E.dir}}},
+    {say: 'namei -l lists every part of the path. '+E.dir+' is drwx------: x for you, so the path is fine. That is now checked, not assumed.',
+     set: Object.assign(show(9), {unk:{t:'checked: '+E.dir+' has x for you'}})},
+    {say: 'The fix should give exactly what is missing, to exactly who needs it. Which command is least privilege?',
+     ask:{options:[['chmod u+r '+E.file, true], ['chmod +r '+E.file, false], ['chmod 777 '+E.file, false]]}, set:{}},
+    {say: 'chmod u+r adds r for the owner only: now -rw-------. Plain chmod +r usually adds r for the group and others too (umask 022), and 777 gives everyone everything.',
+     set: Object.assign(show(10), {l8:{t:'-rw------- '+E.user+' '+E.user+' app.ini', c:''}, est:{t:'fixed: owner set is now rw-'}})},
+    {say: 'Then check that it works: cat now prints the config. Evidence first, a conclusion no bigger than the evidence, the smallest fix, then verify.',
+     set: Object.assign(show(12), {l1:{c:'skip'}, l11:{c:'ok'}, unk:{t:'verified: cat works'}})}
+  ];
+  return {id:'pilot', title:'Worked example: a config you own won\'t open', label:'A terminal: cat fails, id and ls -l show you own the file but its owner set lacks r, namei -l shows the folder has x, chmod u+r fixes it, cat works',
+    w:W, h:336, els, steps};
 }
 
 SCENES['quiz:linux:Permissions'] = permScene();

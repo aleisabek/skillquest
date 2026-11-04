@@ -34,8 +34,10 @@ async function main(){
     '--user-data-dir=' + dir, '--window-size=1000,1400', 'about:blank'];
   if (process.platform === 'linux') args.unshift('--no-sandbox', '--disable-dev-shm-usage');   /* CI runners */
   const proc = spawn(bin, args, { stdio: 'ignore' });
+  /* on Windows, kill() stops only the first process and leaves the browser's children running: end the whole tree */
+  const stop = () => { try { if (process.platform === 'win32') require('child_process').spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); else proc.kill(); } catch (e) {} };
   /* never hang CI: the whole check has 90 seconds */
-  const guard = setTimeout(() => { fail('timed out after 150s'); try { proc.kill(); } catch (e) {} process.exit(1); }, 150000);
+  const guard = setTimeout(() => { fail('timed out after 150s'); stop(); process.exit(1); }, 150000);
   guard.unref();
   let ws;
   try {
@@ -80,14 +82,16 @@ async function main(){
         const box = svg.getBoundingClientRect(); if (!(box.width > 200 && box.height > 100)) out.push('scene too small: ' + box.width + 'x' + box.height);
         const cap = host.querySelector('.scene-cap'), b = a => host.querySelector('[data-a="' + a + '"]');
         if (cap.getAttribute('aria-live') !== 'polite' || !svg.getAttribute('aria-label')) out.push('caption or picture is not wired for screen readers');
-        const capH = host.querySelector('.scene-capbox').getBoundingClientRect().height;
+        /* the buttons sit between the picture and the caption, in the page order too, and never move */
+        const nextTop = () => Math.round(b('next').getBoundingClientRect().top - svg.getBoundingClientRect().top), top0 = nextTop();   /* measured from the picture, so page scrolling doesn't count */
+        if (!(svg.compareDocumentPosition(b('next')) & 4) || !(b('next').compareDocumentPosition(cap) & 4)) out.push('buttons must come after the picture and before the caption');
         await sleep(700);
         if (SCENE_LIVE.playing || SCENE_LIVE.step !== 0) out.push('scene must not autoplay');
         if (!b('back').disabled) out.push('Back should be disabled on step 1');
         b('next').focus();
         for (let i = 0; i < sc.steps.length; i++) {
           if (cap.textContent !== sc.steps[i].say) out.push('step ' + (i + 1) + ' caption mismatch');
-          if (Math.abs(host.querySelector('.scene-capbox').getBoundingClientRect().height - capH) > 1) out.push('caption box changed height on step ' + (i + 1));
+          if (Math.abs(nextTop() - top0) > 1) out.push('the buttons moved on step ' + (i + 1));
           if (i < sc.steps.length - 1) b('next').click();
         }
         if (!b('next').disabled) out.push('Next should be disabled on the last step');
@@ -175,6 +179,47 @@ async function main(){
       (pr || []).forEach(e => fail(id, e));
     }
 
+    /* permissions pilot page: import is announced (and refusals too), the worked example opens, steps with its buttons
+       fixed, keeps every line inside the picture, and records that it was viewed; then the same at phone width */
+    const pilotCheck = async phone => run(`
+      const out = [], sleep = ms => new Promise(r => setTimeout(r, ms));
+      S.evidence = []; S.evres = {}; S.pilot = {}; go('labs');
+      if (!document.querySelector('#pilot')) return ['no pilot section on Labs'];
+      const t = new Date(Date.now() - 3600e3).toISOString().slice(0, 19) + 'Z', t2 = new Date().toISOString().slice(0, 19) + 'Z';
+      const ok = c => ({check: c, expected: 'x', observed: 'x', pass: true});
+      const rep = {schema_version: 2, attempt_id: '11111111-2222-4333-8444-555555555555', content_id: 'perm-diagnose', content_version: 1, attempt_date: t, finished_at: t2,
+        scenario_family: 'perm-read-own-file', scenario_instance_id: 'abcdef012345', fault_type: 'dir-x', previous_exposure: [], assistance_viewed: [], help_used: 'none',
+        evidence: 'not recorded', checker_results: [ok('a'), ok('b')], outcome: 'independent-pass', checker: {name: 'sq-lab', version: '2.0'},
+        reasoning: {fault_named: 'dir-x', ruled_out: 'file-r', fault_named_right: true, ruled_out_valid: true, provenance: 'learner-reported, compared by sq-lab'}};
+      document.querySelector('#pilotPaste').value = 'SQR2 ' + JSON.stringify(rep) + '\\nSQR2 {"schema_version":3}';
+      document.querySelector('#pilotImport').click(); await sleep(50);
+      const msg = document.querySelector('#pilotMsg');
+      if (!msg || msg.getAttribute('role') !== 'status') out.push('import result is not announced (needs role=status)');
+      else if (!/Imported perm-diagnose/.test(msg.textContent) || !/Refused, nothing stored: made by a newer sq-lab/.test(msg.textContent)) out.push('import message: ' + msg.textContent);
+      if (!/passed, no hints/.test(document.querySelector('.pilot-ev').textContent)) out.push('the evidence panel did not update');
+      document.querySelector('#pilotWorked').click(); await sleep(50);
+      const host = document.querySelector('#pilotScene'), svg = host && host.querySelector('svg');
+      if (!svg) return out.concat('the worked example did not open');
+      if (S.pilot.worked !== dayStr()) out.push('opening the worked example should record it as viewed');
+      if (!host.contains(document.activeElement) && document.activeElement !== host) out.push('focus should move into the worked example');
+      const b = a => host.querySelector('[data-a="' + a + '"]'), W = svg.viewBox.baseVal.width, k = svg.getBoundingClientRect().width / W;
+      const top = () => Math.round(b('next').getBoundingClientRect().top - svg.getBoundingClientRect().top), top0 = top();
+      for (let i = 0; i < 12 && !b('next').disabled; i++) {
+        for (const tx of svg.querySelectorAll('text')) { if (!tx.textContent || getComputedStyle(tx).opacity === '0') continue; const bb = tx.getBBox();
+          if (bb.x < 0 || bb.x + bb.width > W + 0.5) out.push('line runs outside the picture: ' + tx.textContent);
+          if (parseFloat(getComputedStyle(tx).fontSize) * k < 11.95) out.push('text below 12px: ' + tx.textContent); }
+        if (Math.abs(top() - top0) > 1) out.push('the buttons moved on step ' + (i + 1));
+        b('next').click(); await sleep(20);
+      }
+      if (!b('next').disabled) out.push('the worked example should reach its last step');
+      if (${phone} && document.documentElement.scrollWidth > 360) out.push('the Labs page scrolls sideways at 360px (' + document.documentElement.scrollWidth + 'px)');
+      S.evidence = []; S.pilot = {}; S.journal = (S.journal || []).filter(e => e.kind !== 'lab'); go('today');
+      return [...new Set(out)];`);
+    (await pilotCheck(false)).forEach(e => fail('pilot:', e));
+    await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true });
+    (await pilotCheck(true)).forEach(e => fail('pilot (360px):', e));
+    await send('Emulation.clearDeviceMetricsOverride');
+
     /* phone: at a 360px screen no label in the picture renders below 12px */
     await send('Emulation.setDeviceMetricsOverride', { width: 360, height: 800, deviceScaleFactor: 1, mobile: true });
     for (const id of lessons) {
@@ -202,7 +247,7 @@ async function main(){
   finally {
     clearTimeout(guard);
     try { ws && ws.close(); } catch (e) {}
-    proc.kill();
+    stop();
     await sleep(300);
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
   }

@@ -13,7 +13,7 @@ const lessonDir = path.join(SRC, 'lessons');
 const lessons = fs.existsSync(lessonDir) ? fs.readdirSync(lessonDir).filter(f => f.endsWith('.js')).sort().map(f => 'lessons/' + f) : [];
 // private.js (gitignored) holds the real job list; it's included only on the machine that has it
 const priv = fs.existsSync(path.join(SRC, 'private.js')) ? ['private.js'] : [];
-const ORDER = ['content.js', ...lessons, 'generators.js', 'scenes.js', 'learning.js', 'journal.js', 'exam.js', 'labs.js', 'practice.js', 'recorder.js', ...priv, 'app.js'];
+const ORDER = ['content.js', ...lessons, 'generators.js', 'scenes.js', 'learning.js', 'journal.js', 'exam.js', 'labs.js', 'pilot.js', 'practice.js', 'recorder.js', ...priv, 'app.js'];
 
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
 const js = ORDER.map(read).join('');

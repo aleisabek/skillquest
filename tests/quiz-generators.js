@@ -18,6 +18,8 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
   else if ((m = Q.match(/same subnet as 10\.1\.\d+\.(\d+)\/(\d+)/))) { const blk = 2 ** (32 - m[2]), b = Math.floor(m[1] / blk); if (Math.floor(A.split('.')[3] / blk) !== b) fail('subnetA', q); O.slice(1).forEach(o => { if (Math.floor(o.split('.')[3] / blk) === b) fail('subnetW', q); }); }
   else if (/private IP address/.test(Q)) { if (!isPriv(A)) fail('privA', q); O.slice(1).forEach(o => { if (isPriv(o)) fail('privW', q); }); }
   else if ((m = Q.match(/chmod (\d{3}) file/))) { const s = m[1].split('').map(d => ((d & 4) ? 'r' : '-') + ((d & 2) ? 'w' : '-') + ((d & 1) ? 'x' : '-')).join(''); if (A !== s) fail('chmod', q); }
+  else if ((m = Q.match(/owner permissions are ([r-][w-][x-]). The files/))) { /* folder bits: r lists, x opens by name, w only with x creates */ const [r, w, x] = [m[1][0] === 'r', m[1][1] === 'w', m[1][2] === 'x'];
+    const ok = !r && !x ? /^Nothing/.test(A) : (/^List the names/.test(A) === r && /(^|, )open a file by its name/.test(A) === x && /(^|, )create or delete files/.test(A) === (w && x)); if (!ok) fail('folder perms', q); }
   else if ((m = Q.match(/matches the permissions ([rwx-]{9})/))) { const d = [0, 3, 6].map(i => m[1].slice(i, i + 3)).map(t => (t[0] === 'r' ? 4 : 0) + (t[1] === 'w' ? 2 : 0) + (t[2] === 'x' ? 1 : 0)).join(''); if (A !== d) fail('perm', q); }
   else if ((m = Q.match(/cron line (\d+) (\d+) \* \* (\S+)/))) { const exp = 'At ' + String(m[2]).padStart(2, '0') + ':' + String(m[1]).padStart(2, '0') + (m[3] === '*' ? ' every day' : ' every ' + DAYS[m[3]]); if (A !== exp) fail('cron', q); }
   else if ((m = Q.match(/print\((\d+) \/\/ (\d+)\)/))) { if (+A !== Math.floor(m[1] / m[2])) fail('floordiv', q); }

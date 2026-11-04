@@ -242,10 +242,8 @@ input.typed.no{border-color:var(--bad)}
 .scene-try code{white-space:nowrap;overflow-wrap:normal}
 .scene .sc-flash{animation:scflash .45s ease}
 @keyframes scflash{from{opacity:.15}to{opacity:1}}
-.scene-capbox{display:grid;margin:10px 0 0}
-.scene-capbox>*{grid-area:1/1;margin:0}
-.scene-sizer{visibility:hidden}
-.scene-sizer,.scene-live{display:flex;flex-direction:column;gap:8px}
+.scene-capbox{margin:10px 0 0}
+.scene-live{display:flex;flex-direction:column;gap:8px}
 .scene-capbox p{margin:0}
 .scene-opts{display:flex;flex-wrap:wrap;gap:8px}
 .scene-choices:empty,.scene-verdict:empty{display:none}
@@ -270,3 +268,11 @@ input.typed.no{border-color:var(--bad)}
 .scene .skip{opacity:.4}
 .scene .strike{text-decoration:line-through}
 .scene-try .try-in button{margin:0}
+/* Permissions pilot (Labs) */
+.pilot-steps li{margin:6px 0}
+.pilot-ev{border-collapse:collapse;width:100%;margin:6px 0 10px;font-size:.92rem}
+.pilot-ev th,.pilot-ev td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.pilot-ev th{color:var(--muted);font-weight:600;white-space:nowrap}
+#pilot textarea{font-family:inherit;font-size:.85rem;background:var(--panel);color:var(--text);border:1px solid var(--line);padding:6px;box-sizing:border-box}
+#pilot code{overflow-wrap:anywhere}
+#pilotScene:empty{display:none}
