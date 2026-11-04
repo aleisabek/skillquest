@@ -229,6 +229,7 @@ function mergeProgress(a, b){
   const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]){ const k = e.cert+e.date+e.pct+e.n+e.secs, o = E.get(k); E.set(k, o ? tieLow(o, e) : e); }
   m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date) || stableStr(x).localeCompare(stableStr(y))).slice(0, 50);
   if(a.typed === false && b.typed === false) m.typed = false; else delete m.typed;
+  mergePilot(m, a, b);
   return recountStreak(migrateQuiz(migrateTerm(m)));
 }
 /* Imported backups are untrusted text: keep only known fields with the right types, so a damaged or tampered file
@@ -269,17 +270,24 @@ function sanitizeBackup(b){
   const certs = CERTS.map(c=>c.id);
   s.exams = (Array.isArray(b.exams) ? b.exams : []).filter(e=>isObj(e) && certs.includes(e.cert) && okDate(e.date))
     .map(e=>({cert:e.cert, date:e.date, n:clampNum(e.n, 0, 1000), pct:clampNum(e.pct, 0, 100), secs:clampNum(e.secs, 0, 1e6), doms:cleanMap(e.doms, v=>clampNum(v, 0, 100))})).slice(0, 50);
+  /* pilot lab reports: each one validated in full; a damaged or newer-version report is refused, never half-kept */
+  const ev = cleanEvidence(b.evidence); s.evidence = ev.list; EV_REJECTED = ev.bad.length;
+  s.evres = cleanResolutions(b.evres);
+  if(isObj(b.pilot) && okDate(b.pilot.worked)) s.pilot = {worked:b.pilot.worked};
   if(b.typed === false) s.typed = false;
   return s;
 }
+let EV_REJECTED = 0;   /* pilot reports refused by the last backup read; shown with the restore/merge message */
+const evNote = ()=>EV_REJECTED ? ' '+EV_REJECTED+' pilot lab report'+(EV_REJECTED === 1 ? ' was' : 's were')+' refused (damaged, or from a newer version) and not imported.' : '';
 /* Journal entries from a backup: fixed questions are re-read from QUIZ (never trusted from the file); generated ones keep only safe markup. */
 function cleanEntry(e){
-  if(!isObj(e) || !['quiz','term','sql'].includes(e.kind)) return null;
+  if(!isObj(e) || !['quiz','term','sql','lab'].includes(e.kind)) return null;
   const x = {id:/^[\w-]{1,40}$/.test(e.id) ? e.id : 'm'+Math.random().toString(36).slice(2, 10), kind:e.kind, key:String(e.key||'').slice(0, 2000),
     at:okDate(e.at) || dayStr(), count:Math.round(clampNum(e.count, 1, 1e4)), hits:(Array.isArray(e.hits) ? e.hits : []).filter(okDate).slice(0, 10),
     done:e.done === true, why:WHY.some(w=>w[0]===e.why) ? e.why : null, your:typeof e.your === 'string' ? e.your.slice(0, 2000) : '', sid:typeof e.sid === 'string' ? e.sid.slice(0, 200) : null};
   if(okDate(e.doneAt)) x.doneAt = e.doneAt;
   if(okDate(e.tried)) x.tried = e.tried;
+  if(e.kind === 'lab') x.wait = Math.round(clampNum(e.wait, 0, 30));
   if(e.kind !== 'quiz'){ x.task = String(e.task||'').slice(0, 2000); x.model = String(e.model||'').slice(0, 2000); return x; }
   if(Number.isInteger(e.qi) && QUIZ[e.qi]){ x.qi = e.qi; x.d = QUIZ[e.qi].slice(0, 6); }
   else {
@@ -592,6 +600,7 @@ function vToday(){
     (!saveBlocked && saveFailed ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Progress is not being saved.</b> This browser is refusing to store data (storage full, blocked, or private mode). Download a backup before closing.<div class="row" style="margin-top:10px"><button class="primary" id="fixBackup">Download backup</button></div></div>' : '')+
     (!saveBlocked && !hasProgress() ? '<div class="slim">👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup so your progress follows you. <button id="fixMerge">Merge a backup</button></div>' : '')+
     (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
+    (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start perm-recheck</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
     '<h1>Today\'s loop</h1><p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
     '<div class="card today"><div class="row" style="justify-content:space-between"><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
@@ -616,6 +625,7 @@ function vToday(){
   on('#fixRestore', ()=>go('progress'));
   on('#fixMerge', ()=>go('progress'));
   on('#fixBackup', ()=>{ downloadBackup(); });
+  on('#pilotDue', ()=>{ go('labs'); const p = $('#pilot'); if(p) p.scrollIntoView(); });
   on('#fixFresh', ()=>askConfirm('Start fresh? The unreadable copy stays in browser storage, but SkillQuest will begin saving new progress now.', 'Start fresh', ()=>{ saveBlocked = false; save(); vToday(); }));
 }
 /* Last 14 days: full, partly done, or nothing; today is outlined until it's full. */
@@ -1288,7 +1298,7 @@ function vProgress(){
   $('#cpb').onclick = copyBackupText;
   $('#pasteMerge').onclick = ()=>{
     const raw = $('#pasteBk').value.trim(), r = importBackup(raw, 'merge');
-    if(r !== 'bad') replaceDone(r, 'Backup merged in.', ()=>importBackup(raw, 'merge', true));
+    if(r !== 'bad') replaceDone(r, 'Backup merged in.'+evNote(), ()=>importBackup(raw, 'merge', true));
     else toast('That text isn\'t a complete SkillQuest backup. Copy it again on the other device and paste all of it.');
   };
   let importMode = 'merge';
@@ -1297,7 +1307,7 @@ function vProgress(){
   $('#imp').onchange = e=>{ const f = e.target.files[0]; if(!f) return; const rd = new FileReader();
     rd.onload = ()=>{
       const mode = importMode, r = importBackup(rd.result, mode);
-      if(r !== 'bad') replaceDone(r, mode === 'merge' ? 'Backup merged in.' : 'Backup restored.', ()=>importBackup(rd.result, mode, true));
+      if(r !== 'bad') replaceDone(r, (mode === 'merge' ? 'Backup merged in.' : 'Backup restored.')+evNote(), ()=>importBackup(rd.result, mode, true));
       else toast('That file is not a SkillQuest backup');
       e.target.value = ''; };
     rd.readAsText(f); };

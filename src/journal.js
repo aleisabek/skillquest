@@ -38,7 +38,7 @@ function journalResult(id, ok){
   save();
   return first;
 }
-const isOpen = e=>!e.done && (e.kind==='quiz' ? true : !(e.sid && skillScore(e.sid) >= 70));
+const isOpen = e=>!e.done && (e.kind==='quiz' || e.kind==='lab' ? true : !(e.sid && skillScore(e.sid) >= 70));
 /* due = a quiz mistake from an earlier day that you haven't retried today (a missed retry comes back tomorrow, like a card) */
 const isDue = e=>e.kind==='quiz' && !e.done && (e.at||'') < dayStr() && e.tried !== dayStr() && e.hits[e.hits.length-1] !== dayStr();
 const WHY = [['know',"Didn't know it"],['misread','Misread the question'],['mixed','Mixed up two things'],['careless','Careless slip']];
@@ -59,11 +59,14 @@ function retryMistakes(){
 
 function vJournal(){
   current = 'review'; header();
+  syncPilotJournal();
   const J = journal(), open = J.filter(isOpen), due = J.filter(isDue), cleared = J.filter(e=>e.done).length;
   const whyCount = WHY.map(([k,l])=>[l, open.filter(e=>e.why===k).length]);
   const groups = {};
-  open.forEach(e=>{ const s = e.sid && skillById(e.sid); const g = s ? s.icon+' '+s.sk : (e.kind==='quiz' ? track(e.d[0]).icon+' '+track(e.d[0]).name+' (fixed questions)' : (e.kind==='term'?'⌨️ Terminal':'🗄️ SQL')); (groups[g] = groups[g] || []).push(e); });
+  open.forEach(e=>{ const s = e.sid && skillById(e.sid); const g = s ? s.icon+' '+s.sk : (e.kind==='quiz' ? track(e.d[0]).icon+' '+track(e.d[0]).name+' (fixed questions)' : (e.kind==='term'?'⌨️ Terminal':e.kind==='lab'?'🧪 Labs':'🗄️ SQL')); (groups[g] = groups[g] || []).push(e); });
   const entry = e=>{
+    if(e.kind === 'lab') return '<details class="card" style="margin:8px 0"><summary>'+esc(e.task)+'</summary><p>'+esc(e.model)+'</p>'+
+      '<p class="small">'+(e.wait ? (labDue(e) ? 'Due now.' : 'Due on '+esc(addDays(e.at, e.wait))+'.')+' Clears when you import a report from a check started at least '+e.wait+' days after your step 3 pass.' : 'Clears when a later attempt at this fault type passes on its own.')+'</p></details>';
     if(e.kind !== 'quiz') return '<details class="card" style="margin:8px 0"><summary>'+esc(e.task)+'</summary><p class="small">Your last try: <code>'+esc(e.your||'(skipped)')+'</code></p><p>Model answer: <code>'+esc(e.model)+'</code></p>'+
       '<p class="small">Clears when this skill\'s practice score reaches 70%.</p>'+(e.sid?'<button data-pr="'+esc(e.sid)+'">Practice this skill</button>':'')+'</details>';
     const right = e.d[3][e.d[4]];

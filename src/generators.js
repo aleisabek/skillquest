@@ -75,6 +75,11 @@ const GEN = {
       ? mcq('linux',1,'What usually lives in <code>'+d+'</code>?', m, P.map(x=>x[1]), d+': '+m+'.')
       : mcq('linux',1,'Where would you look for: '+m.toLowerCase()+'?', '<code>'+d+'</code>', P.map(x=>'<code>'+x[0]+'</code>'), d+': '+m+'.'); }, {lookup:true})
  ],2:[
+  sk('Permissions', ()=>{ const b = pick(['r--','--x','r-x','-wx','rwx','rw-','-w-']), r = b[0]==='r', x = b[2]==='x', w = b[1]==='w' && x;
+      const can = (r,x,w)=>!r && !x ? 'Nothing: not list, open or create' : [r ? 'List the names' : 'Not list the names', x ? 'open a file by its name' : 'not open any file', w ? 'create or delete files' : 'not create or delete'].join(', ');
+      const all = []; for(const R of [0,1]) for(const X of [0,1]) for(const W of [0,1]) if(!W || X) all.push(can(R,X,W));
+      return mcq('linux',2,'You own the folder <code>reports</code>; its owner permissions are <code>'+b+'</code>. The files inside are readable by you. What can you do in it?', can(r,x,w), all,
+        'On a folder, r lists the names, x lets you pass through to an entry by name, and w (only together with x) creates or deletes entries. '+b+': '+can(r,x,w).toLowerCase()+'.'); }),
   sk('Scheduling (cron)', ()=>{ const m = rnd(0,59), h = rnd(0,23), dw = Math.random()<.5 ? '*' : rnd(0,6);
       const when = (x,y)=>'At '+pad2(x)+':'+pad2(y)+(dw==='*'?' every day':' every '+DAYS[dw]);
       const line = m+' '+h+' * * '+dw;

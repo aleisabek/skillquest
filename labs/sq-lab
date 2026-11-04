@@ -6,21 +6,27 @@
 #   sq-lab start NAME      break things on purpose and show your mission
 #   sq-lab mission NAME    show the mission again
 #   sq-lab hint NAME       show the next hint (each call reveals one more)
-#   sq-lab check NAME      check your fix; prints a completion code for the SkillQuest app
+#   sq-lab check NAME      check your fix (older labs: prints a completion code for the SkillQuest app)
 #   sq-lab reset NAME|all  remove the lab's files and stop anything it started
+# Pilot labs (the permissions pilot) record an attempt instead of a completion code:
+#   sq-lab check NAME      shows the checks; checking awards nothing, as often as you like
+#   sq-lab finish NAME     final check, asks what you found, and finishes the attempt (once)
+#   sq-lab report NAME     prints the report line to paste into the app:  sq-lab report NAME | clip.exe
 
 set -u
 LABS_HOME="${SQ_LABS_HOME:-$HOME/.skillquest-labs}"
 LAB_ROOT="$HOME/sq-labs"
 STATUS="$LAB_ROOT/.status"
+EV="$LAB_ROOT/.evidence"     # pilot attempt records; reset never removes them
 G=$'\e[32m'; R=$'\e[31m'; Y=$'\e[33m'; C=$'\e[36m'; B=$'\e[1m'; N=$'\e[0m'
 
-mkdir -p "$LAB_ROOT"; touch "$STATUS"
+mkdir -p "$LAB_ROOT" "$EV"; touch "$STATUS"
 
 lab_names() { for d in "$LABS_HOME"/labs/*/; do basename "$d"; done; }
 status_of() { grep -E "^$1 " "$STATUS" 2>/dev/null | tail -1 | cut -d' ' -f2; }
 set_status() { grep -vE "^$1 " "$STATUS" > "$STATUS.tmp" 2>/dev/null; echo "$1 $2" >> "$STATUS.tmp"; mv "$STATUS.tmp" "$STATUS"; }
 code_for() { printf 'skillquest-lab:%s' "$1" | sha256sum | cut -c1-6 | tr a-f A-F; }
+ev() { python3 "$LABS_HOME/sq-evidence.py" "$@"; }
 
 load_lab() {
   local name="${1:-}"
@@ -28,12 +34,44 @@ load_lab() {
   if ! [[ "$name" =~ ^[a-z0-9-]+$ ]] || [ ! -f "$LABS_HOME/labs/$name/lab.sh" ]; then
     echo "${R}Unknown lab:${N} ${name:-(none)}. Run ${B}sq-lab${N} to see the list."; exit 1
   fi
-  LAB="$name"; DIR="$LAB_ROOT/$name"
+  LAB="$name"; DIR="$LAB_ROOT/$name"; PILOT=""; HINTS=()
   # shellcheck source=/dev/null
   source "$LABS_HOME/labs/$name/lab.sh"
+  if [ -n "$PILOT" ]; then ATTEMPT=$(ev current "$LAB_ROOT" "$LAB"); seed; fi
 }
+seed() { SEED=$(printf '%s' "${ATTEMPT:-none}" | sha256sum | cut -c1-64); }
+# A lab folder may hold folders without x (the pilot breaks them on purpose); rm can't empty those, so give them back first.
+wipe() { [ -d "$DIR" ] && chmod -R u+rwx "$DIR" 2>/dev/null; rm -rf "$DIR"; }
 ok()   { echo "  ${G}✔${N} $*"; OKS=$((${OKS:-0}+1)); }
 bad()  { echo "  ${R}✘${N} $*"; FAILED=1; }
+# chk NAME EXPECTED OBSERVED [TIP]: one structured check; pilot labs also write it to the attempt's results
+chk() {
+  local name=$1 exp=$2 obs=${3//$'\t'/ } tip=${4:-} r=fail
+  obs=${obs//$'\n'/ }; obs=${obs:0:200}
+  if [ "$exp" = "$obs" ]; then ok "$name"; r=pass; else bad "$name: expected $exp, found $obs${tip:+. Tip: $tip}"; fi
+  [ -n "${RESULTS:-}" ] && printf '%s\t%s\t%s\t%s\n' "$name" "$exp" "$obs" "$r" >> "$RESULTS"
+}
+# Permission bits mean nothing to root, and Windows drives (/mnt/c) may ignore them: then the pilot would teach the wrong thing.
+# SQ_FORCE_NOPERM (tests) can only force this refusal, never skip it.
+selftest() {
+  local t="$LAB_ROOT/.selftest"; rm -f "$t"; echo probe > "$t"; chmod 000 "$t"
+  if [ -n "${SQ_FORCE_NOPERM:-}" ] || cat "$t" >/dev/null 2>&1; then
+    chmod 600 "$t"; rm -f "$t"
+    echo "${R}Permissions aren't enforced here${N}: you are root, or ~/sq-labs is on a Windows drive."
+    echo "Run sq-lab as your normal user, in WSL's own Linux filesystem (your home folder)."; exit 1
+  fi
+  chmod 600 "$t"; rm -f "$t"
+}
+run_checks() { FAILED=0; OKS=0; RESULTS="$EV/$ATTEMPT.checks"; : > "$RESULTS"; echo "${B}Checking ${TITLE}${N}"; lab_check
+  # fail closed: a checker that crashed or printed nothing is never a pass
+  [ "$OKS" -gt 0 ] || bad "the checker couldn't confirm anything (see any error above)"; }
+need_attempt() { if [ -z "${ATTEMPT:-}" ] || [ ! -d "$DIR" ]; then echo "No attempt in progress. Start one: ${B}sq-lab start $LAB${N}"; exit 1; fi; }
+ask() { # ask VAR "question" option... : numbered choice read from the terminal; Ctrl-C leaves the attempt unfinished
+  local var=$1 q=$2 i a; shift 2
+  echo; echo "${B}$q${N}"; i=1; for a in "$@"; do echo "  $i) $a"; i=$((i+1)); done
+  while :; do read -r -p "Number: " a < /dev/tty || exit 1; [[ "$a" =~ ^[0-9]+$ ]] && [ "$a" -ge 1 ] && [ "$a" -le $# ] && break; done
+  printf -v "$var" '%s' "$a"
+}
 
 cmd="${1:-list}"; shift || true
 case "$cmd" in
@@ -41,28 +79,40 @@ case "$cmd" in
     echo "${B}SkillQuest labs${N}  (files live in ~/sq-labs)"
     for n in $(lab_names); do
       ( source "$LABS_HOME/labs/$n/lab.sh"
-        s=$(status_of "$n"); case "$s" in passed) tag="${G}passed${N}";; started) tag="${Y}started${N}";; *) tag="new";; esac
+        s=$(status_of "$n"); case "$s" in passed) tag="${G}passed${N}";; finished) tag="${G}finished${N}";; started) tag="${Y}started${N}";; *) tag="new";; esac
         printf "  %-16s %-9s %s  ${C}[%s]${N}\n" "$n" "$tag" "$TITLE" "$LEVEL" )
     done
     echo; echo "Start one with: ${B}sq-lab start NAME${N}";;
   start)
     load_lab "${1:-}"
-    lab_cleanup 2>/dev/null; rm -rf "$DIR"; mkdir -p "$DIR"; rm -f "$DIR/.hint"
+    [ -n "$PILOT" ] && selftest
+    lab_cleanup 2>/dev/null; wipe; mkdir -p "$DIR"; rm -f "$DIR/.hint"
+    if [ -n "$PILOT" ]; then ATTEMPT=$(ev new "$LAB_ROOT" "$LAB" "$CONTENT_VERSION" "$FAMILY" "$FAULT") || exit 1; seed; fi
     lab_setup
     set_status "$LAB" started
     echo "${B}${TITLE}${N}  ${C}[${LEVEL}]${N}"; echo; lab_mission; echo
     echo "Work in: ${B}cd $DIR${N}"
-    echo "Stuck? ${B}sq-lab hint $LAB${N}    Done? ${B}sq-lab check $LAB${N}";;
+    [ -n "$PILOT" ] || echo "Stuck? ${B}sq-lab hint $LAB${N}    Done? ${B}sq-lab check $LAB${N}";;
   mission)
     load_lab "${1:-}"; echo "${B}${TITLE}${N}"; echo; lab_mission; echo; echo "Work in: ${B}cd $DIR${N}";;
   hint)
     load_lab "${1:-}"
-    n=$(cat "$DIR/.hint" 2>/dev/null || echo 0); total=${#HINTS[@]}
+    total=${#HINTS[@]}
+    if [ "$total" = 0 ]; then echo "This lab has no hints: it records what you can work out on your own."; exit 0; fi
+    [ -n "$PILOT" ] && need_attempt
+    n=$(cat "$DIR/.hint" 2>/dev/null || echo 0)
     if [ "$n" -ge "$total" ]; then echo "No more hints. The last one was:"; n=$((total-1)); fi
     echo "${Y}Hint $((n+1))/$total:${N} ${HINTS[$n]}"
+    [ -n "$PILOT" ] && ev hint "$LAB_ROOT" "$LAB" $((n+1))
     echo $((n+1)) > "$DIR/.hint" 2>/dev/null;;
   check)
     load_lab "${1:-}"
+    if [ -n "$PILOT" ]; then
+      need_attempt; run_checks
+      if [ "$FAILED" = 0 ]; then echo; echo "${G}All checks pass.${N} Checking awards nothing; when you're done: ${B}sq-lab finish $LAB${N}"
+      else echo; [ ${#HINTS[@]} -gt 0 ] && echo "Not fixed yet. Keep going, or: ${B}sq-lab hint $LAB${N}" || echo "Not fixed yet. Keep going."; fi
+      exit 0
+    fi
     if [ ! -d "$DIR" ]; then echo "This lab isn't started. Run: ${B}sq-lab start $LAB${N}"; exit 1; fi
     FAILED=0; OKS=0; echo "${B}Checking ${TITLE}${N}"; lab_check
     # fail closed: a checker that crashed or printed nothing is never a pass
@@ -74,10 +124,37 @@ case "$cmd" in
     else
       echo; echo "Not fixed yet. Try again, or: ${B}sq-lab hint $LAB${N}"; exit 1
     fi;;
+  finish)
+    load_lab "${1:-}"; shift || true
+    if [ -z "$PILOT" ]; then echo "Only pilot labs are finished this way. Use: ${B}sq-lab check $LAB${N}"; exit 1; fi
+    need_attempt
+    Q1=""; Q2=""; NOTE=""
+    while [ $# -gt 0 ]; do case "$1" in --q1) Q1=${2:-}; shift 2;; --q2) Q2=${2:-}; shift 2;; --note) NOTE=${2:-}; shift 2;; *) shift;; esac; done
+    run_checks
+    [ -n "$Q1" ] || ask Q1 "What blocked access?" "${Q1_TEXT[@]}"
+    [ -n "$Q2" ] || ask Q2 "Which other cause did you rule out, and what showed it?" "${Q2_TEXT[@]}"
+    if [ -z "$NOTE" ] && [ -t 0 ]; then echo; read -r -p "Anything to add? One line, optional (Enter to skip): " NOTE < /dev/tty || NOTE=""; fi
+    mapfile -t RES < <(ev finish "$LAB_ROOT" "$LAB" "$Q1" "$Q2" "$NOTE")
+    case "${RES[0]:-}" in
+      independent-pass) echo; echo "${G}${B}Passed on your own.${N}";;
+      hinted-pass)      echo; echo "${G}${B}Passed with hints.${N} That counts as guided practice.";;
+      fail)             echo; echo "${Y}${B}Not a pass this time.${N} That's useful to know: it goes to your mistake journal when you import the report.";;
+      *)                echo "${R}Couldn't finish the attempt.${N}"; exit 1;;
+    esac
+    for l in "${RES[@]:1}"; do echo "  $l"; done
+    echo; lab_explain
+    set_status "$LAB" finished
+    echo; echo "Next, copy the report into the app (Labs → Permissions pilot → Import). Do it before starting this lab again: a new start replaces it."
+    if command -v clip.exe >/dev/null 2>&1; then echo "  ${B}sq-lab report $LAB | clip.exe${N}   then paste it in the app"
+    else echo "  ${B}sq-lab report $LAB${N}   then copy the line it prints"; fi;;
+  report)
+    load_lab "${1:-}"
+    [ -n "$PILOT" ] || { echo "Only pilot labs make reports." >&2; exit 1; }
+    ev report "$LAB_ROOT" "$LAB";;
   reset)
-    if [ "${1:-}" = all ]; then for n in $(lab_names); do ( load_lab "$n"; lab_cleanup 2>/dev/null; rm -rf "$DIR" ); done; : > "$STATUS"; echo "All labs reset."
-    else load_lab "${1:-}"; lab_cleanup 2>/dev/null; rm -rf "$DIR"; set_status "$LAB" new; echo "Reset $LAB."; fi;;
+    if [ "${1:-}" = all ]; then for n in $(lab_names); do ( load_lab "$n"; [ -n "$PILOT" ] && ev abandon "$LAB_ROOT" "$LAB"; lab_cleanup 2>/dev/null; wipe ); done; : > "$STATUS"; echo "All labs reset. (Pilot reports in ~/sq-labs/.evidence are kept.)"
+    else load_lab "${1:-}"; [ -n "$PILOT" ] && ev abandon "$LAB_ROOT" "$LAB"; lab_cleanup 2>/dev/null; wipe; set_status "$LAB" new; echo "Reset $LAB."; fi;;
   code)  # used by the test suite
     code_for "${1:-}";;
-  *) echo "Usage: sq-lab [list|start|mission|hint|check|reset] NAME";;
+  *) echo "Usage: sq-lab [list|start|mission|hint|check|finish|report|reset] NAME";;
 esac

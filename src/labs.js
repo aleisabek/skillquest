@@ -47,17 +47,19 @@ function completeLab(lab){
   vLabs();
 }
 function vLabs(){
-  current = 'labs'; header();
+  current = 'labs'; header(); syncPilotJournal();
   const done = Object.keys(S.labs||{}).length;
   view.innerHTML = '<h1>🧪 Break-and-fix labs</h1><p class="sub">Real problems on a real Linux system (your WSL Ubuntu). Each lab breaks something on purpose inside a sandbox folder, ~/sq-labs. You fix it with real commands, and the lab checks your work. No sudo, and nothing outside that folder is touched.</p>'+
+    pilotHTML()+
     '<div class="card"><h3 style="margin-top:0">One-time setup</h3><p>Open <b>PowerShell</b> or <b>Windows Terminal</b> and run:</p><div class="model"><code id="inst">'+esc(LAB_INSTALL)+'</code> <button id="copyInst">Copy</button></div>'+
     '<p>Then open <b>Ubuntu</b> and type <code>sq-lab</code> to see the labs. Every lab works the same way:</p>'+
-    '<ul class="clean"><li><code>sq-lab start NAME</code>: break it and read the mission</li><li><code>sq-lab hint NAME</code>: one more hint each time you ask</li><li><code>sq-lab check NAME</code>: checks your fix and prints a completion code</li><li><code>sq-lab reset NAME</code>: start over</li></ul>'+
+    '<ul class="clean"><li><code>sq-lab start NAME</code>: break it and read the mission</li><li><code>sq-lab hint NAME</code>: one more hint each time you ask</li><li><code>sq-lab check NAME</code>: checks your fix and prints a completion code (pilot labs: <code>sq-lab finish NAME</code>, then <code>sq-lab report NAME</code>)</li><li><code>sq-lab reset NAME</code>: start over</li></ul>'+
     '<p class="small">Tip: say what you\'re doing out loud as you fix it. That\'s exactly how you\'ll answer "tell me about a time you troubleshot a Linux problem."</p></div>'+
     '<h2>Labs ('+done+' of '+LABS.length+' passed)</h2><div class="grid">'+LABS.map(l=>{ const d = (S.labs||{})[l.id];
       return '<div class="card mission '+(d?'done':'')+'"><div class="tag">'+l.level+' · '+l.skills.map(id=>(skillById(id)||{sk:id}).sk).filter((v,i,a)=>a.indexOf(v)===i).join(', ')+'</div><h3>'+esc(l.title)+'</h3><p>'+esc(l.summary)+'</p>'+
         '<p class="small">In Ubuntu: <code>sq-lab start '+l.id+'</code></p>'+
         (d ? '<p class="small">✔ Passed on '+d+'</p>' : '<div class="row"><input class="typed" style="min-width:120px;font-size:.9rem;padding:6px 10px" data-code="'+l.id+'" placeholder="Completion code" maxlength="6" autocomplete="off"><button data-unlock="'+l.id+'">Unlock</button></div>')+'</div>'; }).join('')+'</div>';
+  wirePilot();
   $('#copyInst').onclick = ()=>{ try{ navigator.clipboard.writeText(LAB_INSTALL); toast('Copied'); }catch(e){ toast('Select the command and copy it'); } };
   const tryUnlock = id=>{ const l = LABS.find(x=>x.id===id), inp = view.querySelector('[data-code="'+id+'"]');
     if(inp.value.trim().toUpperCase() === l.code) completeLab(l); else { inp.classList.add('no'); toast('That code doesn\'t match. Run: sq-lab check '+id); } };
