@@ -65,7 +65,7 @@ function vJournal(){
   open.forEach(e=>{ const s = e.sid && skillById(e.sid); const g = s ? s.icon+' '+s.sk : (e.kind==='quiz' ? track(e.d[0]).icon+' '+track(e.d[0]).name+' (fixed questions)' : (e.kind==='term'?'⌨️ Terminal':'🗄️ SQL')); (groups[g] = groups[g] || []).push(e); });
   const entry = e=>{
     if(e.kind !== 'quiz') return '<details class="card" style="margin:8px 0"><summary>'+esc(e.task)+'</summary><p class="small">Your last try: <code>'+esc(e.your||'(skipped)')+'</code></p><p>Model answer: <code>'+esc(e.model)+'</code></p>'+
-      '<p class="small">Clears when this skill reaches 70% mastery.</p>'+(e.sid?'<button data-pr="'+esc(e.sid)+'">Practice this skill</button>':'')+'</details>';
+      '<p class="small">Clears when this skill\'s practice score reaches 70%.</p>'+(e.sid?'<button data-pr="'+esc(e.sid)+'">Practice this skill</button>':'')+'</details>';
     const right = e.d[3][e.d[4]];
     return '<details class="card" style="margin:8px 0"><summary>'+e.d[2].replace(/<table[\s\S]*?<\/table>/g,' [table] ')+(e.count>1?' <span class="lv" style="color:var(--bad);border-color:var(--bad)">missed ×'+e.count+'</span>':'')+'</summary>'+
       '<p>❌ You: <b>'+(e.your ? esc(e.your) : '(no answer)')+'</b><br>✅ Right: <b>'+right+'</b></p><div class="explain">'+e.d[5]+'</div>'+

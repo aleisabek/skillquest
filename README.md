@@ -89,7 +89,7 @@ What counts as one review: a due flashcard rated (Again or Got it; new, early an
 
 ## Navigation
 
-Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) · Hands-on (Terminal, SQL, Labs) · Job prep (Interview, Tickets, Exams, Job readiness) · Review (Review, Progress) · Guide (How to use, Free resources). Screen keys are unchanged, so `go('sql')` etc. still work; a top tab returns to the sub-tab you last used.
+Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) · Hands-on (Terminal, SQL, Labs) · Job prep (Interview, Tickets, Exams, Job practice) · Review (Review, Progress) · Guide (How to use, Free resources). Screen keys are unchanged, so `go('sql')` etc. still work; a top tab returns to the sub-tab you last used.
 
 ## Progress safety
 
@@ -102,7 +102,8 @@ Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) �
 - Flashcards not yet due are practice only (no box change, no XP); missed cards are asked once more at the end of the session.
 - Merging keeps a quiz miss from either device, and for each card the most recently reviewed record.
 - Streak and best streak are recounted from the full-mission days (on load and after every merge), so days done on different devices add up. A recount only ever raises them.
-- Job readiness counts only measures that fade (track mastery); tickets, console tasks and interview reps are shown as practice done.
+- Job practice counts only measures that fade (track practice scores); tickets, console tasks and interview reps are shown as practice done.
+- Honest labels: a skill's number is a "practice score" (it reflects answers here, including questions seen before), not mastery or readiness. A practice set counts as done with one right answer, and Today says that's practice done, not mastery. Exams are "partial practice": each says which share of the real exam's weight it has questions for, lists unmeasured domains (no questions, never shown as 0%) and thin ones (a few repeating questions), and gives no readiness or booking advice (`feature-trust` checks the wording).
 
 ## What the tests check
 
@@ -130,8 +131,10 @@ Note on new skills: adding Level 1 skills to a path track lowers that track's Le
 - Never autoplays: it opens paused on step 1 with Back, Play and Next buttons (Play moves on at once, and reads Replay on the last step); ← / → / Space work only while focus is inside the scene, and focus moves to the other button when one is disabled. The caption is an `aria-live` region in a fixed-height box (the buttons never jump); the SVG has its own short description. Elements can be grouped (`parentId`) and a step can set its own time (`ms`).
 - Only one scene is live; `go()` and a new lesson destroy it, and its animation loop (`sceneTick`) stops itself once the scene leaves the page or the tab is hidden.
 - Colours come only from theme classes; meaning is also carried by shape and label (solid network bits, dashed host bits). Reduced motion turns transitions off but keeps stepping.
-- Numbers are computed, never drawn by hand: the Subnetting scene uses `subnetMath()` on the lesson's own worked example, and a test checks the lesson text says the same values.
-- `feature-scenes` checks every scene's data: a real lesson, 3 to 10 steps, captions, known elements, deterministic and changing steps, no hard-coded colours or outside assets, under 60 KB in total. `feature-scenes-browser` opens each scene in headless Chrome or Edge in all three themes and checks the controls, keys, no autoplay, reduced motion, that labels stay at 12px or more on a 360px screen, real key presses only act inside the scene, and that leaving mid-animation stops it with no errors. It skips when no browser is installed, but must run in CI.
+- Numbers are computed, never drawn by hand: each scene runs its lesson's own worked example through a small model (`subnetMath`, `permMath`, `fwEval`, `sshdRead`, `iamEval`), and `feature-scenes` checks those models independently and checks the lesson text says the same thing (the firewall table, the sshd files, the IAM statements, the leaked commit and the response order).
+- Six scenes: Subnetting, Permissions (chmod 640 vs 777), Firewalls (first match wins), SSH hardening (the first value wins), IAM (an explicit Deny wins) and a leaked key in git history. Each has a Try it panel.
+- Predictions: a step can ask before the next one shows the answer (`ask:{options:[[label, right?], ...]}`). Pick a choice or just press Next; Play stops at a question. Choices are never saved or scored: watching stays active without turning into a test. The five newer scenes ask twice each.
+- `feature-scenes` checks every scene's data: a real lesson, 3 to 12 steps, captions, known elements, deterministic and changing steps, no hard-coded colours or outside assets, about 15 KB a scene on average, Try it included (the first budget, 60 KB, was set when there was one scene). `feature-scenes-browser` opens each scene in headless Chrome or Edge in all three themes and checks the controls, keys, no autoplay, reduced motion, that labels stay at 12px or more on a 360px screen, real key presses only act inside the scene, and that leaving mid-animation stops it with no errors. It skips when no browser is installed, but must run in CI.
 
 ## Cloud Security (path stage)
 

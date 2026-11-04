@@ -531,7 +531,7 @@ function checkFullDay(){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['practice','Free resources'],['ready','Job readiness'],['progress','Progress'],['guide','How to use']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['practice','Free resources'],['ready','Job practice'],['progress','Progress'],['guide','How to use']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
@@ -595,7 +595,7 @@ function vToday(){
     '<h1>Today\'s loop</h1><p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
     '<div class="card today"><div class="row" style="justify-content:space-between"><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
-      step(2, 'Practice', st.practiced, PRACTICE_N+' exercises per lesson, typed, first try counts', '<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
+      step(2, 'Practice', st.practiced, PRACTICE_N+' exercises per lesson, typed, first try counts. A set counts as done with one right answer: that is practice done, not mastery', '<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
       step(3, 'Apply', st.applied, 'one rep in today\'s main area', '<div class="chips"><button class="chip'+(st.applied?' on':'')+'" data-apply="1">'+repTitle+(st.applied?' ✓':'')+'</button></div>')+
       step(4, 'Reviews', st.reviewed, st.reviewed ? 'handled for today' : dueN+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done (clear them, or do '+REVIEW_CAP+')', st.reviewed ? '' : '<div class="chips"><button class="chip" data-go="review">Open Review</button></div>')+
       '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<span class="small">All four steps done. Extra practice is in Study and Hands-on.</span>')+'</div></div>'+
@@ -1140,7 +1140,7 @@ function sqlStep(s){
   $('#skip').onclick = ()=>{ if(sid) recordSkill(sid, false); addNote('sql', t[1], t[3], ta.value.trim(), sid); next(); };
 }
 
-/* ---------- Job readiness ---------- */
+/* ---------- Job practice ---------- */
 function ivPct(cat){ const qs = IV.map((q,i)=>i).filter(i=>IV[i].c===cat); return Math.round(qs.filter(i=>(S.iv['i'+i]||0)>=2).length / qs.length * 100); }
 function termPct(){ return Math.round(TERM.filter(t=>S.term[t[2]]).length / TERM.length * 100); }
 function tkPct(id){ return (S.tickets||{})[id] || 0; }
@@ -1176,7 +1176,7 @@ const JOBS = (typeof privateJobs === 'function' ? privateJobs(R) : EXAMPLE_JOBS)
 function jobScore(j){ const f = j.items.filter(it=>it[3]); return f.length ? Math.round(f.reduce((a,it)=>a+it[1](),0) / f.length) : 0; }
 function readyLabel(p){ return p>=90?'Strong':p>=70?'Interview-ready':p>=40?'Getting there':'Building'; }
 function vReady(){
-  view.innerHTML = '<h1>🎯 Job readiness</h1><p class="sub">How much of the core knowledge for each job you have <b>retained right now</b> (track mastery, which drops when reviews go overdue). Tickets, terminal, SQL and interview reps are listed as practice done: useful, but a best-ever score never shows what you still remember. It measures your practice, not a hiring decision.</p>'+
+  view.innerHTML = '<h1>🎯 Job practice</h1><p class="sub">How much of the core knowledge for each job you have <b>retained right now</b> (track practice scores, which drop when reviews go overdue). Tickets, terminal, SQL and interview reps are listed as practice done: useful, but a best-ever score never shows what you still remember. It measures your practice, not a hiring decision.</p>'+
     JOBS.map((j,ji)=>{
       const p = jobScore(j);
       const locked = it=>it[4] && !trackOpen(it[4]);
@@ -1274,7 +1274,7 @@ function vProgress(){
     '<div class="card"><h3 style="margin-top:0">Your numbers</h3><p>⭐ '+S.xp+' XP<br>🔥 Best streak: '+(S.best||0)+' days<br>📅 Full days (missions + reviews): '+days+'<br>🃏 Cards retained (proven, reviews on time): '+learned+' of '+CARDS.length+'<br>✅ Quiz questions retained (latest answer right, within 30 days): '+quizKept+' of '+QUIZ.length+'<br>🐧 Terminal commands solved: '+Object.keys(S.term).length+' of '+TERM.length+'<br>🎤 Interview questions practiced: '+Object.keys(S.iv).length+' of '+IV.length+'<br>🎫 Ticket scenarios played: '+Object.keys(S.tickets||{}).length+' of '+SCEN.length+'<br>🗄️ SQL challenges solved: '+Object.keys(S.sql||{}).length+' of '+SQLT.length+
     '<br>∞ Generated problems: '+Object.values(S.gen||{}).reduce((a,g)=>a+g.right,0)+' right of '+Object.values(S.gen||{}).reduce((a,g)=>a+g.total,0)+'</p></div>'+
     '<div class="card ladder"><h3 style="margin-top:0">Rank ladder</h3>'+RANKS.map(x=>'<div class="'+(x[1]===r[1]?'me':'')+'"><span>'+x[1]+'</span><span>'+x[0]+' XP</span></div>').join('')+'</div></div>'+
-    '<h2>Track mastery</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div>'+statsLine([1,2].map(n=>levelStats(t.id,n)).reduce((a,b)=>{ for(const k in a) a[k]+=b[k]; return a; }))+'</div>';}).join('')+'</div>'+
+    '<h2>Track practice scores</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div>'+statsLine([1,2].map(n=>levelStats(t.id,n)).reduce((a,b)=>{ for(const k in a) a[k]+=b[k]; return a; }))+'</div>';}).join('')+'</div>'+
     '<h2>Backup</h2><div class="card"><p class="small">Progress is saved in this browser only. Clearing browser data or switching browsers loses it, so download a backup once a week. Last backup: <b>'+esc(S.lastBackup || 'never')+'</b>.</p>'+
     '<div class="row"><button class="primary" id="exp"'+(PHONE?' hidden':'')+'>Download backup file</button><button id="mrgb" title="Combine a backup file with the progress here. Nothing is lost.">Merge a backup file in</button><button id="impb" title="Throw away the progress here and use the backup instead">Replace with a backup file</button><input type="file" id="imp" accept=".json,application/json,text/plain" hidden><button id="reset">Reset everything</button>'+
     (prevSnapshot() ? '<button id="undo" title="Go back to how progress was before the last merge, restore or reset">↺ Undo last '+esc(prevSnapshot().what)+' ('+esc(prevSnapshot().at)+')</button>' : '')+'</div>'+
@@ -1320,11 +1320,11 @@ function importBackup(raw, mode, force){
 function vGuide(){
   view.innerHTML = '<h1>How to use SkillQuest</h1><div class="card"><ol>'+
     '<li><b>Every day (20 to 30 minutes):</b> open Today and follow <b>Next up</b>: 3 two-minute lessons, 4 exercises from each, one ticket or interview rep, then your due reviews (clear them, or do 20). That full loop keeps your 🔥 streak. Lessons are picked for your path (cloud security + red team, foundations first) plus one slipping skill, and come back when a skill drops.</li>'+
-    '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward mastery.</li>'+
+    '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward the practice score.</li>'+
     '<li><b>Mistake journal (Review tab):</b> every miss is saved with the right answer. Tag why you missed it, and retry what is due each day. A mistake clears only after you get it right on two different days.</li>'+
     '<li><b>Labs (Hands-on):</b> real break-and-fix problems in your WSL Ubuntu. Do one or two a week; they are your best interview stories.</li>'+
     '<li><b>Exams (Job prep):</b> timed Security+ and Network+ practice by official domain. Use it weekly to see which domain is weakest; aim for 85%+ on several attempts.</li>'+
-    '<li><b>Watch Study → Skills.</b> Every skill has a mastery score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
+    '<li><b>Watch Study → Skills.</b> Every skill has a practice score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
     '<li><b>Then one real lab</b> from the list on the Today tab (TryHackMe, Bandit, SQLBolt or Microsoft Learn).</li>'+
     '<li><b>Browse (Study → Tracks):</b> search every card in a track, filter by topic, copy a command, then study just those cards. The Linux track has the full Bandit toolkit plus a Bandit study guide. Keys in flashcards: Space flips, 1 = Again, 2 = Got it. At most '+NEW_PER_DAY+' new cards a day.</li>'+
     '<li><b>Honest numbers:</b> track % counts only what is retained right now. A card stops counting if its review is badly overdue, and a question stops counting if you miss it again. Expect it to go down sometimes; that is it telling you what to review.</li>'+

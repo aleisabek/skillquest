@@ -35,7 +35,7 @@ async function main(){
   if (process.platform === 'linux') args.unshift('--no-sandbox', '--disable-dev-shm-usage');   /* CI runners */
   const proc = spawn(bin, args, { stdio: 'ignore' });
   /* never hang CI: the whole check has 90 seconds */
-  const guard = setTimeout(() => { fail('timed out after 90s'); try { proc.kill(); } catch (e) {} process.exit(1); }, 90000);
+  const guard = setTimeout(() => { fail('timed out after 150s'); try { proc.kill(); } catch (e) {} process.exit(1); }, 150000);
   guard.unref();
   let ws;
   try {
@@ -101,9 +101,11 @@ async function main(){
         b('play').click();
         if (SCENE_LIVE.step !== 1 || !SCENE_LIVE.playing) out.push('Play should move on straight away and keep playing');
         b('play').click();
-        /* theme colour of the network cells, read with transitions off */
+        /* theme colour of the scene's highlighted shapes (on any step), read with transitions off */
         const st = document.createElement('style'); st.textContent = '.scene .sc{transition:none!important}'; document.head.appendChild(st);
-        SCENE_LIVE.show(1); const netCell = svg.querySelector('.sc-cell.net'); const fill = netCell ? getComputedStyle(netCell).fill : '';
+        let netCell = null;
+        for (let i = 0; i < sc.steps.length && !netCell; i++) { SCENE_LIVE.show(i); netCell = svg.querySelector('.sc-cell.net, .sc-box.hit, .sc-box.ok, .sc-box.bad, .sc-node.bad, text.ok'); }
+        const fill = netCell ? getComputedStyle(netCell).fill : '';
         st.remove();
         /* play, then leave the lesson mid-animation: the loop must have run, then stop, and nothing may throw */
         let ticks = 0; const raf0 = window.requestAnimationFrame;
@@ -146,6 +148,31 @@ async function main(){
       for (const want of ['10.0.0.192', '10.0.0.255', '10.0.0.193', '10.0.0.254', '62', '255.255.255.192', '11001000', '11000000'])
         if (!tr.good.includes(want)) fail('Try it for 10.0.0.200/26 should show', want);
       if (!/0 to 255/.test(tr.msg) || tr.empty) fail('Try it should explain a bad address and clear the answers');
+    }
+
+    /* predictions: choices show, a pick is marked and answered, Play stops at a question, Next still works without
+       picking; and every scene's Try it panel draws something */
+    for (const id of lessons) {
+      const pr = await run(`vLesson(${JSON.stringify(id)}); const sc = SCENES[${JSON.stringify(id)}], host = document.querySelector('#scene'), out = [];
+        const q = sc.steps.findIndex(s => s.ask), b = a => host.querySelector('[data-a="' + a + '"]');
+        const tryBox = host.querySelector('.scene-try'); if (sc.tryIt && !(tryBox && tryBox.textContent.trim().length > 20)) out.push('Try it panel is empty');
+        if (q < 0) { go('today'); return out; }
+        SCENE_LIVE.show(q - 1); b('play').click();
+        if (SCENE_LIVE.step !== q || SCENE_LIVE.playing) out.push('Play should stop at the question');
+        const choices = [...host.querySelectorAll('.scene-live .scene-opts button')];
+        if (choices.length !== sc.steps[q].ask.options.length) out.push('the question shows ' + choices.length + ' choices');
+        const wrong = sc.steps[q].ask.options.findIndex(o => !o[1]), right = sc.steps[q].ask.options.findIndex(o => o[1]);
+        choices[wrong].click();
+        const reply = host.querySelector('.scene-live .scene-verdict').textContent;
+        if (!/^Not quite/.test(reply) || choices[wrong].getAttribute('aria-pressed') !== 'true') out.push('a wrong pick should be marked and answered: ' + reply);
+        if (document.activeElement !== b('next')) out.push('after a pick, focus should move to Next');
+        host.querySelectorAll('.scene-live .scene-opts button')[right].click();
+        if (!/^Right/.test(host.querySelector('.scene-live .scene-verdict').textContent)) out.push('a right pick should say Right');
+        b('next').click();
+        if (SCENE_LIVE.step !== q + 1 || host.querySelector('.scene-live .scene-opts button')) out.push('Next should reveal the answer step');
+        SCENE_LIVE.show(q); if (SCENE_LIVE.step !== q || !host.querySelector('.scene-live [aria-pressed="true"]')) out.push('going back should keep your pick');
+        go('today'); return out;`);
+      (pr || []).forEach(e => fail(id, e));
     }
 
     /* phone: at a 360px screen no label in the picture renders below 12px */
