@@ -4,7 +4,7 @@ const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const grab = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
 const defLine = js.slice(js.indexOf('const DEFAULT'), js.indexOf('\n', js.indexOf('const DEFAULT')));
 const line = n => { const i = js.indexOf(n); return js.slice(i, js.indexOf('\n', i)); };
-eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + line('const QUIZ_FADE') + ';' + grab('migrateQuiz') + ';' + grab('isFullDay') + ';' + grab('recountStreak') + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
+eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + line('const QUIZ_FADE') + ';' + grab('migrateQuiz') + ';' + grab('isFullDay') + ';' + grab('recountStreak') + ';' + line('const stableStr') + ';' + line('const tieLow') + ';' + grab('mergeProgress') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 const pc = Object.assign(structuredClone(D), {
   xp: 500, best: 4, streak: 2, lastFull: '2026-10-20', lastBackup: '2026-10-19',
@@ -37,7 +37,7 @@ for (const [a, b, label] of [[pc, phone, 'pc+phone'], [phone, pc, 'phone+pc']]) 
   chk(m.notes.i0 === 'a much longer note from the phone', 'longer note kept');
   chk(m.days['2026-10-20'].quiz && m.days['2026-10-20'].iv && m.days['2026-10-25'].skill, 'mission days merged');
   chk(m.cards.c1.box === 4 && m.cards.c7, 'higher flashcard box kept');
-  chk(m.mastery.s1.n === 5 && m.mastery.s2.n === 6 && m.mastery.s3, 'mastery: more-practiced record kept');
+  chk(m.mastery.s1.last === '2026-10-25' && m.mastery.s1.n === 3 && m.mastery.s2.n === 6 && m.mastery.s3, 'mastery: the newer record is kept, even with less practice');
   chk(m.gen.net.total === 12 && m.gen.sec, 'generated counters');
   const q1 = m.journal.filter(e => e.key === 'quiz|Q1');
   chk(q1.length === 1 && q1[0].done, 'a mistake cleared on either device stays cleared (no duplicate)');
@@ -96,5 +96,47 @@ if (mig.journal[0].sid !== 'term:linux:Users, processes & privilege') fail('jour
 if (JSON.stringify(MT(structuredClone(mig))) !== JSON.stringify(mig)) fail('migration must be safe to run twice');
 const mergedOld = M(structuredClone(D), old);
 if (mergedOld.mastery['term:linux:Reading files'] || !mergedOld.mastery['term:linux:Reading & identifying']) fail('merging an old backup must migrate it');
-console.log('merge checks | problems', bad);
+/* order doesn't matter: merging A into B gives the same progress as B into A, for random conflicting devices
+   (only this device's view state, today's plan and recently shown items, stays with the device merged into) */
+const SEED = +process.env.MERGE_SEED || Date.now() % 1e9;
+let seedState = SEED;
+const rand = () => { seedState = (seedState + 0x6D2B79F5) | 0; let t = Math.imul(seedState ^ (seedState >>> 15), 1 | seedState); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+const pickOf = arr => arr[Math.floor(rand() * arr.length)];
+const someDay = () => '2026-10-' + String(10 + Math.floor(rand() * 6)).padStart(2, '0');
+const randomDevice = () => {
+  const s = structuredClone(D), keys = ['k1', 'k2', 'k3'];
+  Object.assign(s, { xp: Math.floor(rand() * 3) * 100, best: Math.floor(rand() * 4), streak: Math.floor(rand() * 4), lastFull: pickOf([null, '2026-10-14', '2026-10-15']), lastBackup: pickOf([null, someDay()]) });
+  for (const k of keys) {
+    if (rand() < .7) s.mastery['skill-' + k] = { s: pickOf([20, 50, 80]), n: pickOf([1, 3, 6]), right: pickOf([0, 2, 3]), last: pickOf(['2026-10-14', '2026-10-15']), rd: pickOf([1, 2]) };
+    if (rand() < .6) s.notes[k] = pickOf(['ab', 'cd', 'longer note']);
+    if (rand() < .6) s.quiz[k] = pickOf([true, '2026-10-14', '2026-10-15']);
+    if (rand() < .6) s.lessons[k] = pickOf(['2026-10-14', '2026-10-15']);
+    if (rand() < .6) s.gen[k] = { right: pickOf([1, 2, 3]), total: pickOf([3, 4]) };
+    if (rand() < .6) s.cards['c' + k] = { box: pickOf([1, 2]), due: pickOf(['2026-10-16', '2026-10-17']) };
+    if (rand() < .5) s.iv[k] = pickOf([1, 2, 3]);
+    if (rand() < .5) (s.qfirst = s.qfirst || {})[k] = pickOf(['2026-10-12', '2026-10-13']);
+    if (rand() < .5) s.miss[k] = true;
+    if (rand() < .3) s.mastery[pickOf(['term:linux:Searching', 'term:linux:Finding', 'term:linux:Filtering text'])] = { s: pickOf([20, 80]), n: pickOf([2, 9]), right: 1, last: pickOf(['2026-10-01', '2026-10-15']) };
+  }
+  for (const d of ['2026-10-14', '2026-10-15']) if (rand() < .7) s.days[d] = { quiz: pickOf([true, 3]), p0: rand() < .5, note: pickOf(['x', 'y']) };
+  s.journal = [0, 1].filter(() => rand() < .6).map(i => ({ key: 'quiz|Q' + i, at: '2026-10-1' + i, done: rand() < .5, hits: rand() < .5 ? ['2026-10-15'] : [] }));
+  s.exams = rand() < .5 ? [{ cert: 'sec', date: '2026-10-15', pct: 70, n: 20, secs: 900, d: pickOf([{}, { x: 1 }]) }] : [];
+  return s;
+};
+const progressOf = st => { const c = structuredClone(st); delete c.plan; delete c.recent; return JSON.stringify(c, (k, v) => v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(j => [j, v[j]])) : v); };
+let orderChecked = 0;
+for (let t = 0; t < 3000; t++) {
+  const A = randomDevice(), B = randomDevice(), ab = progressOf(M(A, B)), ba = progressOf(M(B, A));
+  orderChecked++;
+  if (ab !== ba) { fail('merge depends on order; replay with MERGE_SEED=' + SEED); break; }
+}
+/* the newer skill record wins, and on the same day the lower score wins */
+const sk = (s, n, last) => Object.assign(structuredClone(D), { mastery: { x: { s, n, right: 0, last } } });
+if (M(sk(95, 20, '2026-10-01'), sk(10, 4, '2026-11-04')).mastery.x.s !== 10) fail('a recent lapse must not be erased by an older record with more practice');
+if (M(sk(80, 4, '2026-11-04'), sk(20, 4, '2026-11-04')).mastery.x.s !== 20 || M(sk(20, 4, '2026-11-04'), sk(80, 4, '2026-11-04')).mastery.x.s !== 20) fail('same day: the lower score wins, both ways');
+/* an old backup (old skill name, more practice, older) can't erase this device's recent lapse under the new name */
+const oldName = Object.assign(structuredClone(D), { mastery: { 'term:linux:Searching': { s: 95, n: 20, right: 20, last: '2026-10-01' } } });
+const lapse = Object.assign(structuredClone(D), { mastery: { 'term:linux:Finding': { s: 10, n: 2, right: 0, last: '2026-11-04' } } });
+for (const [x, y] of [[lapse, oldName], [oldName, lapse]]) if (M(x, y).mastery['term:linux:Finding'].s !== 10) fail('an old-name backup must not erase a recent lapse');
+console.log('merge checks | order-independent merges', orderChecked, '| problems', bad);
 process.exitCode = bad ? 1 : 0;
