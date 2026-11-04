@@ -131,6 +131,14 @@ function mergeProgress(a, b){
   /* misses: keep a miss from either device. S.quiz stays true once a question was ever right, so it can't clear a miss;
      the miss clears when the question is answered right again. */
   m.miss = Object.assign({}, a.miss||{}, b.miss||{});
+  /* first day of each question's run of right answers: take it from the device whose latest right answer was kept
+     (both, if the same day: the earlier start); a miss on either device still sends the question back to Learning */
+  m.qfirst = {};
+  const qa = a.quiz||{}, qb = b.quiz||{}, fa = a.qfirst||{}, fb = b.qfirst||{};
+  for(const x of new Set([...Object.keys(fa), ...Object.keys(fb)])){
+    const pick = m.quiz[x] === qa[x] && m.quiz[x] === qb[x] ? [fa[x], fb[x]].filter(Boolean).sort()[0] : m.quiz[x] === qb[x] ? fb[x] : fa[x];
+    if(pick) m.qfirst[x] = pick;
+  }
   /* days: union of completed steps (a flag set on either device stays set) */
   m.days = structuredClone(a.days||{});
   for(const [d,v] of Object.entries(b.days||{})){ const md = m.days[d] = Object.assign({}, m.days[d]||{});
@@ -175,13 +183,17 @@ function sanitizeBackup(b){
   s.days = cleanMap(b.days, (v, k)=>DATE_RE.test(k) ? cleanMap(v, (x, f)=>f === 'reviews' ? clampNum(x, 0, 1e5) : (x === true || x === false) ? x : undefined) : undefined);
   s.cards = cleanMap(b.cards, v=>{ if(!isObj(v) || !okDate(v.due)) return; const c = {box:Math.round(clampNum(v.box, 1, 5)), due:v.due}; if(okDate(v.seen)) c.seen = v.seen; return c; });
   s.quiz = cleanMap(b.quiz, v=>v === true || okDate(v) ? v : undefined);
+  if(isObj(b.qfirst)) s.qfirst = cleanMap(b.qfirst, okDate);
   for(const k of ['miss','term','sql']) s[k] = cleanMap(b[k], flag);
   s.iv = cleanMap(b.iv, v=>clampNum(v, 0, 3));
   s.tickets = cleanMap(b.tickets, v=>clampNum(v, 0, 100));
   s.notes = cleanMap(b.notes, v=>typeof v === 'string' ? v.slice(0, 20000) : undefined);
   for(const k of ['lessons','labs','practice']) s[k] = cleanMap(b[k], okDate);
   s.gen = cleanMap(b.gen, v=>isObj(v) ? {right:clampNum(v.right, 0, 1e7), total:clampNum(v.total, 0, 1e7)} : undefined);
-  s.mastery = cleanMap(b.mastery, v=>isObj(v) ? {s:clampNum(v.s, 0, 100), n:clampNum(v.n, 0, 1e7), right:clampNum(v.right, 0, 1e7), last:okDate(v.last)} : undefined);
+  s.mastery = cleanMap(b.mastery, v=>{ if(!isObj(v)) return;
+    const m = {s:clampNum(v.s, 0, 100), n:clampNum(v.n, 0, 1e7), right:clampNum(v.right, 0, 1e7), last:okDate(v.last)};
+    if(v.rd !== undefined){ m.rd = Math.round(clampNum(v.rd, 0, 1e5)); m.lr = okDate(v.lr); }
+    return m; });
   s.recent = cleanMap(b.recent, v=>Array.isArray(v) ? v.filter(x=>typeof x === 'string').slice(-80) : undefined);
   s.journal = (Array.isArray(b.journal) ? b.journal : []).map(cleanEntry).filter(Boolean).slice(0, JOURNAL_MAX);
   const certs = CERTS.map(c=>c.id);
@@ -228,7 +240,21 @@ function migrateQuiz(st){
     let h = 0; for(const c of k) h = (h * 31 + c.charCodeAt(0)) >>> 0;
     st.quiz[k] = addDays(dayStr(), -(h % QUIZ_FADE));
   }
+  /* Two-day rule (qfirst = first day of the current run of right answers): an answer recorded before the rule, or from a
+     backup without it, counts as one proven day, so one more right answer on a later day proves it. */
+  st.qfirst = st.qfirst || {};
+  for(const [k, v] of Object.entries(st.quiz||{})) if(!st.qfirst[k] && typeof v === 'string') st.qfirst[k] = v;
+  /* Same for skills: rd = days with a right answer, lr = the last such day. Older records count as one day. */
+  for(const m of Object.values(st.mastery||{})) if(m && m.rd === undefined && m.right > 0){ m.rd = 1; m.lr = m.last || null; }
   return st;
+}
+/* Retained needs right answers on two different days: once is a good sign, twice on separate days is learning. */
+const QUIZ_DAYS = 2;
+function provenTwice(id){ const v = S.quiz[id], f = (S.qfirst||{})[id]; return typeof v === 'string' && !!f && v > f; }
+function quizRight(id, firstDay){
+  S.qfirst = S.qfirst || {};
+  if(S.miss[id] || !S.qfirst[id]) S.qfirst[id] = firstDay || dayStr();   /* a miss restarts the run */
+  S.quiz[id] = dayStr(); delete S.miss[id];
 }
 /* Rebuild streak and best from the full days themselves (see isFullDay). Only ever raises them,
    or moves lastFull to a later full day, so it is safe on load and after merges. */
@@ -265,6 +291,7 @@ function quizStatus(i){
   const id = quizId(i), v = S.quiz[id];
   if(S.miss[id]) return 'learning';
   if(!v) return 'new';
+  if(typeof v === 'string' && !provenTwice(id)) return 'learning';
   return typeof v === 'string' && addDays(v, QUIZ_FADE) < dayStr() ? 'fading' : 'retained';
 }
 function fadingQuiz(){ return QUIZ.map((q,i)=>i).filter(i=>quizStatus(i)==='fading'); }
@@ -276,7 +303,7 @@ function levelStats(tid, lv){
 }
 const STATUS = {retained:'Retained', fading:'Fading', learning:'Learning', new:'New'};
 function statsLine(st){
-  return '<div class="small mstats" title="Retained: proven and recent. Fading: proven, but overdue for review. Learning: seen, not proven yet. New: never seen.">'+
+  return '<div class="small mstats" title="Retained: proven (questions right on two different days) and recent. Fading: proven, but overdue for review. Learning: seen, not proven yet. New: never seen.">'+
     Object.keys(STATUS).map(k=>'<span class="st-'+k+'">'+STATUS[k]+' '+st[k]+'</span>').join(' · ')+'</div>';
 }
 
@@ -625,7 +652,7 @@ function quizStep(s){
       }
       else {
         const fade = quizStatus(idx) === 'fading';
-        if(ok){ s.right++; S.quiz[quizId(idx)] = dayStr(); delete S.miss[quizId(idx)]; addXP(10); }
+        if(ok){ s.right++; quizRight(quizId(idx)); addXP(10); }
         else { S.miss[quizId(idx)] = true; save(); }
         if(fade) noteReview();   /* reviewing a fading question counts, right or wrong (wrong moves it to Learning) */
       }

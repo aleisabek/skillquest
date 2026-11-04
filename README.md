@@ -66,7 +66,9 @@ Security labs (`cloudtrail-hunt`, `iam-tighten`, `ssh-harden`, `secret-leak`, `v
 A track level's % is the share of its quiz questions and flashcards that are **retained right now**:
 
 - a card counts while it is at box 3+ and not overdue by more than its own review gap (it shows as *Fading* after that);
-- a quiz question counts only if your latest answer to it was right and that answer is under 30 days old (`S.quiz` stores the day; it shows as *Fading* after that, and Review offers "Fading quiz questions"). Old `true` values from earlier versions become the day they were first loaded or merged.
+- a quiz question counts only once it has been answered right on **two different days** (`S.qfirst` holds the first day of the current run, `S.quiz` the latest; a miss restarts the run, and clearing it in the mistake journal counts as two days), and only while that latest right answer is under 30 days old (it shows as *Fading* after that, and Review offers "Fading quiz questions"). Old `true` values from earlier versions become the day they were first loaded or merged, and answers from before the two-day rule count as one day.
+
+A skill is **Strong** only with a score of 85+ *and* right answers on two different days (`rd`/`lr` on its mastery record); a high score from a single day shows as "Strong once". `feature-twoday` covers answering, misses, the journal, migration, backups and merges.
 
 Tracks and Progress show the four counts behind it: Retained, Fading, Learning, New. New flashcards are limited to 10 a day across all tracks.
 

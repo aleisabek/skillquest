@@ -33,7 +33,7 @@ function journalResult(id, ok){
   const first = e.tried !== dayStr(); e.tried = dayStr();
   if(ok){
     if(!e.hits.includes(dayStr())) e.hits.push(dayStr());
-    if(e.hits.length >= 2){ e.done = true; e.doneAt = dayStr(); if(e.qi!=null){ S.quiz[quizId(e.qi)] = dayStr(); delete S.miss[quizId(e.qi)]; } toast('Mistake cleared for good'); }
+    if(e.hits.length >= 2){ e.done = true; e.doneAt = dayStr(); if(e.qi!=null){ const qid = quizId(e.qi); S.qfirst = S.qfirst || {}; S.qfirst[qid] = e.hits[0]; delete S.miss[qid]; S.quiz[qid] = dayStr(); }   /* right on two days: proven */ toast('Mistake cleared for good'); }
   } else e.hits = [];
   save();
   return first;
