@@ -17,7 +17,7 @@ const expect = (ok, ...msg) => { checks++; if (!ok) fail(...msg); };
 /* ---------- 1. termNorm: shell words ---------- */
 const C = {};
 vm.createContext(C);
-vm.runInContext(before + '\n' + line('function shuffle(') + '\n' + line('function norm(') + '\n' + grab('termNorm') + '\n' + grab('sqlNorm') + '\nglobalThis.X = {termNorm, sqlNorm, TERM, TGEN, SQLT, SGEN};', C);
+vm.runInContext(before + '\n' + line('function shuffle(') + '\n' + line('function norm(') + '\n' + grab('termNorm') + '\n' + grab('sqlNorm') + '\nglobalThis.X = {termNorm, sqlNorm, TERM, TGEN, SQLT, SGEN, CERTS, examCoverage, LESSONS};', C);
 const { termNorm, sqlNorm, TERM, TGEN, SQLT, SGEN } = C.X;
 for (const ok of ['grep "failed login" auth.log', "cut -d' ' -f1 users.txt", "awk -F' ' '{print $1}' f", "alias ll='ls -la'", "sed 's/a/b/g' f",
   'cat "q3 report.md"', "echo it\\'s", 'find . -name x -exec rm {} \\;', 'echo "a;b|c"', "grep 'failed' auth.log", 'ls -la 2>&1 | grep x'])
@@ -205,6 +205,23 @@ const recorderRun = async () => {
   p = m.btn.onclick(); m.answer(); await p;
   expect(m.state.started === 1 && m.state.released === 0, 'permission while still on the question starts recording');
 };
+/* ---------- 7. honest labels and lesson wording ---------- */
+{
+  const { CERTS, examCoverage, LESSONS } = C.X, cov = id => examCoverage(CERTS.find(c => c.id === id));
+  const sec = cov('secplus'), net = cov('netplus');
+  expect(sec.missing.some(d => /Oversight/.test(d.name)) && sec.w < 100, 'Security+ governance has no questions: it must be listed as unmeasured, and coverage under 100%');
+  expect(net.thin.some(d => d.name === 'Network Security'), 'Network+ network security (one fixed question) must be flagged as thin');
+  const exam = fs.readFileSync(__dirname + '/../src/exam.js', 'utf8');
+  for (const gone of ['Close to ready', 'readiness signal', 'before booking the real one', 'Full practice', 'not covered yet', '<h1>📝 Practice exams'])
+    expect(!exam.includes(gone), 'exam pages should no longer say', gone);
+  expect(exam.includes('Partial practice exams') && exam.includes('unmeasured: no questions yet'), 'exams are labelled partial, and empty domains unmeasured');
+  const text = id => Object.values(LESSONS[id]).flat().map(v => typeof v === 'string' ? v : JSON.stringify(v)).join(' ');
+  const ip = text('quiz:net:IP addressing'), cloud = text('quiz:cloud:IAM & least privilege'), sub = text('quiz:net:Subnetting');
+  expect(!/so DHCP failed|It means no DHCP at all|can't be reached from the internet without NAT/.test(ip) && /169\.254\.169\.254/.test(ip) && /VPNs/.test(ip), 'IP lesson: 169.254 is a clue, NAT is not the only way private networks connect');
+  expect(!/nothing more/.test(cloud) && /only if this is its only permission/.test(cloud), 'IAM lesson: no "nothing more" claim beyond the policy shown');
+  expect(/\/31/.test(sub) && /\/32/.test(sub), 'Subnetting lesson mentions the /31 and /32 exceptions');
+}
+
 recorderRun().catch(e => fail('recorder check crashed:', e.message)).then(() => {
   console.log('trust checks', checks, '| SQL answers with quoted text', swapped, '| problems', bad);
   process.exitCode = bad ? 1 : 0;

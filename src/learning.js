@@ -89,7 +89,7 @@ function vLesson(id, mission, opts){
   const fromPlan = /^p[0-2]$/.test(mission||'');
   const markRead = ()=>{ S.lessons = S.lessons || {}; S.lessons[id] = dayStr(); S.days[dayStr()] = S.days[dayStr()] || {}; afterStep(); save(); };
   const v = skillScore(id), [st, cls] = skillStatus(id);
-  view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · mastery '+v+'% ('+st+') · about 2 minutes</p>'+
+  view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · practice score '+v+'% ('+st+') · about 2 minutes</p>'+
     '<div class="card"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+
     '<h2>The core idea</h2>'+L.idea+
     (SCENES[id] ? '<h2>Watch it</h2><div id="scene" role="group" aria-label="Animated explainer: '+esc(SCENES[id].title)+'"></div>' : '')+
@@ -133,11 +133,11 @@ const STAGES = [
 function vSkills(){
   const rec = recommend(3), skills = allSkills();
   const strong = skills.filter(s=>isStrong(s.id)).length, started = skills.filter(s=>(S.mastery||{})[s.id]).length;
-  view.innerHTML = '<h1>🧠 Skills map</h1><p class="sub">Every skill has a mastery score. Sure, correct answers raise it; misses and time lower it, so old skills come back for review before you forget them.</p>'+
+  view.innerHTML = '<h1>🧠 Skills map</h1><p class="sub">Every skill has a practice score from your answers here: sure, correct answers raise it; misses and time lower it, so old skills come back for review before you forget them. It reflects this practice (questions you have seen before count too), not exam or job readiness.</p>'+
     '<div class="row" style="margin-bottom:6px"><span class="pill">'+skills.length+' skills</span><span class="pill">'+started+' started</span><span class="pill">'+strong+' strong (85%+ on 2 days)</span>'+
     '<button id="typedT">⌨ Typed answers: '+(typedOn()?'ON':'OFF')+'</button></div>'+
     '<h2>Recommended now</h2><div class="grid">'+rec.map(s=>{ const [st] = skillStatus(s.id);
-      return '<div class="card mission"><div class="tag">'+esc(s.area)+'</div><h3>'+s.icon+' '+esc(s.sk)+'</h3><p>'+st+' · mastery '+skillScore(s.id)+'%</p><div class="row">'+
+      return '<div class="card mission"><div class="tag">'+esc(s.area)+'</div><h3>'+s.icon+' '+esc(s.sk)+'</h3><p>'+st+' · practice score '+skillScore(s.id)+'%</p><div class="row">'+
         (lessonFor(s.id) ? '<button class="primary" data-learn="'+esc(s.id)+'">📖 Learn + practice</button>' : '')+'<button data-drill="'+esc(s.id)+'">Drill</button></div></div>'; }).join('')+'</div>'+
     STAGES.map(([name, note, test, gate])=>{ const inStage = skills.filter(test); if(!inStage.length) return '';
       if(gate && !trackOpen(gate)) return '<h2>'+esc(name)+' 🔒</h2><div class="card"><p>Opens when '+unlockText(gate)+'. '+inStage.length+' skills are waiting: '+inStage.map(s=>esc(s.sk)).join(', ')+'.</p>'+

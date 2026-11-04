@@ -49,11 +49,11 @@ const CARDS = [
  ['net',1,'DHCP','Automatically gives a device its IP address, subnet mask, default gateway and DNS server.','n-proto'],
  ['net',1,'Default gateway','The router a device sends traffic to when the destination is outside its own network.','n-addr'],
  ['net',1,'Subnet mask /24','Same as 255.255.255.0. The first three numbers are the network. Gives 254 usable host addresses.','n-addr'],
- ['net',1,'Private IP ranges','10.0.0.0/8, 172.16.0.0/12 (172.16 to 172.31), 192.168.0.0/16. Not used on the public internet; NAT translates them.','n-addr'],
+ ['net',1,'Private IP ranges','10.0.0.0/8, 172.16.0.0/12 (172.16 to 172.31), 192.168.0.0/16. Not routed on the public internet: NAT translates them to reach it. VPNs and private routing connect them without NAT.','n-addr'],
  ['net',1,'TCP vs UDP','TCP: sets up a connection, guarantees delivery and order (web, email). UDP: no handshake, faster, no guarantee (DNS lookups, video calls, games).','n-proto'],
  ['net',1,'Common ports','22 SSH, 25 SMTP, 53 DNS, 80 HTTP, 443 HTTPS, 3389 RDP.','n-proto'],
  ['net',1,'OSI model','7 Application, 6 Presentation, 5 Session, 4 Transport, 3 Network, 2 Data Link, 1 Physical. Top to bottom: "All People Seem To Need Data Processing."','n-proto'],
- ['net',1,'169.254.x.x address','APIPA: the device could not reach a DHCP server, so it gave itself an address. Check the cable, Wi-Fi, or DHCP server.','n-addr'],
+ ['net',1,'169.254.x.x address','Link-local (APIPA): the device got no DHCP lease, so it gave itself an address. A clue, not the cause: check the cable or Wi-Fi, then whether DHCP answers other devices.','n-addr'],
  ['net',1,'Windows network commands','<code>ipconfig /all</code>, <code>ping</code>, <code>tracert</code>, <code>nslookup</code>, <code>ipconfig /flushdns</code>, <code>ipconfig /release</code> then <code>/renew</code>.','n-tools'],
 
  ['sec',1,'CIA triad','<b>C</b>onfidentiality: only the right people see it. <b>I</b>ntegrity: it is not changed without permission. <b>A</b>vailability: it works when needed.','s-core'],
@@ -691,7 +691,7 @@ const IV = [
   points:['Stayed respectful','Used facts','Reached a decision']},
 
  {c:'technical', q:'A user says "the internet is down." Walk me through it.', tip:'Narrow it down step by step, from the user outward.',
-  model:'"First, scope: is it just them or everyone, and is it one site or all sites? Then: is Wi-Fi or the cable connected? Run ipconfig: a 169.254 address means DHCP failed. Ping the gateway, then 8.8.8.8, then google.com. If the IP works but the name does not, it is DNS, so try nslookup and ipconfig /flushdns. If many users are affected, escalate it as an outage. Document everything in the ticket."',
+  model:'"First, scope: is it just them or everyone, and is it one site or all sites? Then: is Wi-Fi or the cable connected? Run ipconfig: a 169.254 address means it got no DHCP lease. Ping the gateway, then 8.8.8.8, then google.com. If the IP works but the name does not, it is DNS, so try nslookup and ipconfig /flushdns. If many users are affected, escalate it as an outage. Document everything in the ticket."',
   points:['Asked about scope first','Checked physical / Wi-Fi','ipconfig / APIPA','Ping gateway, then IP, then name','DNS check','Escalate if widespread, and document']},
  {c:'technical', q:'A user cannot print. What do you do?', tip:'Simple to complex.',
   model:'"Check the printer itself first: power, paper, errors, and whether others can print to it. Check the user picked the right printer. Clear the stuck queue and restart the Print Spooler service. Check the printer\'s network connection. Reinstall or update the driver. If it is hardware, open a vendor case. Then confirm with the user and document."',

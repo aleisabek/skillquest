@@ -22,6 +22,18 @@ const CERTS = [
   ]}
 ];
 const domCovered = d=>d.qs.length > 0 || d.gens.length > 0;
+/* A domain with a few fixed questions and no generators repeats them: measured, but thinly. */
+const domThin = d=>domCovered(d) && !d.gens.length && d.qs.length <= 3;
+/* What a practice exam can and can't measure: the share of the real exam's weight it has questions for, and what is missing */
+function examCoverage(cert){
+  const on = cert.domains.filter(domCovered), w = on.reduce((a, d)=>a + d.w, 0);
+  return {n:on.length, of:cert.domains.length, w, missing:cert.domains.filter(d=>!domCovered(d)), thin:cert.domains.filter(domThin)};
+}
+function coverageLine(cert){
+  const c = examCoverage(cert);
+  return 'Has questions in '+c.n+' of '+c.of+' domains ('+c.w+'% of the real exam by weight), each from only a few topics, not the full objective list.'+(c.missing.length ? ' Unmeasured: '+c.missing.map(d=>esc(d.name)).join(', ')+'.' : '')+
+    (c.thin.length ? ' Thin (a few repeating questions): '+c.thin.map(d=>esc(d.name)).join(', ')+'.' : '');
+}
 /* How many questions of a domain an exam can hold: fixed ones once each, generated ones without limit. */
 const domCap = d=>d.gens.length ? Infinity : d.qs.length;
 
@@ -75,7 +87,7 @@ function examStep(){
       it.order.map(k=>'<button class="opt" data-k="'+k+'" style="'+(it.pick===k?'border-color:var(--accent);background:var(--accent-soft);color:var(--text)':'')+'">'+q[3][k]+'</button>').join('')+'</div>'+
     '<div class="row" style="margin-top:14px"><button id="prev" '+(EX.i?'':'disabled')+'>◀ Prev</button><button id="flag">'+(it.flag?'🚩 Flagged':'⚐ Flag as unsure')+'</button><button id="nxt" '+(EX.i<EX.items.length-1?'':'disabled')+'>Next ▶</button><button class="primary" id="sub">Submit exam</button></div></div>'+
     '<div class="chips" style="margin-top:14px">'+EX.items.map((x,j)=>'<button class="chip" data-j="'+j+'" style="'+(j===EX.i?'border-color:var(--accent);color:var(--accent);':'')+(x.pick!==null?'border-style:solid;':'')+'">'+(j+1)+(x.flag?'🚩':'')+'</button>').join('')+'</div>'+
-    '<p class="small">Solid chips = answered. Flag questions you are unsure about; they count as guesses toward skill mastery.</p>';
+    '<p class="small">Solid chips = answered. Flag questions you are unsure about; they count as guesses in the skill\'s practice score.</p>';
   view.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{ it.pick = +b.dataset.k; if(EX.i < EX.items.length-1) EX.i++; examStep(); });
   view.querySelectorAll('[data-j]').forEach(b=>b.onclick=()=>{ EX.i = +b.dataset.j; examStep(); });
   $('#prev').onclick = ()=>{ EX.i--; examStep(); };
@@ -100,13 +112,14 @@ function submitExam(){
   addXP(Math.round(right*3), 'Exam submitted');
   save();
   const weakest = Object.entries(byDom).map(([k,v])=>[+k, v.r/v.t]).sort((a,b)=>a[1]-b[1])[0];
-  view.innerHTML = '<h1>📝 Exam results</h1><div class="card"><p class="q">'+right+' / '+ex.items.length+' ('+pct+'%)</p>'+
-    '<p>'+(pct>=85 ? 'Strong result. Keep this up across a few exams before booking the real one.' : pct>=75 ? 'Close to ready. Drill your weakest domain below, then try again.' : 'Keep building. Read the lessons for your weakest domain and drill it before the next attempt.')+
-    ' <span class="small">(Aim for 85%+ here on several attempts. Real CompTIA exams use scaled scores and performance-based questions, so this is a readiness signal, not a prediction.)</span></p>'+
+  view.innerHTML = '<h1>📝 Partial practice results</h1><div class="card"><p class="q">'+right+' / '+ex.items.length+' ('+pct+'%) on what this practice covers</p>'+
+    '<p class="small">'+coverageLine(ex.cert)+'</p>'+
+    '<p>'+(pct>=85 ? 'Strong on what was tested.' : pct>=75 ? 'Good on what was tested. Drill your weakest domain below.' : 'Keep building. Read the lessons for your weakest domain and drill it before the next attempt.')+
+    ' <span class="small">(This measures only the covered domains, with questions you may have seen before, and no performance-based questions. It doesn\'t predict a CompTIA score: check the unmeasured domains elsewhere.)</span></p>'+
     '<p class="small">Time used: '+Math.floor(used/60)+' min '+(used%60)+' s of '+Math.round(ex.secs/60)+' min.</p>'+
     '<h2>By domain</h2>'+ex.cert.domains.map(d=>{ const b = byDom[d.n];
       return '<div class="ritem"><span>'+d.n+'. '+esc(d.name)+' <span class="small">('+d.w+'% of real exam)</span></span>'+
-        (b ? '<div class="meter"><i style="width:'+Math.round(b.r/b.t*100)+'%"></i></div><span class="small" style="width:70px;text-align:right">'+b.r+'/'+b.t+'</span>' : '<span class="small">not covered by SkillQuest yet</span>')+'</div>'; }).join('')+
+        (b ? '<div class="meter"><i style="width:'+Math.round(b.r/b.t*100)+'%"></i></div><span class="small" style="width:70px;text-align:right">'+b.r+'/'+b.t+(domThin(d) ? ' · thin' : '')+'</span>' : '<span class="small">unmeasured: no questions yet</span>')+'</div>'; }).join('')+
     (weakest ? '<p class="small" style="margin-top:10px">👉 Weakest domain: <b>'+esc(ex.cert.domains.find(d=>d.n===weakest[0]).name)+'</b>. Your misses are saved in the mistake journal.</p>' : '')+
     '<div class="row" style="margin-top:12px"><button class="primary" id="rev">Review answers</button><button id="again">New exam</button><button id="home">Back to Today</button></div></div><div id="review"></div>';
   $('#again').onclick = ()=>vExams();
@@ -118,14 +131,14 @@ function vExams(){
   current = 'exams'; header(); stopExamTimer();
   if(EX){ examStep(); askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; vExams(); }); return; }
   const hist = S.exams || [];
-  view.innerHTML = '<h1>📝 Practice exams</h1><p class="sub">Timed, exam-style practice mapped to the official CompTIA domains. No feedback until you submit, like the real thing. Fixed questions plus freshly generated ones, so every exam is different.</p>'+
+  view.innerHTML = '<h1>📝 Partial practice exams</h1><p class="sub">Timed, exam-style practice on the CompTIA domains SkillQuest has questions for. No feedback until you submit. Each one covers only part of the real exam (listed below), may repeat questions you have seen, and has no performance-based questions: a score here measures this practice, not exam readiness.</p>'+
     CERTS.map(c=>{ const mine = hist.filter(h=>h.cert===c.id), best = mine.length ? Math.max(...mine.map(h=>h.pct)) : null;
-      return '<div class="card" style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">'+esc(c.name)+' <span class="small">'+c.code+'</span></h3>'+(best!==null?'<span class="pill">best '+best+'% · '+mine.length+' tries</span>':'')+'</div>'+
-        '<p class="small">Real exam: '+esc(c.real)+'</p>'+
+      return '<div class="card" style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">'+esc(c.name)+' <span class="small">'+c.code+'</span></h3>'+(best!==null?'<span class="pill">best '+best+'% on covered domains · '+mine.length+' tries</span>':'')+'</div>'+
+        '<p class="small">Real exam: '+esc(c.real)+'</p><p class="small"><b>'+coverageLine(c)+'</b></p>'+
         c.domains.map(d=>'<div class="ritem"><span>'+d.n+'. '+esc(d.name)+' <span class="small">'+d.w+'%</span></span><span class="small">'+
-          (!domCovered(d) ? '⚠ not covered yet' : (d.qs.length+' fixed questions'+(d.gens.length?' + endless generated ('+d.gens.map(g=>g[1]).join(', ')+')':'')))+'</span></div>').join('')+
-        '<div class="row" style="margin-top:10px"><button class="primary" data-ex="'+c.id+'" data-n="20">Quick exam · 20 questions · 20 min</button><button data-ex="'+c.id+'" data-n="45">Full practice · 45 questions · 45 min</button></div></div>'; }).join('')+
+          (!domCovered(d) ? '⚠ unmeasured: no questions yet' : (domThin(d) ? '⚠ thin: ' : '')+(d.qs.length+' fixed question'+(d.qs.length === 1 ? '' : 's')+(d.gens.length?' + endless generated ('+d.gens.map(g=>g[1]).join(', ')+')':'')))+'</span></div>').join('')+
+        '<div class="row" style="margin-top:10px"><button class="primary" data-ex="'+c.id+'" data-n="20">Quick exam · 20 questions · 20 min</button><button data-ex="'+c.id+'" data-n="45">Longer practice · 45 questions · 45 min</button></div></div>'; }).join('')+
     (hist.length ? '<h2>History</h2><div class="card">'+hist.slice(0,10).map(h=>{ const pct = Math.round(Number(h.pct)||0), c = CERTS.find(c=>c.id===h.cert); return '<div class="ritem"><span>'+esc(h.date)+' · '+esc(c ? c.name : h.cert)+' · '+esc(h.n)+' Q</span><div class="meter"><i style="width:'+pct+'%"></i></div><span class="small" style="width:50px;text-align:right">'+pct+'%</span></div>'; }).join('')+'</div>' : '')+
-    '<p class="small">Coverage is honest: domains marked "not covered yet" are left out of the exam and listed in your results, so you know what to study elsewhere (Professor Messer\'s free videos cover every domain).</p>';
+    '<p class="small">Domains marked "unmeasured" have no questions here, so they are left out and listed in your results: study them elsewhere (Professor Messer\'s free videos cover every domain). A domain with zero questions is unmeasured, never 0%.</p>';
   view.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>startExam(b.dataset.ex, +b.dataset.n));
 }
