@@ -120,7 +120,7 @@ expect(sqlOK(SQLT.find(t => /"printer" anywhere/.test(t[1])), "SELECT * FROM tic
   vm.createContext(ctx);
   vm.runInContext(before + '\n' + [
     line('const KEY'), line('const DEFAULT'), line('let saveBlocked'), line('const QUIZ_FADE'), 'var S;', 'globalThis.toasts = [];',
-    'function toast(m){ toasts.push(m); } function header(){} function vProgress(){}',
+    'function toast(m){ toasts.push(m); } function header(){} function vProgress(){} function vBackup(){}',
     'globalThis.asked = []; function askConfirm(msg, yes, onYes){ asked.push({msg, yes, onYes}); }',
     grab('storageBlocked'), grab('replaceDone'),
     grab('save'), line('function warnSave('), line('const PREV'), line('function snapshot('), line('function prevSnapshot('),

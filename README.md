@@ -21,7 +21,7 @@ An offline practice app for entry-level IT jobs: IT support & Microsoft 365, net
 
 **https://claude.ai/artifact/GEJcWUxJjXUbdr8Mz9Mzrq** (since 2026-10-28; the earlier link, .../94UVR69nmwKTGZRyYr7pb2, holds the old build. Move phone progress with Copy backup there and Merge pasted backup here.)
 
-Always republish to that same URL so progress saved on the phone survives updates. PC and phone keep separate progress; combine them with Progress → Copy backup on one device and "Merge pasted backup" on the other.
+Always republish to that same URL so progress saved on the phone survives updates. PC and phone keep separate progress; combine them with How to use → Backup → Copy backup on one device and "Merge pasted backup" on the other.
 
 ## Layout
 
@@ -110,7 +110,7 @@ Six top tabs group the screens, with sub-tabs: Today · Study (Skills, Tracks) �
 
 - Saved data that can't be read is copied to `skillquest-v1.corrupt-<time>` and never saved over; Today asks whether to restore a backup or start fresh.
 - If the browser refuses to save (storage full or blocked), Today says so and offers a backup.
-- Merge, restore and reset keep a snapshot first, so the last one can be undone from Progress. If the browser refuses that undo copy, nothing changes; only where storage is blocked outright (so restoring could never work otherwise) does it offer to go ahead, saying it can't be undone, with Cancel as the default; if it refuses the new progress, the old progress and the earlier undo copy are put back and the page says so. Undo uses up its copy only after the restored progress has saved. When storage doesn't work at all, a chosen restore or merge lasts for that session and the page tells you to download a backup.
+- Merge, restore and reset keep a snapshot first, so the last one can be undone from How to use → Backup. If the browser refuses that undo copy, nothing changes; only where storage is blocked outright (so restoring could never work otherwise) does it offer to go ahead, saying it can't be undone, with Cancel as the default; if it refuses the new progress, the old progress and the earlier undo copy are put back and the page says so. Undo uses up its copy only after the restored progress has saved. When storage doesn't work at all, a chosen restore or merge lasts for that session and the page tells you to download a backup.
 - Imported backups are cleaned before use (`sanitizeBackup`): only known fields with the right types are kept, fixed journal questions are re-read from `QUIZ`, and other markup is reduced to safe formatting tags. Old backups still restore.
 - A fresh browser or profile shows a "merge a backup" card instead of silently looking like a new start.
 - Merging is order-independent: phone into PC gives the same progress as PC into phone (`feature-merge` checks 3,000 random conflicting pairs both ways). For a skill's score the newer record wins, so a recent lapse isn't erased by an older record with more practice, and on the same day the lower score wins. Only this device's view state (today's plan, recently shown items) stays with the device you merge into.

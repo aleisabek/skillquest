@@ -28,7 +28,7 @@ function load(){
 function save(){
   if(saveBlocked){ warnSave('Not saved: your earlier progress could not be read. Open Today to choose what to do.'); return false; }
   try{ localStorage.setItem(KEY, JSON.stringify(S)); saveFailed = false; return true; }
-  catch(e){ saveFailed = true; warnSave('Progress NOT saved: browser storage is full or blocked. Download a backup from Progress now.'); return false; }
+  catch(e){ saveFailed = true; warnSave('Progress NOT saved: browser storage is full or blocked. Download a backup from How to use → Backup now.'); return false; }
 }
 function warnSave(msg){ if(saveWarned) return; saveWarned = true; try{ toast(msg); }catch(e){} }
 /* Before anything that replaces progress (restore, merge, erase), keep the current state so it can be undone once. */
@@ -83,7 +83,7 @@ function replaceDone(r, done, retry){
     if(!storageBlocked()) return toast('Nothing changed: browser storage refused the undo copy (it may be full). Free some space or download a backup, then try again.');
     return askConfirm('This browser blocks storage, so no undo copy can be kept. If you go ahead, this cannot be undone, and it only lasts until you close the page. Go ahead?', 'Go ahead, no undo', ()=>replaceDone(retry(), done, retry));
   }
-  vProgress();
+  vBackup();
   if(r === 'ok') toast(done+' Undo is on this page if it looks wrong.');
   else if(r === 'noundo') toast(done+' There is no undo for this one.');
   else if(r === 'session') toast(done+' Browser storage isn\'t saving, so this lasts until you close the page. Download a backup to keep it.');
@@ -139,7 +139,7 @@ function askConfirm(msg, yesLabel, onYes){
 /* Backups as text, for devices where file downloads are blocked (copy on one device, paste on the other). */
 function copyBackupText(){
   const txt = JSON.stringify(S);
-  try{ navigator.clipboard.writeText(txt).then(()=>{ S.lastBackup = dayStr(); save(); toast('Backup copied. Paste it into SkillQuest on your other device (Progress → Paste backup).'); vProgress(); }, ()=>showBackupText(txt)); }
+  try{ navigator.clipboard.writeText(txt).then(()=>{ S.lastBackup = dayStr(); save(); toast('Backup copied. Paste it into SkillQuest on your other device (How to use → Backup).'); if(current === 'backup') vBackup(); }, ()=>showBackupText(txt)); }
   catch(e){ showBackupText(txt); }
 }
 function showBackupText(txt){ const t = $('#bkText'); if(t){ t.hidden = false; t.value = txt; t.select(); toast('Copy blocked here: the backup text is selected below, copy it manually.'); } }
@@ -539,7 +539,7 @@ function checkFullDay(){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['practice','Free resources'],['ready','Job practice'],['progress','Progress'],['guide','How to use']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['practice','Free resources'],['ready','Job practice'],['progress','Progress'],['guide','How to use'],['backup','Backup']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
@@ -558,7 +558,7 @@ function header(){
 /* Six top tabs, each grouping existing screens; a group with more than one screen shows them as sub-tabs.
    Screen keys are unchanged, so go('sql'), go('ready') and the rest still work everywhere. */
 const GROUPS = [['Today',['today']], ['Study',['skills','tracks']], ['Hands-on',['terminal','sql','labs']],
-  ['Job prep',['interview','tickets','exams','ready']], ['Review',['review','progress']], ['Guide',['guide','practice']]];
+  ['Job prep',['interview','tickets','exams','ready']], ['Review',['review','progress']], ['Guide',['guide','backup','practice']]];
 const lastIn = {};   /* the screen you were last on in each group, so a top tab returns you there */
 function groupOf(k){ return GROUPS.find(g=>g[1].includes(k)) || GROUPS[0]; }
 function tabLabel(k){ const t = TABS.find(t=>t[0]===k); return t ? t[1] : k; }
@@ -567,7 +567,7 @@ function go(tab){
   if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
   stopRecording(true);   /* leaving the page discards a half-finished recording */
   destroyScene();        /* and stops any lesson animation */
-  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide})[tab](); window.scrollTo(0,0); }
+  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); }
 
 /* ===================== VIEWS ===================== */
 /* Today: the loop as a 4-step checklist with one "Next up" button, the last 14 days, one real lab, and a short tip. */
@@ -622,8 +622,8 @@ function vToday(){
   on('#labUsed', ()=>{ S.practice = S.practice || {}; S.practice[lab.name] = dayStr(); save(); toast('Logged: '+lab.name); vToday(); });
   on('#moreLabs', e=>{ e.preventDefault(); go('practice'); });
   on('#bk', ()=>{ downloadBackup(); vToday(); });
-  on('#fixRestore', ()=>go('progress'));
-  on('#fixMerge', ()=>go('progress'));
+  on('#fixRestore', ()=>go('backup'));
+  on('#fixMerge', ()=>go('backup'));
   on('#fixBackup', ()=>{ downloadBackup(); });
   on('#pilotDue', ()=>{ go('labs'); const p = $('#pilot'); if(p) p.scrollIntoView(); });
   on('#fixFresh', ()=>askConfirm('Start fresh? The unreadable copy stays in browser storage, but SkillQuest will begin saving new progress now.', 'Start fresh', ()=>{ saveBlocked = false; save(); vToday(); }));
@@ -1285,7 +1285,14 @@ function vProgress(){
     '<br>∞ Generated problems: '+Object.values(S.gen||{}).reduce((a,g)=>a+g.right,0)+' right of '+Object.values(S.gen||{}).reduce((a,g)=>a+g.total,0)+'</p></div>'+
     '<div class="card ladder"><h3 style="margin-top:0">Rank ladder</h3>'+RANKS.map(x=>'<div class="'+(x[1]===r[1]?'me':'')+'"><span>'+x[1]+'</span><span>'+x[0]+' XP</span></div>').join('')+'</div></div>'+
     '<h2>Track practice scores</h2><div class="card">'+TRACKS.map(t=>{const m1=mastery(t.id,1), m2=mastery(t.id,2); return '<div style="margin:10px 0">'+t.icon+' '+t.name+' <span class="small">L1 '+m1+'% · L2 '+m2+'%</span><div class="meter"><i style="width:'+m1+'%"></i></div><div class="meter"><i style="width:'+m2+'%;background:var(--accent)"></i></div>'+statsLine([1,2].map(n=>levelStats(t.id,n)).reduce((a,b)=>{ for(const k in a) a[k]+=b[k]; return a; }))+'</div>';}).join('')+'</div>'+
-    '<h2>Backup</h2><div class="card"><p class="small">Progress is saved in this browser only. Clearing browser data or switching browsers loses it, so download a backup once a week. Last backup: <b>'+esc(S.lastBackup || 'never')+'</b>.</p>'+
+    '<h2>Backup</h2><div class="card"><p class="small">Back up, restore, or move progress between your PC and phone in <b>How to use → Backup</b>. Last backup: <b>'+esc(S.lastBackup || 'never')+'</b>.</p><div class="row"><button class="primary" id="toBackup">Open Backup</button></div></div>';
+  $('#toBackup').onclick = ()=>go('backup');
+}
+
+/* ---------- Backup (How to use → Backup) ---------- */
+function vBackup(){
+  view.innerHTML = '<h1>Backup</h1>'+
+    '<div class="card"><p class="small">Progress is saved in this browser only. A new computer, a new browser or cleared browser data starts empty, so download a backup once a week. To bring progress here from another device, use <b>Replace</b> on a device that has nothing yet, or <b>Merge</b> to combine two devices you both use. Last backup: <b>'+esc(S.lastBackup || 'never')+'</b>.</p>'+
     '<div class="row"><button class="primary" id="exp"'+(PHONE?' hidden':'')+'>Download backup file</button><button id="mrgb" title="Combine a backup file with the progress here. Nothing is lost.">Merge a backup file in</button><button id="impb" title="Throw away the progress here and use the backup instead">Replace with a backup file</button><input type="file" id="imp" accept=".json,application/json,text/plain" hidden><button id="reset">Reset everything</button>'+
     (prevSnapshot() ? '<button id="undo" title="Go back to how progress was before the last merge, restore or reset">↺ Undo last '+esc(prevSnapshot().what)+' ('+esc(prevSnapshot().at)+')</button>' : '')+'</div>'+
     '<h3>Move progress between your PC and phone</h3>'+
@@ -1293,14 +1300,16 @@ function vProgress(){
     '<div class="row"><button class="primary" id="cpb">Copy backup</button></div>'+
     '<textarea id="bkText" hidden readonly style="min-height:70px;margin-top:8px" aria-label="Backup text"></textarea>'+
     '<textarea id="pasteBk" style="min-height:70px;margin-top:8px" placeholder="Paste backup text from your other device here" aria-label="Paste backup text"></textarea>'+
-    '<div class="row" style="margin-top:8px"><button id="pasteMerge">Merge pasted backup</button></div></div>';
-  $('#exp').onclick=()=>{ downloadBackup(); vProgress(); };
+    '<div class="row" style="margin-top:8px"><button id="pasteMerge">Merge pasted backup</button><button id="pasteReplace" title="Throw away the progress here and use the pasted backup instead">Replace with pasted backup</button></div></div>';
+  $('#exp').onclick=()=>{ downloadBackup(); vBackup(); };
   $('#cpb').onclick = copyBackupText;
-  $('#pasteMerge').onclick = ()=>{
-    const raw = $('#pasteBk').value.trim(), r = importBackup(raw, 'merge');
-    if(r !== 'bad') replaceDone(r, 'Backup merged in.'+evNote(), ()=>importBackup(raw, 'merge', true));
+  const pasted = mode=>{
+    const raw = $('#pasteBk').value.trim(), r = importBackup(raw, mode);
+    if(r !== 'bad') replaceDone(r, (mode === 'merge' ? 'Backup merged in.' : 'Backup restored.')+evNote(), ()=>importBackup(raw, mode, true));
     else toast('That text isn\'t a complete SkillQuest backup. Copy it again on the other device and paste all of it.');
   };
+  $('#pasteMerge').onclick = ()=>pasted('merge');
+  $('#pasteReplace').onclick = ()=>askConfirm('Replace ALL progress on this device with the pasted backup? Use "Merge" to keep both. (You can undo it afterwards.)', 'Replace with pasted backup', ()=>pasted('replace'));
   let importMode = 'merge';
   $('#mrgb').onclick = ()=>{ importMode = 'merge'; $('#imp').click(); };
   $('#impb').onclick = ()=>askConfirm('Replace ALL progress on this device with a backup file? Use "Merge" to keep both. (You can undo it afterwards.)', 'Choose file to replace with', ()=>{ importMode = 'replace'; $('#imp').click(); });
@@ -1314,7 +1323,7 @@ function vProgress(){
   $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device? You can undo it once from this page.', 'Erase everything', ()=>{
     const erase = force=>replaceProgress('reset', ()=>structuredClone(DEFAULT), force);
     replaceDone(erase(false), 'Progress erased.', ()=>erase(true)); });
-  const un = $('#undo'); if(un) un.onclick = ()=>{ undoLast(); vProgress(); };
+  const un = $('#undo'); if(un) un.onclick = ()=>{ undoLast(); vBackup(); };
 }
 /* Bring a backup in: clean it, then merge or replace through replaceProgress (undo copy first, kept only if it saves).
    'bad' = not a usable backup; otherwise replaceProgress's answer. */
