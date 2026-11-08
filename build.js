@@ -6,7 +6,7 @@ const path = require('path');
 
 const SRC = path.join(__dirname, 'src');
 const OUT = path.join(__dirname, 'dist', 'SkillQuest.html');
-const INSTALL = process.env.SKILLQUEST_INSTALL || 'C:/Users/User/Documents/Job Search/SkillQuest.html';
+const INSTALL = process.env.SKILLQUEST_INSTALL || path.join(require('os').homedir(), 'Documents', 'Job Search', 'SkillQuest.html');
 
 // Script order matters: content, lessons, generators, the learning engine, then the app.
 const lessonDir = path.join(SRC, 'lessons');

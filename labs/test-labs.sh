@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs every lab end to end in a throwaway HOME: start -> check fails -> wrong fix is caught -> right fix passes -> reset.
-# Run from Windows: wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/test-labs.sh
+# Run from Windows: wsl bash /mnt/c/Users/aleis/Documents/skillquest/labs/test-labs.sh
 set -u
 SRC="$(cd "$(dirname "$0")" && pwd)"
 # Throwaway HOME; refuse to go on unless it really is a fresh folder under /tmp (it is deleted at the end).

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Installs the SkillQuest labs into WSL. Run from Windows:
-#   wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/install.sh
+#   wsl bash /mnt/c/Users/aleis/Documents/skillquest/labs/install.sh
 set -e
 SRC="$(cd "$(dirname "$0")" && pwd)"
 DEST="$HOME/.skillquest-labs"

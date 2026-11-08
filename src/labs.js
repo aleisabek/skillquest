@@ -2,7 +2,7 @@
    The labs themselves live in /labs and run inside WSL Ubuntu (sq-lab command).
    Passing a lab prints a completion code; entering it here marks the lab done and boosts the related skills.
    code = first 6 hex characters of sha256("skillquest-lab:" + id), uppercased (checked by tests). */
-const LAB_INSTALL = 'wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/install.sh';
+const LAB_INSTALL = 'wsl bash /mnt/c/Users/aleis/Documents/skillquest/labs/install.sh';
 const LABS = [
  {id:'permissions', title:'Permission denied', level:'L1', code:'758EC9', skills:['term:linux:Users, processes & privilege','quiz:linux:Permissions'],
   summary:'A backup script won\'t run and a secrets file is readable by everyone. Fix both with least privilege.'},

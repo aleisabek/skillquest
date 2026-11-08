@@ -13,7 +13,7 @@ An offline practice app for entry-level IT jobs: IT support & Microsoft 365, net
 | `npm run build` | Builds `dist/SkillQuest.html` |
 | `npm run install-app` (or `npm run release`) | One-command release: runs every check and stops on a failure, keeps the old install as `SkillQuest.prev.html`, installs to `Documents\Job Search\SkillQuest.html` (where the Desktop shortcut points), regenerates the public deck and, only if its cards changed, shows the diff and asks before committing and pushing it. Ends with a reminder to republish the phone version. `--yes` publishes without asking; `--no-deck` skips the deck. |
 | `npm test` | Builds, then runs every check (see below) |
-| `npm run export-deck -- --out C:/Users/User/Desktop/flashcards-project/index.html` | Regenerates the public Linux & Bandit command deck (GitHub Pages: aleisabek/Linux-Cheat-sheet) from the Linux cards. `logo.svg` in that repo is its logo and tab icon. Commit and push that repo to update the live page. |
+| `npm run export-deck -- --out C:/Users/aleis/Documents/Linux-Cheat-sheet/index.html` | Regenerates the public Linux & Bandit command deck (GitHub Pages: aleisabek/Linux-Cheat-sheet) from the Linux cards. `logo.svg` in that repo is its logo and tab icon. Commit and push that repo to update the live page. |
 
 ## Phone version
 
@@ -45,8 +45,8 @@ build.js          concatenates src/ into one file
 
 | Command | What it does |
 |---|---|
-| `wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/install.sh` | Installs/updates the labs and the `sq-lab` command |
-| `wsl bash /mnt/c/Users/User/Documents/SkillQuest/labs/test-labs.sh` | Runs every lab end to end (break → wrong fix caught → right fix passes → reset) in a throwaway home folder |
+| `wsl bash /mnt/c/Users/aleis/Documents/skillquest/labs/install.sh` | Installs/updates the labs and the `sq-lab` command |
+| `wsl bash /mnt/c/Users/aleis/Documents/skillquest/labs/test-labs.sh` | Runs every lab end to end (break → wrong fix caught → right fix passes → reset) in a throwaway home folder |
 
 Each lab is `labs/labs/NAME/lab.sh` with `TITLE`, `LEVEL`, `LESSON`, `HINTS`, and the functions `lab_setup`, `lab_mission`, `lab_check` and optionally `lab_cleanup`. The completion code is the first 6 hex characters of `sha256("skillquest-lab:NAME")`; `src/labs.js` must list the same code (checked by `npm test`).
 

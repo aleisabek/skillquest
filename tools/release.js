@@ -11,8 +11,8 @@ const readline = require('readline');
 const { spawnSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
-const INSTALL = process.env.SKILLQUEST_INSTALL || 'C:/Users/User/Documents/Job Search/SkillQuest.html';
-const DECK_DIR = process.env.DECK_DIR || 'C:/Users/User/Desktop/flashcards-project';
+const INSTALL = process.env.SKILLQUEST_INSTALL || path.join(require('os').homedir(), 'Documents', 'Job Search', 'SkillQuest.html');
+const DECK_DIR = process.env.DECK_DIR || path.join(require('os').homedir(), 'Documents', 'Linux-Cheat-sheet');
 const args = process.argv.slice(2);
 const step = msg => console.log('\n== ' + msg);
 const run = (cmd, a, opts) => spawnSync(cmd, a, Object.assign({ cwd: root, encoding: 'utf8' }, opts));
