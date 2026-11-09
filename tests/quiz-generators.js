@@ -25,6 +25,9 @@ for (const tid of Object.keys(G)) for (const lv of [1, 2]) for (let gi = 0; gi <
   else if ((m = Q.match(/print\((\d+) \/\/ (\d+)\)/))) { if (+A !== Math.floor(m[1] / m[2])) fail('floordiv', q); }
   else if ((m = Q.match(/print\((\d+) % (\d+)\)/))) { if (+A !== m[1] % m[2]) fail('mod', q); }
   else if ((m = Q.match(/print\(len\(\[([\d, ]+)\]\)\)/))) { if (+A !== m[1].split(',').length) fail('len', q); }
+  else if ((m = Q.match(/rows = \[(.*)\]top = sorted\(rows, key=lambda r: r\[1\]\*(\d) \+ r\[2\], reverse=True\)\[0\]print\(top\[0\]\)/))) {
+    const rows = JSON.parse('[' + m[1].replace(/\(/g, '[').replace(/\)/g, ']') + ']'), w = +m[2], sc = r => r[1] * w + r[2];
+    const best = rows.reduce((a, r) => sc(r) > sc(a) ? r : a); if (rows.filter(r => sc(r) === sc(best)).length > 1 || A !== best[0]) fail('rank rows', q); }
   else if ((m = Q.match(/items = \[(.*)\]print\(items\[(-?\d+)\]\)/))) { const xs = JSON.parse('[' + m[1] + ']'), i = +m[2]; if (A !== xs.at(i)) fail('index', q); }
   else if ((m = Q.match(/matches the regex (\S+)\?/))) { const R = new RegExp(m[1]); if (!R.test(A)) fail('reA', q); O.slice(1).forEach(o => { if (R.test(o)) fail('reW', q); }); }
   else if (/tickets table/.test(q[2])) {

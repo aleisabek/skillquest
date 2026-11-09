@@ -94,7 +94,14 @@ const GEN = {
   sk('HTTP & APIs', ()=>{ const [c,m] = pick(HTTP); return Math.random()<.5
       ? mcq('code',1,'An API returns status <code>'+c+'</code>. What does it mean?', m, HTTP.map(x=>x[1]), c+' = '+m+'. 2xx success, 3xx redirect, 4xx client error, 5xx server error.')
       : mcq('code',1,'Which status code means: "'+m+'"?', c, HTTP.map(x=>x[0]), c+' = '+m+'.'); }, {lookup:true}),
-  sk('Python', ()=>{ const kind = rnd(0,3);
+  sk('Python', ()=>{ const kind = rnd(0,4);
+      /* rank rows by a computed score (the "score a CSV, sort it" scripting pattern): the answer is worked out from the rows */
+      if(kind===4){ const hosts = shuffle(['web1','db1','vpn1','dns1','mail1','pos1']).slice(0,4), w = rnd(2,3);
+        const rows = hosts.map(h=>[h, rnd(0,6), rnd(0,6)]), score = r=>r[1]*w + r[2], top = Math.max(...rows.map(score));
+        if(rows.filter(r=>score(r) === top).length > 1) return null;   /* a tie would make sorted()'s order the real lesson */
+        const best = rows.find(r=>score(r) === top)[0];
+        return mcq('code',1,'What does this print?<br><code>rows = ['+rows.map(r=>'("'+r[0]+'", '+r[1]+', '+r[2]+')').join(', ')+']</code><br><code>top = sorted(rows, key=lambda r: r[1]*'+w+' + r[2], reverse=True)[0]</code><br><code>print(top[0])</code>',
+          best, hosts, 'Each row is (host, failed logins, alerts). The key scores each row: '+rows.map(r=>r[0]+' = '+r[1]+'×'+w+' + '+r[2]+' = '+score(r)).join(', ')+'. reverse=True puts the highest score first, so [0] is '+best+'.'); }
       if(kind===0){ const a = rnd(7,40), b = rnd(2,6), r = Math.floor(a/b); return mcq('code',1,'What does Python print? <code>print('+a+' // '+b+')</code>', r, [r+1, r-1, (a/b).toFixed(1), a%b], '// is floor division: '+a+' ÷ '+b+' = '+(a/b).toFixed(2)+', rounded down to '+r+'.'); }
       if(kind===1){ const a = rnd(7,40), b = rnd(2,6), r = a%b; return mcq('code',1,'What does Python print? <code>print('+a+' % '+b+')</code>', r, [Math.floor(a/b), r+1, b-r===r?r+2:b-r, 0, 1], '% gives the remainder: '+a+' = '+b+' × '+Math.floor(a/b)+' + '+r+'.'); }
       if(kind===2){ const xs = shuffle(['web','db','vpn','dns','mail','pos']).slice(0,rnd(3,5)), i = rnd(-1, xs.length-1), r = xs[(i+xs.length)%xs.length];
@@ -1355,6 +1362,24 @@ GEN.sec[2].push(
         [other, (cp + rp)+'%', (100 - (askClick ? cp : rp))+'%', Math.min(99, 2 * (askClick ? cp : rp))+'%', Math.max(1, Math.round((askClick ? cp : rp) / 2))+'%'],
         (askClick ? clicked : reported)+' of '+n+' = '+right+'. Over repeated campaigns, a falling click rate and a rising report rate show the training is working.'); },
     {obj:S701_801(['5.6'], ['5.6'])})
+);
+/* Security tools by job (Security+ security operations): which kind of tool fits a task. Concepts only: no commands,
+   no attack steps, and every testing job is marked as authorized. Answers come from this fixed table. */
+const SEC_TOOLS = [
+  ['Capture and read the packets crossing a network link', 'A packet capture tool (Wireshark, tcpdump)'],
+  ['Collect logs from many systems in one place and alert on patterns', 'A SIEM (Splunk, Microsoft Sentinel)'],
+  ['Spot or block known-bad traffic patterns as they cross the network', 'An IDS/IPS (Snort, Suricata)'],
+  ['Watch what runs on each laptop and isolate one that looks infected', 'EDR (Microsoft Defender for Endpoint, CrowdStrike Falcon)'],
+  ['List which hosts and ports answer on a network you are authorized to test', 'A network scanner (Nmap)'],
+  ['Inspect and replay a web app\'s requests through a proxy, on an app you are authorized to test', 'A web testing proxy (Burp Suite, OWASP ZAP)'],
+  ['Check how quickly stored password hashes could be guessed, in an authorized audit', 'A password auditing tool (Hashcat, John the Ripper)'],
+  ['Make an exact copy of a disk for an investigation and prove it was not changed', 'A forensic imager (FTK Imager, dd) plus a hash of the copy'],
+  ['Check a suspicious file\'s hash against many antivirus engines without running it', 'A file reputation lookup (VirusTotal)'],
+  ['Find known missing patches and weak settings across many servers', 'A vulnerability scanner (Nessus, OpenVAS)']
+];
+GEN.sec[2].push(
+  sk('Security tools by job', ()=>{ const [job, tool] = pick(SEC_TOOLS);
+      return mcq('sec',2,'Which kind of tool fits this job: <b>'+job+'</b>?', tool, SEC_TOOLS.map(t=>t[1]), 'Know a tool by its job first: '+tool+'. The names change; the job stays.'); }, {lookup:true})
 );
 GEN.net[2].push(
   sk('Network attacks', ()=>{ const {s, a, wrongs} = pickSc(NET_ATK, NET_ATK_ALL);
