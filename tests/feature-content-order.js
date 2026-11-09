@@ -6,8 +6,11 @@ const crypto = require('crypto');
 const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 eval(js.split('/* ===================== STATE')[0] + ';global.T={CARDS,QUIZ,TERM,IV,SQLT}');
 const key = {
-  CARDS: c => c[0] + '|' + c[2], QUIZ: q => q[0] + '|' + q[2], TERM: t => t[0], IV: q => q.q, SQLT: t => t[1]
+  CARDS: c => c[0] + '|' + c[2], QUIZ: q => q[0] + '|' + q[2], TERM: t => t[0], IV: q => q.q, SQLT: t => t[1],
+  /* Terminal and SQL progress is stored under the model answer (S.term[t[2]], S.sql[t[3]]), so that is guarded too */
+  TERM_ANSWER: t => t[2], SQLT_ANSWER: t => t[3]
 };
+T.TERM_ANSWER = T.TERM; T.SQLT_ANSWER = T.SQLT;
 const hash = s => crypto.createHash('sha1').update(s).digest('hex').slice(0, 10);
 const now = Object.fromEntries(Object.entries(key).map(([k, f]) => [k, T[k].map(x => hash(f(x)))]));
 const file = __dirname + '/content-snapshot.json';

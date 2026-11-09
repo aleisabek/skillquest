@@ -31,4 +31,4 @@ lab_check() {
   pid=$(cat "$DIR/.pid" 2>/dev/null); if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then ok "the app is still running"; else bad "the app (pid $pid) was stopped; you were asked to keep it running"; fi
   if [ "$(du -sb "$DIR/var/backups" | cut -f1)" = "$(cat "$DIR/.backups_size")" ]; then ok "database backup untouched"; else bad "the database backup was changed"; fi
 }
-lab_cleanup() { pid=$(cat "$DIR/.pid" 2>/dev/null) && kill "$pid" 2>/dev/null; true; }
+lab_cleanup() { pid=$(cat "$DIR/.pid" 2>/dev/null) && grep -qaF "$DIR/var/log/app/payments.log" "/proc/$pid/cmdline" 2>/dev/null && kill "$pid" 2>/dev/null; true; }   # only the lab's own fake app: a stale pid may now be another process

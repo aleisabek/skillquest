@@ -152,7 +152,7 @@ const CARDS = [
  ['sec',2,'Windows logon event IDs','4624 successful logon. 4625 failed logon. 4740 account locked out. 4720 user created. 4672 logon with admin privileges.','s-ops'],
  ['sec',2,'Brute force vs password spraying','Brute force: many passwords against one account. Spraying: one common password against many accounts, to avoid lockouts.','s-threats'],
  ['sec',2,'Indicators of compromise (IOCs)','Evidence of an attack: bad IPs or domains, malicious file hashes, strange processes, new mailbox forwarding rules.','s-ops'],
- ['sec',2,'Incident response phases (NIST)','Preparation. Detection and Analysis. Containment, Eradication and Recovery. Post-incident activity (lessons learned).','s-ops'],
+ ['sec',2,'Incident response phases (NIST)','Security+ teaches: Preparation, Detection, Analysis, Containment, Eradication, Recovery, Lessons learned. NIST SP 800-61 Rev. 3 (2025) now frames response around the CSF 2.0 functions (Govern, Identify, Protect, Detect, Respond, Recover).','s-ops'],
  ['sec',2,'Reading email headers','Compare From with Return-Path and Reply-To, check the SPF/DKIM/DMARC results, and find the real sending server.','s-ops'],
  ['sec',2,'SPF, DKIM, DMARC','SPF: which servers may send for a domain. DKIM: a digital signature on the email. DMARC: what to do when those fail, plus reports.','s-defense'],
  ['sec',2,'Alert triage','Is it real (true or false positive)? Which user or device? How severe? Any related alerts? Then escalate, or close with notes.','s-ops'],
@@ -454,7 +454,7 @@ const QUIZ = [
  ['net',1,'Which device forwards traffic between different networks using IP addresses?',['Router','Switch','Hub','Patch panel'],0,'Routers work at Layer 3 (IP). Switches work at Layer 2 (MAC addresses).'],
  ['net',1,'<code>ping</code> uses which protocol?',['ICMP','TCP','UDP','HTTP'],0,'ping sends ICMP echo requests. Some firewalls block ICMP, so no reply does not always mean the host is down.'],
  ['net',1,'Which OSI layer handles IP addresses and routing?',['Layer 3, Network','Layer 2, Data Link','Layer 4, Transport','Layer 7, Application'],0,'Layer 3 = IP and routing. Layer 4 = TCP/UDP and ports.'],
- ['net',1,'A user can ping 8.8.8.8 but cannot open google.com. What is most likely broken?',['DNS','The network cable','The router\'s power','The keyboard'],0,'Reaching an IP proves the connection works, so name resolution (DNS) is the suspect. Try <code>nslookup google.com</code>.'],
+ ['net',1,'A user can ping 8.8.8.8 but cannot open google.com. What is most likely broken?',['DNS','The network cable','The router\'s power','The keyboard'],0,'Reaching an IP shows the route out works, so name resolution (DNS) is the likely suspect (a proxy or a block on one site could also do it). Try <code>nslookup google.com</code>.'],
 
  ['sec',1,'An attacker changes the amount on an invoice while it is being sent. Which part of CIA is hurt?',['Integrity','Confidentiality','Availability','Authentication'],0,'Integrity means data is not changed without permission.'],
  ['sec',1,'Password plus a code from an authenticator app counts as MFA because it is...',['Something you know plus something you have','Two passwords','Two things you are','Sent over the internet'],0,'Two different factor types. Two passwords would be the same type.'],

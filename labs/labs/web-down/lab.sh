@@ -28,6 +28,6 @@ lab_check() {
   if grep -q 8088 "$DIR/start-app.sh"; then ok "start-app.sh uses port 8088, so it survives the next restart"; else bad "start-app.sh still has the wrong port; the fix wouldn't survive a restart"; fi
 }
 lab_cleanup() {
-  pid=$(cat "$DIR/.pid" 2>/dev/null) && kill "$pid" 2>/dev/null
-  pkill -f "http.server 80(80|88) --bind 127.0.0.1" 2>/dev/null; true
+  mine() { case "$(readlink "/proc/$1/cwd" 2>/dev/null)" in "$DIR"|"$DIR"/*) return 0;; esac; return 1; }   # only servers started from this lab folder
+  for p in $(cat "$DIR/.pid" 2>/dev/null) $(pgrep -f "http.server 80(80|88) --bind 127.0.0.1" 2>/dev/null); do mine "$p" && kill "$p" 2>/dev/null; done; true
 }

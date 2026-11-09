@@ -7,7 +7,7 @@ HINTS=(
   "Find the outside IP that turned logging off, and the key it used. Then look at what that IP did next: a CreateAccessKey record's responseElements holds the NEW key it made. Both keys go in disable.txt; the busy internal service keys must keep working."
 )
 lab_setup() {
-  python3 - "$DIR" <<'PY'
+  python3 -I - "$DIR" <<'PY'
 import json, random, sys, os
 d = sys.argv[1]
 rnd = random.Random()

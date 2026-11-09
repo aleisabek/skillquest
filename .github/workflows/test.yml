@@ -28,4 +28,6 @@ jobs:
       - name: Configure git for the secret-leak lab
         run: git config --global init.defaultBranch main
       - name: Every lab end to end (right, alternative, insecure, broken and crash fixes)
+        env:
+          SQ_TEST_ROOT: "1"   # CI only: also check that sq-lab refuses to run as real root
         run: bash labs/test-labs.sh

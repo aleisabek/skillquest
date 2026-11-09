@@ -39,7 +39,7 @@ lab_mission() {
 }
 lab_check() {
   local out
-  out=$(python3 - "$DIR" <<'PY'
+  out=$(python3 -I - "$DIR" <<'PY'
 import glob, os, re, stat, sys
 d = sys.argv[1]
 # every sshd_config keyword in current OpenSSH (man sshd_config), lowercased; sshd refuses to start on anything else

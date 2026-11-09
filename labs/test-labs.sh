@@ -56,7 +56,7 @@ pilot() { # pilot LAB RIGHT_Q1 RIGHT_Q2 THE_FAULTS_Q2_NUMBER
   appok() { if command -v node >/dev/null 2>&1; then bash "$SQ" report "$lab" | node "$SRC/../tests/validate-report.js" >"$T/val.out" 2>&1 && pass "$lab: the app accepts the $1 report" || { fail "$lab: the app refuses the $1 report"; cat "$T/val.out"; }
     else echo "  skip $lab: node isn't installed here, so the $1 report isn't cross-checked (CI does it)"; fi; }
   SQ_FORCE_NOPERM=1 bash "$SQ" start "$lab" >/dev/null 2>&1 && fail "$lab: started although permissions aren't enforced" || pass "$lab: refuses when permissions aren't enforced"
-  if sudo -n true 2>/dev/null; then sudo env HOME="$HOME" SQ_LABS_HOME="$HOME/.skillquest-labs" bash "$SQ" start "$lab" >/dev/null 2>&1 && fail "$lab: started as root" || pass "$lab: refuses to run as root"; fi
+  if [ -n "${SQ_TEST_ROOT:-}" ] && sudo -n true 2>/dev/null; then sudo env HOME="$HOME" SQ_LABS_HOME="$HOME/.skillquest-labs" bash "$SQ" start "$lab" >/dev/null 2>&1 && fail "$lab: started as root" || pass "$lab: refuses to run as root"; fi
   fresh; bash "$SQ" check "$lab" >"$T/chk.out" 2>&1
   grep -q "unreachable\|wider access on" "$T/chk.out" && fail "$lab: check names paths before the config opens (gives the answer away)" || pass "$lab: check gives nothing away before the fix"
   is "finish without a fix" "$(fin "$q1" "$q2")" fail

@@ -39,7 +39,7 @@ lab_mission() {
 }
 lab_check() {
   local out
-  out=$(python3 - "$DIR" <<'PY'
+  out=$(python3 -I - "$DIR" <<'PY'
 import json, sys, os, re
 d = sys.argv[1]
 def load(f):

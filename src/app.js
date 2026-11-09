@@ -17,7 +17,9 @@ function load(){
   let st;
   try{ st = migrateTerm(Object.assign(structuredClone(DEFAULT), JSON.parse(raw))); }
   catch(e){
-    try{ localStorage.setItem(KEY+'.corrupt-'+Date.now(), raw); }catch(e2){}
+    /* keep one copy of the unreadable save: reloading must not fill storage with identical copies */
+    try{ let have = false; for(let i = 0; i < localStorage.length; i++){ const k = localStorage.key(i); if(k && k.startsWith(KEY+'.corrupt-') && localStorage.getItem(k) === raw){ have = true; break; } }
+      if(!have) localStorage.setItem(KEY+'.corrupt-'+Date.now(), raw); }catch(e2){}
     saveBlocked = true;
     return structuredClone(DEFAULT);
   }
@@ -30,7 +32,8 @@ function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(S)); saveFailed = false; return true; }
   catch(e){ saveFailed = true; warnSave('Progress NOT saved: browser storage is full or blocked. Download a backup from How to use → Backup now.'); return false; }
 }
-function warnSave(msg){ if(saveWarned) return; saveWarned = true; try{ toast(msg); }catch(e){} }
+/* warned only once the toast really showed: at startup toast isn't defined yet, so the first real save failure still warns */
+function warnSave(msg){ if(saveWarned) return; try{ toast(msg); saveWarned = true; }catch(e){} }
 /* Before anything that replaces progress (restore, merge, erase), keep the current state so it can be undone once. */
 const PREV = KEY+'.prev';
 function snapshot(what){ try{ localStorage.setItem(PREV, JSON.stringify({at:dayStr(), what, S})); return true; }catch(e){ return false; } }
@@ -1129,7 +1132,9 @@ function sqlStep(s){
   const ta = $('#sq'), out = $('#out'); ta.focus();
   const sid = isGen && t.sk ? skillIdFor('sql', 'sql', t.sk) : null;
   const next = ()=>{ s.i++; s.hinted=false; s.wrong=false; s.shown=false; sqlStep(s); };
+  const solved = ()=>$('#run').disabled;   /* after a correct run only Next moves on: nothing below may record a miss */
   const run = ()=>{
+    if(solved()) return;
     const v = ta.value; if(!v.trim()) return;
     const q = sqlNorm(v);
     if(t[2].some(re=>re.test(q))){
@@ -1159,8 +1164,8 @@ function sqlStep(s){
   $('#run').onclick = run;
   ta.onkeydown = e=>{ if(e.key==='Enter' && (e.ctrlKey||e.metaKey)){ e.preventDefault(); run(); } };
   $('#hint').onclick=()=>{ s.hinted=true; out.innerHTML='<div class="explain">💡 '+esc(t[4])+'</div>'; };
-  $('#show').onclick=()=>{ s.hinted=true; s.shown=true; addNote('sql', t[1], t[3], ta.value.trim(), sid); out.innerHTML='<div class="explain">Answer: <code>'+esc(t[3])+'</code><br><span class="small">Type it in yourself to lock it in (no XP).</span></div>'; };
-  $('#skip').onclick = ()=>{ if(sid) recordSkill(sid, false); addNote('sql', t[1], t[3], ta.value.trim(), sid); next(); };
+  $('#show').onclick=()=>{ if(solved()) return; s.hinted=true; s.shown=true; addNote('sql', t[1], t[3], ta.value.trim(), sid); out.innerHTML='<div class="explain">Answer: <code>'+esc(t[3])+'</code><br><span class="small">Type it in yourself to lock it in (no XP).</span></div>'; };
+  $('#skip').onclick = ()=>{ if(solved()) return next(); if(sid) recordSkill(sid, false); addNote('sql', t[1], t[3], ta.value.trim(), sid); next(); };
 }
 
 /* ---------- Job practice ---------- */
@@ -1356,7 +1361,7 @@ function vGuide(){
     '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward the practice score.</li>'+
     '<li><b>Mistake journal (Review tab):</b> every miss is saved with the right answer. Tag why you missed it, and retry what is due each day. A mistake clears only after you get it right on two different days.</li>'+
     '<li><b>Labs (Hands-on):</b> real break-and-fix problems in your WSL Ubuntu. Do one or two a week; they are your best interview stories.</li>'+
-    '<li><b>Exams (Job prep):</b> timed Security+ and Network+ practice by official domain. Use it weekly to see which domain is weakest; aim for 85%+ on several attempts.</li>'+
+    '<li><b>Exams (Job prep):</b> timed Security+ and Network+ practice by official domain. Use it weekly to see which domain is weakest; a high score shows practice on these questions, not exam readiness, so pair it with a second source of practice exams.</li>'+
     '<li><b>Watch Study → Skills.</b> Every skill has a practice score that fades if you don\'t practice, so skills come back for review before you forget them. Aim to get every skill to "Strong" (85%+).</li>'+
     '<li><b>Then one real lab</b> from the list on the Today tab (TryHackMe, Bandit, SQLBolt or Microsoft Learn).</li>'+
     '<li><b>Browse (Study → Tracks):</b> search every card in a track, filter by topic, copy a command, then study just those cards. The Linux track has the full Bandit toolkit plus a Bandit study guide. Keys in flashcards: Space flips, 1 = Again, 2 = Got it. At most '+NEW_PER_DAY+' new cards a day.</li>'+

@@ -7,7 +7,7 @@ HINTS=(
   "Let sort apply the whole rule:  (head -1 findings.csv; tail -n +2 findings.csv | sort -t, -k6,6r -k5,5r -k4,4nr) | column -s, -t   The top three rows are your findings; write each up with Asset:, Severity:, Impact: and Fix: lines."
 )
 lab_setup() {
-  python3 - "$DIR" <<'PY'
+  python3 -I - "$DIR" <<'PY'
 import os, random, sys
 d, r = sys.argv[1], random.Random()
 issues = [
@@ -46,7 +46,7 @@ lab_check() {
   local f="$DIR/findings.md"
   [ -f "$f" ] || { bad "findings.md is missing"; return; }
   local out
-  out=$(python3 - "$DIR" <<'PY'
+  out=$(python3 -I - "$DIR" <<'PY'
 import os, re, sys
 d = sys.argv[1]
 raw = open(os.path.join(d, 'findings.md'), 'rb').read()

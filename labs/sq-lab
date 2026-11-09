@@ -62,7 +62,7 @@ selftest() {
   fi
   chmod 600 "$t"; rm -f "$t"
 }
-run_checks() { FAILED=0; OKS=0; RESULTS="$EV/$ATTEMPT.checks"; : > "$RESULTS"; echo "${B}Checking ${TITLE}${N}"; lab_check
+run_checks() { FAILED=0; OKS=0; case "$ATTEMPT" in ""|*[!0-9a-f-]*) [ -n "$PILOT" ] && { echo "sq-lab: this attempt record looks damaged; run: sq-lab reset $LAB" >&2; exit 1; }; RESULTS=/dev/null;; *) RESULTS="$EV/$ATTEMPT.checks";; esac; : > "$RESULTS"; echo "${B}Checking ${TITLE}${N}"; lab_check
   # fail closed: a checker that crashed or printed nothing is never a pass
   [ "$OKS" -gt 0 ] || bad "the checker couldn't confirm anything (see any error above)"; }
 need_attempt() { if [ -z "${ATTEMPT:-}" ] || [ ! -d "$DIR" ]; then echo "No attempt in progress. Start one: ${B}sq-lab start $LAB${N}"; exit 1; fi; }

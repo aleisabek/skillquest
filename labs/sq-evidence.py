@@ -38,7 +38,10 @@ def ev_dir(root):
 
 
 def path_of(root, aid):
-    return os.path.join(ev_dir(root), aid + '.json')
+    # attempt ids come back from files the learner can edit: only a plain UUID may become part of a path
+    if not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", str(aid or "")):
+        raise ValueError("not an attempt id")
+    return os.path.join(ev_dir(root), aid + ".json")
 
 
 def load(root, aid):

@@ -390,7 +390,7 @@ GEN.sec[2].push(
    sshd_config includes sshd_config.d/*.conf at the top, in name order, so a drop-in beats the main file. */
 const SSH_SETTINGS = [
   ['PermitRootLogin no', 'Nobody can sign in directly as root'],
-  ['PasswordAuthentication no', 'Passwords are refused; keys must be used'],
+  ['PasswordAuthentication no', 'Plain password sign-in is off (keyboard-interactive/PAM is a separate setting to check)'],
   ['MaxAuthTries 3', 'A connection is dropped after 3 failed attempts'],
   ['AllowUsers deploy admin', 'Only these two accounts may sign in over SSH'],
   ['PubkeyAuthentication yes', 'Signing in with an SSH key is allowed']
