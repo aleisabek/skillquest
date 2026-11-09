@@ -20,6 +20,11 @@ for (const g of TG) for (let k = 0; k < 2000; k++) {
   if (/^sudo /.test(t[2]) && !okAny(t[2].replace(/^sudo /, ''))) { /* some tasks need sudo optional only */ }
   WRONG.forEach(w => { if (okAny(w)) fail('wrong accepted', t[0], w); });
 }
+const BS = String.fromCharCode(92);
+const topBar = src => { let d = 0, cls = false; for (let i = 0; i < src.length; i++) { const c = src[i]; if (c === BS) { i++; continue; } if (cls) { if (c === ']') cls = false; continue; } if (c === '[') cls = true; else if (c === '(') d++; else if (c === ')') d--; else if (c === '|' && d === 0) return true; } return false; };
+for (const g of TG) for (let k = 0; k < 50; k++) { const t = g.f(); t[1].forEach(r => { if (topBar(r.source.replace(/^\^/, '').replace(/\$/, ''))) fail('top-level | splits the pattern', g.sk, t[0]); });
+  const m = /^Print only line (\d+) of (\S+)\.$/.exec(t[0]);
+  if (m) for (const w of ['ls | tail -1', 'ls | tail -n 1', 'head -n ' + m[1] + ' ' + m[2] + ' ; rm -rf ~']) if (t[1].some(r => r.test(NM(w)))) fail('wrong accepted', t[0], w); }
 // cross-check: a task's model answer should NOT satisfy a different task of the same type with different values
 for (const g of TG) for (let k = 0; k < 300; k++) { const a = g.f(), b = g.f(); if (a[2] !== b[2] && b[1].some(r => r.test(NM(a[2])))) fail('values not enforced', g.sk, a[2], 'vs', b[0]); }
 

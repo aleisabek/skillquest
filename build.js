@@ -16,8 +16,8 @@ const priv = fs.existsSync(path.join(SRC, 'private.js')) ? ['private.js'] : [];
 const ORDER = ['content.js', ...lessons, 'generators.js', 'scenes.js', 'learning.js', 'journal.js', 'exam.js', 'labs.js', 'pilot.js', 'practice.js', 'recorder.js', ...priv, 'app.js'];
 
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
-const js = ORDER.map(read).join('');
-const html = read('shell.html').replace('{{STYLE}}', () => read('styles.css')).replace('{{SCRIPT}}', () => js);
+const page = order => read('shell.html').replace('{{STYLE}}', () => read('styles.css')).replace('{{SCRIPT}}', () => order.map(read).join(''));
+const html = page(ORDER);
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, html);
@@ -27,9 +27,12 @@ console.log('built', path.relative(__dirname, OUT), (html.length / 1024).toFixed
 // <html>/<head>/<body>, so the file holds just the title, styles and page content, with PHONE = true.
 const PHONE_OUT = path.join(__dirname, 'dist', 'SkillQuest-phone.html');
 {
-  const title = html.match(/<title>[\s\S]*?<\/title>/)[0];
-  const style = html.match(/<style>[\s\S]*?<\/style>/)[0];
-  const body = html.slice(html.indexOf('<body>') + 6, html.lastIndexOf('</body>'));
+  /* the phone build is shared through claude.ai, so it never carries the private job list (example roles stand in) */
+  const phone = page(ORDER.filter(f => f !== 'private.js'));
+  if (/function privateJobs\b/.test(phone)) throw new Error('private job list found in the phone build');
+  const title = phone.match(/<title>[\s\S]*?<\/title>/)[0];
+  const style = phone.match(/<style>[\s\S]*?<\/style>/)[0];
+  const body = phone.slice(phone.indexOf('<body>') + 6, phone.lastIndexOf('</body>'));
   if (!body.includes('const PHONE = false;')) throw new Error('PHONE flag not found in app.js');
   fs.writeFileSync(PHONE_OUT, title + '\n' + style + '\n' + body.replace('const PHONE = false;', 'const PHONE = true;'));
   console.log('built', path.relative(__dirname, PHONE_OUT), '(phone version)');

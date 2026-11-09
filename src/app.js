@@ -21,7 +21,7 @@ function load(){
     saveBlocked = true;
     return structuredClone(DEFAULT);
   }
-  try{ migrateQuiz(st); recountStreak(st); }catch(e){}   /* upgrades old quiz answers and repairs a streak shortened by an older merge; never blocks loading */
+  try{ migrateQuiz(st); recountStreak(st); if(Array.isArray(st.journal)) st.journal = oneJournalPerId(st.journal); }catch(e){}   /* upgrades old quiz answers and repairs a streak shortened by an older merge; never blocks loading */
   return st;
 }
 /* true when progress reached storage */
@@ -35,6 +35,7 @@ function warnSave(msg){ if(saveWarned) return; saveWarned = true; try{ toast(msg
 const PREV = KEY+'.prev';
 function snapshot(what){ try{ localStorage.setItem(PREV, JSON.stringify({at:dayStr(), what, S})); return true; }catch(e){ return false; } }
 function prevSnapshot(){ try{ const p = JSON.parse(localStorage.getItem(PREV)); return p && p.S ? p : null; }catch(e){ return null; } }
+const UNDO_DAYS = 3;   /* the undo button is offered for this many days after a merge, restore or reset */
 function prevRaw(){ try{ return localStorage.getItem(PREV); }catch(e){ return null; } }
 function putPrevRaw(raw){ try{ if(raw == null) localStorage.removeItem(PREV); else localStorage.setItem(PREV, raw); }catch(e){} }
 /* The undo copy is used up only once the restored progress has actually saved; otherwise nothing changes. */
@@ -187,6 +188,16 @@ function mergeProgress(a, b){
   /* misses: keep a miss from either device. S.quiz stays true once a question was ever right, so it can't clear a miss;
      the miss clears when the question is answered right again. */
   m.miss = Object.assign({}, a.miss||{}, b.miss||{});
+  /* a dated miss is dropped when the kept right answer is from a later day (newer results win); an undated (older build)
+     miss is kept, so a miss is never lost on a guess */
+  m.missAt = {};
+  for(const x of Object.keys(m.miss)){
+    const ds = [[a, a.missAt], [b, b.missAt]].filter(([s])=>(s.miss||{})[x]).map(([, at])=>(at||{})[x] || null);
+    const when = ds.filter(Boolean).sort().pop();
+    if(ds.every(Boolean) && typeof m.quiz[x] === 'string' && m.quiz[x] > when){ delete m.miss[x]; continue; }
+    if(when) m.missAt[x] = when;
+  }
+  if(!Object.keys(m.missAt).length) delete m.missAt;
   /* first day of each question's run of right answers: take it from the device whose latest right answer was kept
      (both, if the same day: the earlier start); a miss on either device still sends the question back to Learning */
   m.qfirst = {};
@@ -196,8 +207,9 @@ function mergeProgress(a, b){
     if(pick) m.qfirst[x] = pick;
   }
   /* days: union of completed steps (a flag set on either device stays set) */
-  m.days = structuredClone(a.days||{});
-  for(const [d,v] of Object.entries(b.days||{})){ const md = m.days[d] = Object.assign({}, m.days[d]||{});
+  const bareRev = v=>{ v = Object.assign({}, v||{}); if(v.rev === true && !v.reviews && !['learn','p0','p1','p2','apply','quiz','skill','iv'].some(k=>v[k])) delete v.rev; return v; };
+  m.days = Object.fromEntries(Object.entries(a.days||{}).map(([d, v])=>[d, bareRev(v)]));
+  for(const [d,v0] of Object.entries(b.days||{})){ const v = bareRev(v0), md = m.days[d] = Object.assign({}, m.days[d]||{});
     for(const [k,x] of Object.entries(v||{})) md[k] = (md[k] === true || x === true) ? true : md[k] === undefined ? x
       : typeof x === 'number' && typeof md[k] === 'number' ? Math.max(md[k], x) : tieLow(md[k], x); }
   /* flashcards: keep the most recently reviewed record (review day = due minus its gap), so a lapse on one device
@@ -224,7 +236,7 @@ function mergeProgress(a, b){
   const journalPick = (o, e)=>!!e.done !== !!o.done ? (e.done ? e : o) : (e.hits||[]).length !== (o.hits||[]).length ? ((e.hits||[]).length > (o.hits||[]).length ? e : o) : tieLow(o, e);
   const J = new Map(); for(const e of [...(a.journal||[]), ...(b.journal||[])]){ const k = e.key+'|'+e.at, o = J.get(k); J.set(k, o ? journalPick(o, e) : e); }
   const byKeyThen = (x,y)=>(y.at||'').localeCompare(x.at||'') || stableStr(x).localeCompare(stableStr(y));
-  m.journal = [...J.values()].sort(byKeyThen).slice(0, JOURNAL_MAX);
+  m.journal = oneJournalPerId([...J.values()]).sort(byKeyThen).slice(0, JOURNAL_MAX);
   /* exam history: union, newest first */
   const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]){ const k = e.cert+e.date+e.pct+e.n+e.secs, o = E.get(k); E.set(k, o ? tieLow(o, e) : e); }
   m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date) || stableStr(x).localeCompare(stableStr(y))).slice(0, 50);
@@ -256,6 +268,7 @@ function sanitizeBackup(b){
   s.quiz = cleanMap(b.quiz, v=>v === true || okDate(v) ? v : undefined);
   if(isObj(b.qfirst)) s.qfirst = cleanMap(b.qfirst, okDate);
   for(const k of ['miss','term','sql']) s[k] = cleanMap(b[k], flag);
+  if(isObj(b.missAt)) s.missAt = cleanMap(b.missAt, okDate);
   s.iv = cleanMap(b.iv, v=>clampNum(v, 0, 3));
   s.tickets = cleanMap(b.tickets, v=>clampNum(v, 0, 100));
   s.notes = cleanMap(b.notes, v=>typeof v === 'string' ? v.slice(0, 20000) : undefined);
@@ -332,7 +345,7 @@ function provenTwice(id){ const v = S.quiz[id], f = (S.qfirst||{})[id]; return t
 function quizRight(id, firstDay){
   S.qfirst = S.qfirst || {};
   if(S.miss[id] || !S.qfirst[id]) S.qfirst[id] = firstDay || dayStr();   /* a miss restarts the run */
-  S.quiz[id] = dayStr(); delete S.miss[id];
+  S.quiz[id] = dayStr(); delete S.miss[id]; if(S.missAt) delete S.missAt[id];
 }
 /* Rebuild streak and best from the full days themselves (see isFullDay). Only ever raises them,
    or moves lastFull to a later full day, so it is safe on load and after merges. */
@@ -522,7 +535,7 @@ function checkReviews(){
   if(saveBlocked) return;
   const d = dayStr(), day = S.days[d];
   if(day && day.rev === true) return;
-  if(reviewsOk(day)){ S.days[d] = Object.assign(day || {}, {rev:true}); checkFullDay(); }
+  if(reviewsOk(day)){ if(!day || !(STEP_KEYS.some(k=>day[k]) || day.reviews)) return; day.rev = true; checkFullDay(); }
   else if(day && STEP_KEYS.some(k=>day[k])) day.rev = false;   /* "not yet" is only stored once a step is done */
 }
 /* one due item reviewed (a due card, a mistake retry or a fading quiz question) */
@@ -734,7 +747,7 @@ function quizStep(s){
       else {
         const fade = quizStatus(idx) === 'fading';
         if(ok){ s.right++; quizRight(quizId(idx)); addXP(10); }
-        else { S.miss[quizId(idx)] = true; save(); }
+        else { S.miss[quizId(idx)] = true; (S.missAt = S.missAt || {})[quizId(idx)] = dayStr(); save(); }
         if(fade) noteReview();   /* reviewing a fading question counts, right or wrong (wrong moves it to Learning) */
       }
     }
@@ -1294,7 +1307,7 @@ function vBackup(){
   view.innerHTML = '<h1>Backup</h1>'+
     '<div class="card"><p class="small">Progress is saved in this browser only. A new computer, a new browser or cleared browser data starts empty, so download a backup once a week. To bring progress here from another device, use <b>Replace</b> on a device that has nothing yet, or <b>Merge</b> to combine two devices you both use. Last backup: <b>'+esc(S.lastBackup || 'never')+'</b>.</p>'+
     '<div class="row"><button class="primary" id="exp"'+(PHONE?' hidden':'')+'>Download backup file</button><button id="mrgb" title="Combine a backup file with the progress here. Nothing is lost.">Merge a backup file in</button><button id="impb" title="Throw away the progress here and use the backup instead">Replace with a backup file</button><input type="file" id="imp" accept=".json,application/json,text/plain" hidden><button id="reset">Reset everything</button>'+
-    (prevSnapshot() ? '<button id="undo" title="Go back to how progress was before the last merge, restore or reset">↺ Undo last '+esc(prevSnapshot().what)+' ('+esc(prevSnapshot().at)+')</button>' : '')+'</div>'+
+    (prevSnapshot() && daysSince(prevSnapshot().at) <= UNDO_DAYS ? '<button id="undo" title="Go back to how progress was before the last merge, restore or reset">↺ Undo last '+esc(prevSnapshot().what)+' ('+esc(prevSnapshot().at)+')</button>' : '')+'</div>'+
     '<h3>Move progress between your PC and phone</h3>'+
     '<p class="small">Your PC and your phone each keep their own progress. To combine them: on one device tap <b>Copy backup</b>, send the text to yourself (email, OneDrive or a note), then on the other device paste it below and tap <b>Merge</b>. Merging keeps the best of both (higher scores, all missions, mistakes and exams) and never erases anything.</p>'+
     '<div class="row"><button class="primary" id="cpb">Copy backup</button></div>'+
@@ -1323,7 +1336,8 @@ function vBackup(){
   $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device? You can undo it once from this page.', 'Erase everything', ()=>{
     const erase = force=>replaceProgress('reset', ()=>structuredClone(DEFAULT), force);
     replaceDone(erase(false), 'Progress erased.', ()=>erase(true)); });
-  const un = $('#undo'); if(un) un.onclick = ()=>{ undoLast(); vBackup(); };
+  /* Undo puts back the whole snapshot, so anything done since then is lost: say so, and only offer it for UNDO_DAYS */
+  const un = $('#undo'); if(un) un.onclick = ()=>askConfirm('Go back to your progress from before the last '+prevSnapshot().what+' ('+prevSnapshot().at+')? Everything you did since then on this device will be lost.', 'Undo the '+prevSnapshot().what, ()=>{ undoLast(); vBackup(); });
 }
 /* Bring a backup in: clean it, then merge or replace through replaceProgress (undo copy first, kept only if it saves).
    'bad' = not a usable backup; otherwise replaceProgress's answer. */

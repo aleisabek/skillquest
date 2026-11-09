@@ -5,6 +5,15 @@
 
 function journal(){ S.journal = S.journal || []; return S.journal; }
 const JOURNAL_MAX = 300;
+/* A merged entry re-missed on one device keeps its id but moves its date, so key|at can't match it: keep one copy per id
+   (cleared beats open, then the newer event, then journalPick's order). Order-independent: every step is a max. */
+function oneJournalPerId(list){
+  const last = e=>[e.at||'', ...(e.hits||[])].sort().pop(), str = x=>JSON.stringify(x, (k, v)=>v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map(j=>[j, v[j]])) : v);
+  const better = (o, e)=>!!e.done !== !!o.done ? e.done : last(e) !== last(o) ? last(e) > last(o) : (e.hits||[]).length !== (o.hits||[]).length ? (e.hits||[]).length > (o.hits||[]).length : str(e) < str(o);
+  const byId = new Map(), out = [];
+  for(const e of list){ if(!e.id){ out.push(e); continue; } const o = byId.get(e.id); if(!o || better(o, e)) byId.set(e.id, e); }
+  return out.concat([...byId.values()]);
+}
 
 /* d = the question array [track, level, question, options, answerIndex, explanation] */
 function addMistake(d, info){
@@ -33,7 +42,7 @@ function journalResult(id, ok){
   const first = e.tried !== dayStr(); e.tried = dayStr();
   if(ok){
     if(!e.hits.includes(dayStr())) e.hits.push(dayStr());
-    if(e.hits.length >= 2){ e.done = true; e.doneAt = dayStr(); if(e.qi!=null){ const qid = quizId(e.qi); S.qfirst = S.qfirst || {}; S.qfirst[qid] = e.hits[0]; delete S.miss[qid]; S.quiz[qid] = dayStr(); }   /* right on two days: proven */ toast('Mistake cleared for good'); }
+    if(e.hits.length >= 2){ e.done = true; e.doneAt = dayStr(); if(e.qi!=null){ const qid = quizId(e.qi); S.qfirst = S.qfirst || {}; S.qfirst[qid] = e.hits[0]; delete S.miss[qid]; if(S.missAt) delete S.missAt[qid]; S.quiz[qid] = dayStr(); }   /* right on two days: proven */ toast('Mistake cleared for good'); }
   } else e.hits = [];
   save();
   return first;

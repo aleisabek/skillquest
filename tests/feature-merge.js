@@ -4,7 +4,7 @@ const js = fs.readFileSync(__dirname + '/.tmp/script.js', 'utf8');
 const grab = n => { const i = js.indexOf('function ' + n + '('); return js.slice(i, js.indexOf('\n}', i) + 2); };
 const defLine = js.slice(js.indexOf('const DEFAULT'), js.indexOf('\n', js.indexOf('const DEFAULT')));
 const line = n => { const i = js.indexOf(n); return js.slice(i, js.indexOf('\n', i)); };
-eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + line('const QUIZ_FADE') + ';' + grab('migrateQuiz') + ';' + grab('isFullDay') + ';' + grab('recountStreak') + ';' + line('const stableStr') + ';' + line('const tieLow') + ';' + grab('mergeProgress') + ';' + grab('mergePilot') + ';' + grab('dedupeEvidence') + ';' + grab('migrateTerm') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
+eval(defLine + ';' + line('const BOX_DAYS') + ';' + line('const JOURNAL_MAX') + ';' + line('function dayStr(') + ';' + line('function addDays(') + ';' + line('const QUIZ_FADE') + ';' + grab('migrateQuiz') + ';' + grab('isFullDay') + ';' + grab('recountStreak') + ';' + line('const stableStr') + ';' + line('const tieLow') + ';' + grab('mergeProgress') + ';' + grab('mergePilot') + ';' + grab('dedupeEvidence') + ';' + grab('migrateTerm') + ';' + grab('oneJournalPerId') + ';global.M = mergeProgress; global.D = DEFAULT; global.MT = migrateTerm;');
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 const pc = Object.assign(structuredClone(D), {
   xp: 500, best: 4, streak: 2, lastFull: '2026-10-20', lastBackup: '2026-10-19',
@@ -119,7 +119,8 @@ const randomDevice = () => {
     if (rand() < .3) s.mastery[pickOf(['term:linux:Searching', 'term:linux:Finding', 'term:linux:Filtering text'])] = { s: pickOf([20, 80]), n: pickOf([2, 9]), right: 1, last: pickOf(['2026-10-01', '2026-10-15']) };
   }
   for (const d of ['2026-10-14', '2026-10-15']) if (rand() < .7) s.days[d] = { quiz: pickOf([true, 3]), p0: rand() < .5, note: pickOf(['x', 'y']) };
-  s.journal = [0, 1].filter(() => rand() < .6).map(i => ({ key: 'quiz|Q' + i, at: '2026-10-1' + i, done: rand() < .5, hits: rand() < .5 ? ['2026-10-15'] : [] }));
+  s.journal = [0, 1].filter(() => rand() < .6).map(i => ({ id: pickOf([undefined, 'm' + i, 'mz']), key: 'quiz|Q' + i, at: pickOf(['2026-10-1' + i, '2026-10-14']), done: rand() < .5, hits: rand() < .5 ? ['2026-10-15'] : [] }));
+  for (const k of Object.keys(s.miss)) if (rand() < .6) (s.missAt = s.missAt || {})[k] = pickOf(['2026-10-13', '2026-10-15']);
   s.exams = rand() < .5 ? [{ cert: 'sec', date: '2026-10-15', pct: 70, n: 20, secs: 900, d: pickOf([{}, { x: 1 }]) }] : [];
   return s;
 };
@@ -138,5 +139,34 @@ if (M(sk(80, 4, '2026-11-04'), sk(20, 4, '2026-11-04')).mastery.x.s !== 20 || M(
 const oldName = Object.assign(structuredClone(D), { mastery: { 'term:linux:Searching': { s: 95, n: 20, right: 20, last: '2026-10-01' } } });
 const lapse = Object.assign(structuredClone(D), { mastery: { 'term:linux:Finding': { s: 10, n: 2, right: 0, last: '2026-11-04' } } });
 for (const [x, y] of [[lapse, oldName], [oldName, lapse]]) if (M(x, y).mastery['term:linux:Finding'].s !== 10) fail('an old-name backup must not erase a recent lapse');
+/* B1: an entry merged to both devices, then re-missed on one (same id, later at) stays one entry, and the retry reaches it */
+{
+  const e0 = { id: 'mX', key: 'quiz|QX', at: '2026-11-01', count: 1, hits: [], done: false };
+  const A = Object.assign(structuredClone(D), { xp: 1, journal: [structuredClone(e0)] });
+  const B = Object.assign(structuredClone(D), { xp: 1, journal: [Object.assign(structuredClone(e0), { at: '2026-11-03', count: 2 })] });
+  for (const [x, y] of [[A, B], [B, A]]) { const j = M(x, y).journal.filter(e => e.id === 'mX');
+    if (j.length !== 1 || j[0].at !== '2026-11-03') fail('B1: one entry per id, the newer miss kept', JSON.stringify(j)); }
+  const C = Object.assign(structuredClone(D), { xp: 1, journal: [Object.assign(structuredClone(e0), { hits: ['2026-11-02', '2026-11-04'], done: true })] });
+  for (const [x, y] of [[B, C], [C, B]]) { const j = M(x, y).journal.filter(e => e.id === 'mX'); if (j.length !== 1 || !j[0].done) fail('B1: cleared beats open for one id'); }
+}
+/* B3: a day where this device only opened Today (bare rev:true) can't make the other device's day full */
+{
+  const steps = { learn: true, practice: true, apply: true, p0: true, p1: true, p2: true };
+  const busy = Object.assign(structuredClone(D), { xp: 1, days: { '2026-11-05': Object.assign({ rev: false }, steps) } });
+  const idle = Object.assign(structuredClone(D), { xp: 1, days: { '2026-11-05': { rev: true } } });
+  for (const [x, y] of [[busy, idle], [idle, busy]]) { const m = M(x, y); if (m.days['2026-11-05'].rev !== false || m.lastFull === '2026-11-05') fail('B3: a bare rev flag must not complete a day', JSON.stringify(m.days['2026-11-05'])); }
+  const counted = Object.assign(structuredClone(D), { xp: 1, days: { '2026-11-05': { rev: true, reviews: 20 } } });
+  if (M(busy, counted).days['2026-11-05'].rev !== true) fail('B3: 20 reviews done on the other device still count');
+}
+/* B5: a stale dated miss can't undo a later right answer; a same-day or undated miss is kept */
+{
+  const phoneOld = Object.assign(structuredClone(D), { xp: 1, quiz: { q5: '2026-10-20' }, miss: { q5: true }, missAt: { q5: '2026-11-01' } });
+  const pcNew = Object.assign(structuredClone(D), { xp: 1, quiz: { q5: '2026-11-03' }, qfirst: { q5: '2026-11-03' } });
+  for (const [x, y] of [[phoneOld, pcNew], [pcNew, phoneOld]]) if (M(x, y).miss.q5) fail('B5: a miss older than the kept right answer must not come back');
+  const sameDay = Object.assign(structuredClone(pcNew), { quiz: { q5: '2026-11-01' } });
+  for (const [x, y] of [[phoneOld, sameDay], [sameDay, phoneOld]]) if (!M(x, y).miss.q5) fail('B5: a same-day miss is kept');
+  const legacy = Object.assign(structuredClone(D), { xp: 1, quiz: { q5: '2026-10-20' }, miss: { q5: true } });
+  for (const [x, y] of [[legacy, pcNew], [pcNew, legacy]]) if (!M(x, y).miss.q5) fail('B5: an undated miss (older build) is kept');
+}
 console.log('merge checks | order-independent merges', orderChecked, '| problems', bad);
 process.exitCode = bad ? 1 : 0;
