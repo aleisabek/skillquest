@@ -15,7 +15,7 @@ const PILOT = {
   delay: 3, family: 'perm-read-own-file', skill: 'quiz:linux:Permissions',
   labs: [
     {id:'perm-guided', step:2, fault:'file-r', title:'Config won\'t open (guided)', what:'The same problem as the worked example, with new names. Up to three hints, each recorded. This is practice: a new dataset of a problem you have already seen.'},
-    {id:'perm-diagnose', step:3, fault:'dir-x', title:'Still can\'t read it', what:'Same symptom, a cause you haven\'t met in steps 1 and 2. No hints. Your first finished attempt is the independent evidence; later attempts are practice.'},
+    {id:'perm-diagnose', step:3, fault:'dir-x', title:'Still can\'t read it', what:'Same symptom, a cause you haven\'t met in steps 1 and 2. No hints. A pass needs three things: a fix that passes the checks, the right cause, and one other likely cause you checked and ruled out. Your first finished attempt is the independent evidence; later attempts are practice.'},
     {id:'perm-recheck', step:4, fault:'dir-x', title:'A few days later', what:'A fresh copy of the step 3 fault, at least 3 days after you pass step 3 on your own. No hints. It checks whether the diagnosis stuck.'}],
   faults: {'file-r':'the file\'s own r', 'dir-x':'a folder\'s x on the path'},
   /* keep these in the same order as Q1 and Q2 in labs/sq-evidence.py (a test compares them) */
@@ -197,7 +197,8 @@ function pilotHTML(){
     row('1 · Worked example', ev.worked ? 'viewed '+esc(ev.worked) : 'not yet', 'Help, not evidence.')+
     row('2 · Guided', list(ev.guided), 'Practice: a new dataset of a problem you have seen. Never counted as independent.')+
     row('3 · Independent', ev.first ? OUT_LABEL[ev.first.outcome]+' ('+when(ev.first)+')' : 'not yet',
-      (ev.indep ? 'Shows you can diagnose this one fault type ('+PILOT.faults[ev.indep.fault_type]+') on your own: not "permissions" in general. ' : '')+(ev.retries.length ? 'Later attempts (practice): '+list(ev.retries)+'.' : ''))+
+      (ev.indep ? 'Shows you can diagnose this one fault type ('+PILOT.faults[ev.indep.fault_type]+') on your own: not "permissions" in general. ' : '')+
+      (ev.first && !ev.indep ? 'Only your first finished attempt counts as independent, so later attempts here are practice and can\'t open the delayed check. ' : '')+(ev.retries.length ? 'Later attempts (practice): '+list(ev.retries)+'.' : ''))+
     row('4a · Delayed', ev.delayed ? OUT_LABEL[ev.delayed.r.outcome]+' after '+ev.delayed.gap+' days ('+when(ev.delayed.r)+')' : ev.indep ? 'due from '+esc(recheckDue) : 'after an independent pass in step 3',
       ev.rech.filter(x=>x !== ev.delayed).map(x=>OUT_LABEL[x.r.outcome]+' ('+when(x.r)+')'+(x.gap === null ? ': not counted, no independent pass before it' : x.gap < 0 ? ': not counted, it was before your independent pass' : x.gap < PILOT.delay ? ': not counted, only '+x.gap+' day'+(x.gap === 1 ? '' : 's')+' later' : '')).join('; '))+
     row('4b · Transfer', 'deferred', 'No other topic has its prerequisites in place yet, so transfer isn\'t tested in this pilot.');

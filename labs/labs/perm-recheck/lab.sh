@@ -3,7 +3,7 @@
 TITLE="A few days later"
 LEVEL="Pilot 4 · delayed check"
 LESSON="Whether the diagnosis stuck: a fresh instance with no hints."
-PILOT=1; CONTENT_VERSION=1; FAULT=dir-x
+PILOT=1; CONTENT_VERSION=2; FAULT=dir-x
 source "$LABS_HOME/lib/perm-family.sh"
 HINTS=()
 lab_setup() { pf_setup; }

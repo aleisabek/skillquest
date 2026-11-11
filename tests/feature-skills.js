@@ -27,7 +27,7 @@ for (const s of skills) if (!Array.isArray(s.lvs) || !s.lvs.length || s.lvs.some
 
 /* each research skill drills its own topic (guards against generators being labelled by position again) */
 const sample = (tid, sk, n = 300) => Array.from({ length: n }, () => { const f = genFor(tid, 0, sk); const g = f[Math.floor(Math.random() * f.length)]; const q = g && g(); return q ? q.d[2].replace(/<[^>]+>/g, '') : ''; });
-const expect = { 'Pre-registration': /strategy test/i, 'Walk-forward testing': /walk-forward/i, 'Holdout data': /holdout|seal/i };
+const expect = { 'Pre-registration': /strategy backtest/i, 'Walk-forward testing': /walk-forward/i, 'Holdout data': /holdout|seal/i };
 for (const [sk, re] of Object.entries(expect)) { const qs = sample('qa', sk); if (!qs.every(q => re.test(q))) fail(sk + ' served a question from another topic:', qs.find(q => !re.test(q)).slice(0, 90)); }
 const tp = sample('qa', 'Testing process');
 if (tp.some(q => Object.values(expect).some(re => re.test(q)))) fail('Testing process served a research question');

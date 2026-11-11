@@ -148,13 +148,19 @@ def cmd_finish(root, lab, q1, q2, note):
     outcome = 'fail' if not (fixed and named_ok and ruled_ok) else ('hinted-pass' if rec['assistance_viewed'] else 'independent-pass')
     finalize(root, rec, outcome)
     print(outcome)
-    if not fixed:
-        print('The fix did not pass every check (see above).')
-    if not named_ok:
-        print('The cause you named was not the one that blocked access.')
+    print('Fix: passed every check.' if fixed else 'Fix: did not pass every check (see above).')
+    print('Cause: right.' if named_ok else 'Cause: the one you named was not the one that blocked access.')
+    if ruled_ok:
+        print('Ruled out: right.')
+    elif a2 == fault:
+        print('Ruled out: the cause you ruled out is the one that actually blocked access.')
+    elif a2 in ('none', 'unsure'):
+        print('Ruled out: missing. A pass needs one other likely cause checked and ruled out with something you saw.')
+    else:
+        print('Ruled out: that cause could not be ruled out that way in this lab.')
     if not ruled_ok:
-        print('The cause you ruled out was not actually ruled out by that observation in this lab.' if a2 not in ('none', 'unsure')
-              else 'A diagnosis needs at least one other cause ruled out by something you observed.')
+        print('  ' + {'dir-x': 'Here you could have ruled out the file\'s own r (ls -l once the folder was fixed) or ownership (ls -l and id -un).',
+                      'file-r': 'Here you could have ruled out the folders (namei -l showed x on each) or ownership (ls -l and id -un).'}.get(fault, ''))
 
 
 def cmd_abandon(root, lab):

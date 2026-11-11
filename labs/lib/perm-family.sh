@@ -8,7 +8,7 @@
 FAMILY="perm-read-own-file"
 # The answer lists for `sq-lab finish`; keep them in the same order as Q1 and Q2 in labs/sq-evidence.py.
 Q1_TEXT=("the config file's own r" "the x of a folder on its path" "the r of a folder on its path" "ownership or group (you weren't the owner, or not in its group)" "something else" "not sure")
-Q2_TEXT=("the file's own r: its mode showed r for the owner (ls -l)" "folder x: every folder on the path showed x for the owner (namei -l or ls -ld)" "ownership: the owner shown is you (ls -l and id -un)" "I didn't rule anything out" "not sure")
+Q2_TEXT=("the file's own r: ls -l showed r for the owner (if a folder was blocking, you can only see this after fixing the folder)" "a folder's x: namei -l (or ls -ld on each folder) showed x for the owner on every folder on the path" "ownership: ls -l showed you as the owner, the same name id -un prints" "I didn't check another cause (this can't pass: a diagnosis needs one)" "not sure")
 
 pf_pick() { local h; h=$(printf '%s:%s' "$SEED" "$1" | sha256sum | cut -c1-8); echo $(( 16#$h % $2 )); }
 pf_vars() {
@@ -47,7 +47,10 @@ pf_mission() {
   echo "You (the current user) own every file and folder in this lab. Make the config readable by you again."
   echo "Rules: don't give the group or others any more access than they have now, and don't move, copy or delete anything."
   echo "Check as often as you like: sq-lab check $LAB  (checking awards nothing)."
-  echo "When you're done: sq-lab finish $LAB  (it asks what you found, then makes the report for the app)."
+  echo "When you're done: sq-lab finish $LAB. It asks two questions, and a pass needs a working fix plus both answers:"
+  echo "    1. what blocked access"
+  echo "    2. one other likely cause you checked and ruled out, and the command output that showed it"
+  echo "So note what each check shows as you go, not only the fix."
 }
 
 pf_check() {
@@ -89,10 +92,13 @@ pf_explain() {
   case "$FAULT" in
     file-r) echo "${B}What was wrong:${N} the config's own mode was --w------- (200), so even you, its owner, had no r."
             echo "Every folder on the path had x for you, so the path was never the problem (namei -l $REL shows each one)."
-            echo "${B}Least-privilege fix:${N} chmod u+r $REL (or chmod 600). Plain chmod +r would also give the group and others r.";;
+            echo "${B}Least-privilege fix:${N} chmod u+r $REL (or chmod 600). Plain chmod +r would also give the group and others r."
+            echo "${B}Ruling out other causes here:${N} namei -l showed x for you on every folder (so not a folder), and ls -l showed you as the owner, matching id -un (so not ownership).";;
     dir-x)  echo "${B}What was wrong:${N} the config itself was fine (-rw-------), but the folder $BADDIR was drw------- (600)."
             echo "Without x on a folder you can't pass through it to open anything inside, even with r (ls lists names but shows ? for details)."
             echo "ls -l couldn't even show the file's mode until that folder was fixed; namei -l $REL shows every folder on the way."
-            echo "${B}Least-privilege fix:${N} chmod u+x $BADDIR (or chmod 700). 711 or 755 would let others pass through too.";;
+            echo "${B}Least-privilege fix:${N} chmod u+x $BADDIR (or chmod 700). 711 or 755 would let others pass through too."
+            echo "x on a folder is called search (or traverse) permission. It isn't elevation: no sudo is needed, only x for you, the owner."
+            echo "${B}Ruling out other causes here:${N} once the folder was fixed, ls -l showed the file as -rw------- (so its own r was fine); ls -l and id -un showed you as the owner (so not ownership).";;
   esac
 }

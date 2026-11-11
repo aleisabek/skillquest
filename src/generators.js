@@ -8,7 +8,13 @@ function mcq(track, lv, q, right, wrongs, e){
   const r = String(right);
   const w = shuffle([...new Set(wrongs.map(String))].filter(x=>x!==r)).slice(0,3);
   if(w.length < 3) return null;
-  return {gen:true, d:[track, lv, q, [r, ...w], 0, e]};
+  return {gen:true, d:[track, lv, q, [r, ...w], 0, typeof e === 'function' ? e(w) : e]};
+}
+/* lowercase a sentence's first letter, but leave names and acronyms (OK, IMAP, Task Manager) alone */
+const lc1 = s=>{ s = String(s); return /^[A-Z][a-z]+ [a-z]/.test(s) || /^[A-Z][a-z]*$/.test(s) || /^A /.test(s) ? s.charAt(0).toLowerCase()+s.slice(1) : s; };
+/* For lookup questions: the answer, then what each wrong option on screen is for. pairs = [[option as shown, what it means], ...] */
+function others(lead, pairs){ const m = new Map(pairs.map(([o, d])=>[String(o), d]));
+  return w=>lead+' The others: '+w.map(o=>o+' = '+lc1(m.get(o) || '')).join('; ')+'.';
 }
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const pad2 = n=>String(n).padStart(2,'0');
@@ -31,8 +37,8 @@ function sk(skill, f, o){ f.sk = skill; if(o && o.noType) f.noType = true; if(o 
 const GEN = {
  net:{1:[
   sk('Ports & services', ()=>{ const [p,s] = pick(PORTS); return Math.random()<.5
-      ? mcq('net',1,'Which service uses port <code>'+p+'</code> by default?', s, PORTS.map(x=>x[1]), 'Port '+p+' = '+s+'.')
-      : mcq('net',1,'Which port does <b>'+s+'</b> use by default?', p, PORTS.map(x=>x[0]), s+' = port '+p+'.'); }, {lookup:true}),
+      ? mcq('net',1,'Which service uses port <code>'+p+'</code> by default?', s, PORTS.map(x=>x[1]), others('Port '+p+' = '+s+'.', PORTS.map(([q, v])=>[v, 'port '+q])))
+      : mcq('net',1,'Which port does <b>'+s+'</b> use by default?', p, PORTS.map(x=>x[0]), others(s+' = port '+p+'.', PORTS.map(([q, v])=>[q, v]))); }, {lookup:true}),
   sk('IP addressing', ()=>{ const r = ipStr(privIP()); return mcq('net',1,'Which of these is a <b>private</b> IP address?', r, [ipStr(pubIP()),ipStr(pubIP()),ipStr(pubIP()),ipStr(pubIP())],
       '<code>'+r+'</code> is private. Private ranges: 10.0.0.0/8, 172.16.0.0 to 172.31.255.255, and 192.168.0.0/16. Watch for look-alikes such as 172.32.x.x or 192.169.x.x, which are public.'); }, {noType:true}),
   sk('Subnetting', ()=>{ const p = rnd(22,30), h = Math.pow(2,32-p)-2;
@@ -42,7 +48,7 @@ const GEN = {
       '/'+p+' means '+p+' ones in the mask, which is '+maskOf(p)+'.'); }),
   sk('IP addressing', ()=>{ const kinds = [[()=>[127,0,0,rnd(1,9)],'Loopback: the device talking to itself'],[()=>[169,254,rnd(0,255),rnd(1,254)],'APIPA: the device could not reach a DHCP server'],[privIP,'A normal private address on a local network'],[pubIP,'A public address on the internet']];
       const [f,m] = pick(kinds); const ip = ipStr(f());
-      return mcq('net',1,'A device shows the address <code>'+ip+'</code>. What does that tell you?', m, kinds.map(k=>k[1]), '<code>'+ip+'</code>: '+m+'.'); }, {lookup:true})
+      return mcq('net',1,'A device shows the address <code>'+ip+'</code>. What does that tell you?', m, kinds.map(k=>k[1]), '<code>'+ip+'</code>: '+m+'. How to tell: 127.x.x.x is loopback; 169.254.x.x is APIPA (no DHCP server answered); 10.x.x.x, 172.16.x.x to 172.31.x.x and 192.168.x.x are private; everything else is public.'); }, {lookup:true})
  ],2:[
   sk('Subnetting', ()=>{ const p = rnd(25,29), blk = Math.pow(2,32-p), a=[192,168,rnd(0,255),rnd(1,254)], net = a[3]-a[3]%blk, bc = net+blk-1, wantNet = Math.random()<.5;
       const pre = a.slice(0,3).join('.')+'.'; const right = pre+(wantNet?net:bc);
@@ -56,8 +62,8 @@ const GEN = {
       return mcq('net',2,'Which host is in the same subnet as <code>10.1.'+c+'.'+d+'/'+p+'</code>?', '10.1.'+c+'.'+inSame, shuffle(others).slice(0,5).map(x=>'10.1.'+c+'.'+x),
         '/'+p+' makes blocks of '+blk+'. '+d+' is in the block '+net+' to '+(net+blk-1)+', and so is '+inSame+'.'); }, {noType:true}),
   sk('DNS records', ()=>{ const [t,m] = pick(DNSR); return Math.random()<.5
-      ? mcq('net',2,'What does a DNS <b>'+t+'</b> record do?', m, DNSR.map(x=>x[1]), t+': '+m+'.')
-      : mcq('net',2,'Which DNS record type: "'+m+'"?', t, DNSR.map(x=>x[0]), t+': '+m+'.'); }, {lookup:true})
+      ? mcq('net',2,'What does a DNS <b>'+t+'</b> record do?', m, DNSR.map(x=>x[1]), others(t+': '+m+'.', DNSR.map(([k, v])=>[v, 'the '+k+' record'])))
+      : mcq('net',2,'Which DNS record type: "'+m+'"?', t, DNSR.map(x=>x[0]), others(t+': '+m+'.', DNSR)); }, {lookup:true})
  ]},
  linux:{1:[
   sk('Permissions', ()=>{ const d = [7,pick([7,5,4,6]),pick([5,4,0,6,1])].join(''), r = permStr(d);
@@ -70,11 +76,11 @@ const GEN = {
   sk('Everyday commands', ()=>{ const f = pick(FILES), w = pick(WORDS);
       const T = [['Show the contents of '+f,'cat '+f],['Count the lines in '+f,'wc -l '+f],['Show the first 10 lines of '+f,'head '+f],['Show the last 10 lines of '+f,'tail '+f],['Delete '+f,'rm '+f],['Rename '+f+' to old_'+f,'mv '+f+' old_'+f],['Find lines containing "'+w+'" in '+f,'grep '+w+' '+f],['Copy '+f+' into /tmp','cp '+f+' /tmp/']];
       const [task, ans] = pick(T);
-      return mcq('linux',1,'Which command will: <b>'+task+'</b>?', '<code>'+ans+'</code>', T.map(x=>'<code>'+x[1]+'</code>'), '<code>'+ans+'</code>'); }, {lookup:true}),
+      return mcq('linux',1,'Task: <b>'+task+'</b>. Which command does it?', '<code>'+ans+'</code>', T.map(x=>'<code>'+x[1]+'</code>'), others('<code>'+ans+'</code> does it.', T.map(([t, a])=>['<code>'+a+'</code>', t]))); }, {lookup:true}),
   sk('Filesystem layout', ()=>{ const P = [['/etc','Configuration files'],['/var/log','Log files'],['/home','Each user\'s personal folder'],['/tmp','Temporary files, often cleared on reboot'],['/usr/bin','Installed programs (commands)'],['/root','The root (admin) user\'s home folder']];
       const [d,m] = pick(P); return Math.random()<.5
-      ? mcq('linux',1,'What usually lives in <code>'+d+'</code>?', m, P.map(x=>x[1]), d+': '+m+'.')
-      : mcq('linux',1,'Where would you look for: '+m.toLowerCase()+'?', '<code>'+d+'</code>', P.map(x=>'<code>'+x[0]+'</code>'), d+': '+m+'.'); }, {lookup:true})
+      ? mcq('linux',1,'What usually lives in <code>'+d+'</code>?', m, P.map(x=>x[1]), others(d+': '+m+'.', P.map(([k, v])=>[v, 'what lives in '+k])))
+      : mcq('linux',1,'Where would you look for '+lc1(m)+'?', '<code>'+d+'</code>', P.map(x=>'<code>'+x[0]+'</code>'), others(d+': '+m+'.', P.map(([k, v])=>['<code>'+k+'</code>', v]))); }, {lookup:true})
  ],2:[
   sk('Permissions', ()=>{ const b = pick(['r--','--x','r-x','-wx','rwx','rw-','-w-']), r = b[0]==='r', x = b[2]==='x', w = b[1]==='w' && x;
       const can = (r,x,w)=>!r && !x ? 'Nothing: not list, open or create' : [r ? 'List the names' : 'Not list the names', x ? 'open a file by its name' : 'not open any file', w ? 'create or delete files' : 'not create or delete'].join(', ');
@@ -88,12 +94,12 @@ const GEN = {
         [h<60&&m<24?when(m,h):'Every '+m+' minutes', 'Every '+(m||5)+' minutes', when(h,m).replace(dw==='*'?'every day':'every '+DAYS[dw], dw==='*'?'every Monday':'every day'), 'On day '+(h||1)+' of every month at '+pad2(0)+':'+pad2(m), 'At '+pad2((h+12)%24)+':'+pad2(m)+(dw==='*'?' every day':' every '+DAYS[dw])],
         'Cron fields: minute ('+m+'), hour ('+h+'), day of month (*), month (*), weekday ('+dw+(dw==='*'?' = any':' = '+DAYS[dw])+').'); }),
   sk('Admin tools', ()=>{ const T = [['See which filesystem is full','df -h'],['Find which folders use the most space','du -sh /var/* | sort -h'],['Check memory usage','free -h'],['See which programs listen on which ports','ss -tulpn'],['Restart a service','systemctl restart nginx'],['Read a service\'s log','journalctl -u nginx'],['Edit scheduled jobs','crontab -e'],['Change a file\'s owner','chown user:group file']];
-      const [t,a] = pick(T); return mcq('linux',2,'Which command would you use to: <b>'+t+'</b>?', '<code>'+a+'</code>', T.map(x=>'<code>'+x[1]+'</code>'), '<code>'+a+'</code>'); }, {lookup:true})
+      const [t,a] = pick(T); return mcq('linux',2,'Task: <b>'+t+'</b>. Which command does it?', '<code>'+a+'</code>', T.map(x=>'<code>'+x[1]+'</code>'), others('<code>'+a+'</code> does it.', T.map(([k, v])=>['<code>'+v+'</code>', k]))); }, {lookup:true})
  ]},
  code:{1:[
   sk('HTTP & APIs', ()=>{ const [c,m] = pick(HTTP); return Math.random()<.5
       ? mcq('code',1,'An API returns status <code>'+c+'</code>. What does it mean?', m, HTTP.map(x=>x[1]), c+' = '+m+'. 2xx success, 3xx redirect, 4xx client error, 5xx server error.')
-      : mcq('code',1,'Which status code means: "'+m+'"?', c, HTTP.map(x=>x[0]), c+' = '+m+'.'); }, {lookup:true}),
+      : mcq('code',1,'Which status code means: "'+m+'"?', c, HTTP.map(x=>x[0]), others(c+' = '+m+'.', HTTP)); }, {lookup:true}),
   sk('Python', ()=>{ const kind = rnd(0,4);
       /* rank rows by a computed score (the "score a CSV, sort it" scripting pattern): the answer is worked out from the rows */
       if(kind===4){ const hosts = shuffle(['web1','db1','vpn1','dns1','mail1','pos1']).slice(0,4), w = rnd(2,3);
@@ -108,7 +114,7 @@ const GEN = {
         return mcq('code',1,'What does this print?<br><code>items = ['+xs.map(x=>'"'+x+'"').join(', ')+']</code><br><code>print(items['+i+'])</code>', r, xs, 'Python counts from 0'+(i<0?', and -1 means the last item':'')+', so items['+i+'] is "'+r+'" and print shows it without quotes.'); }
       const xs = Array.from({length:rnd(2,6)},()=>rnd(1,9)); return mcq('code',1,'What does Python print? <code>print(len(['+xs.join(', ')+']))</code>', xs.length, [xs.length+1, xs.length-1, xs.reduce((s,x)=>s+x,0), Math.max(...xs)], 'len() counts the items: '+xs.length+'.'); }),
   sk('Git', ()=>{ const T = [['Save a snapshot of staged changes','git commit -m "message"'],['Stage every changed file','git add .'],['Send your commits to GitHub','git push'],['Get teammates\' latest commits','git pull'],['See what changed and what is staged','git status'],['Create a branch and switch to it','git switch -c new-feature'],['See commit history in short form','git log --oneline'],['Safely undo a pushed commit','git revert &lt;commit&gt;']];
-      const [t,a] = pick(T); return mcq('code',1,'Which Git command: <b>'+t+'</b>?', '<code>'+a+'</code>', T.map(x=>'<code>'+x[1]+'</code>'), '<code>'+a+'</code>'); }, {lookup:true})
+      const [t,a] = pick(T); return mcq('code',1,'Task: <b>'+t+'</b>. Which Git command does it?', '<code>'+a+'</code>', T.map(x=>'<code>'+x[1]+'</code>'), others('<code>'+a+'</code> does it.', T.map(([k, v])=>['<code>'+v+'</code>', k]))); }, {lookup:true})
  ],2:[
   sk('Regex', ()=>{ const n = rnd(100,999), msg = pick(['disk full','timeout','service stopped','login failed']);
       const P = [
@@ -122,10 +128,16 @@ const GEN = {
         ['^(GET|POST) /', pick(['GET','POST'])+' /login', ['get /login', 'PUT /login', ' GET /login']],
         ['^[A-Z]{3}-\\d{4}$', 'INC-'+rnd(1000,9999), ['inc-'+rnd(1000,9999), 'INC-'+rnd(10000,99999), 'INC '+rnd(1000,9999)]],
         ['\\bport (22|443)\\b', 'open port '+pick([22,443]), ['open port 2222', 'port 4430', 'open port 80']]];
+      const WHY = {'^ERROR':'the line has to start with ERROR, in capitals (regex is case-sensitive unless told otherwise).',
+        '\\d{3}$':'the line has to end with three digits.', '^\\d{1,3}(\\.\\d{1,3}){3}$':'four groups of 1 to 3 digits joined by dots, and nothing else on the line.',
+        '\\.log$':'the line has to end with .log (\\. is a literal dot).', '^#':'the line has to start with #.',
+        '^\\d{4}-\\d{2}-\\d{2}':'the line has to start with a date written YYYY-MM-DD.', '(failed|denied)':'it needs failed or denied in lowercase somewhere in the line.',
+        '^(GET|POST) /':'it has to start with GET or POST in capitals, then a space and /.', '^[A-Z]{3}-\\d{4}$':'three capital letters, a hyphen, exactly four digits, and nothing else.',
+        '\\bport (22|443)\\b':'the word port, then 22 or 443 as a whole number (\\b marks the edge of a word).'};
       const [re, ok, bad] = pick(P), R = new RegExp(re);
       if(!R.test(ok) || bad.some(b=>R.test(b))) return null;
       return mcq('code',2,'Which line matches the regex <code>'+esc(re)+'</code>?', '<code>'+esc(ok)+'</code>', bad.map(b=>'<code>'+esc(b)+'</code>'),
-        '^ = start of line, $ = end of line, \\d = a digit, {3} = exactly three, \\. = a literal dot.'); }, {lookup:true}),
+        esc(ok)+' matches: '+WHY[re]+' Symbols: ^ = start of line, $ = end of line, \\d = a digit, {n} = exactly n.'); }, {lookup:true}),
   sk('Logging', ()=>{ const L = [['Disk is 90% full','WARNING'],['Payment service crashed','ERROR'],['User logged in','INFO'],['Variable x = 42 inside loop','DEBUG'],['Database is unreachable; nothing works','CRITICAL'],
         ['Retrying connection, attempt 2 of 5','WARNING'],['Server started on port 8080','INFO'],['Config file missing; using defaults','WARNING'],
         ['Order 1234 failed to save','ERROR'],['Request headers dumped for troubleshooting','DEBUG'],['Every server in the cluster is down','CRITICAL'],
@@ -174,7 +186,7 @@ GEN.sec = {1:[
  ],2:[
   sk('Windows logs', ()=>{ const [id,m] = pick(EVENTS); return Math.random()<.5
       ? mcq('sec',2,'Windows Security Event ID <code>'+id+'</code> means:', m, EVENTS.map(x=>x[1]), id+' = '+m.toLowerCase()+'.')
-      : mcq('sec',2,'Which Windows Event ID records: <b>'+m.toLowerCase()+'</b>?', id, EVENTS.map(x=>x[0]), m+' = '+id+'.'); }, {lookup:true}),
+      : mcq('sec',2,'Which Windows Event ID records: <b>'+m.toLowerCase()+'</b>?', id, EVENTS.map(x=>x[0]), others(m+' = '+id+'.', EVENTS)); }, {lookup:true}),
   sk('Vulnerabilities', ()=>{ const s = (rnd(1,100)/10).toFixed(1), v = +s, r = v>=9?'Critical':v>=7?'High':v>=4?'Medium':'Low';
       return mcq('sec',2,'A vulnerability has a CVSS score of <b>'+s+'</b>. What is its severity rating?', r, ['Low','Medium','High','Critical','None'],
         'CVSS ratings: 0.1–3.9 Low, 4.0–6.9 Medium, 7.0–8.9 High, 9.0–10.0 Critical. '+s+' is '+r+'.'); }),
@@ -187,7 +199,7 @@ GEN.sec = {1:[
 GEN.support = {1:[
   sk('Troubleshooting method', ()=>{ const i = rnd(0, STEPS.length-2); return mcq('support',1,'Troubleshooting method: what comes right after "<b>'+STEPS[i]+'</b>"?', STEPS[i+1], STEPS.filter((x,k)=>k!==i),
       'The 7 steps: '+STEPS.map((s,k)=>(k+1)+'. '+s).join(' ')); }),
-  sk('Windows tools', ()=>{ const [t,a] = pick(TOOLS); return mcq('support',1,'Which Windows tool or command would you use to: <b>'+t+'</b>?', a, TOOLS.map(x=>x[1]), a+'.'); }, {lookup:true}),
+  sk('Windows tools', ()=>{ const [t,a] = pick(TOOLS); return mcq('support',1,'Task: <b>'+t+'</b>. Which Windows tool or command does it?', a, TOOLS.map(x=>x[1]), others(a+' does it.', TOOLS.map(([k, v])=>[v, k]))); }, {lookup:true}),
   sk('Ticket priority', ()=>{ const im = rnd(0,2), ur = rnd(0,2), score = (3-im)+(3-ur), p = score>=6?'P1':score===5?'P2':score===4?'P3':'P4';
       const who = ['The whole restaurant (many users)','One team of about 5 people','One user'][im], how = ['Work is completely stopped right now','Work is slowed, but there is a workaround','It can wait; nothing is blocked'][ur];
       return mcq('support',1,'Using a standard impact × urgency matrix, what priority is this ticket?<br>• <b>Who is affected:</b> '+who+'<br>• <b>Urgency:</b> '+how, p, ['P1','P2','P3','P4'],
@@ -195,7 +207,7 @@ GEN.support = {1:[
  ],2:[
   sk('ITIL', ()=>{ const [s,a] = pick(ITIL); return mcq('support',2,'In ITIL terms, "'+s+'" is:', a, ['Incident','Service request','Problem','Change'],
       'Incident: something broke, restore service. Service request: a standard ask. Problem: find the root cause of repeat incidents. Change: a planned, approved modification.'); }, {lookup:true}),
-  sk('Microsoft 365 admin', ()=>{ const [t,a] = pick(ADMIN); return mcq('support',2,'Where would you go to: <b>'+t+'</b>?', a, ADMIN.map(x=>x[1]), a+'.'); }, {lookup:true})
+  sk('Microsoft 365 admin', ()=>{ const [t,a] = pick(ADMIN); return mcq('support',2,'Task: <b>'+t+'</b>. Where do you go to do it?', a, ADMIN.map(x=>x[1]), others(a+'.', ADMIN.map(([k, v])=>[v, k]))); }, {lookup:true})
  ]};
 GEN.qa = {1:[
   sk('Test design', ()=>{ const lo = rnd(1,50), hi = lo + rnd(5,100), mid = Math.round((lo+hi)/2);
@@ -207,7 +219,7 @@ GEN.qa = {1:[
       const right = v[grp](), wrongs = Object.keys(v).filter(g=>g!==grp).flatMap(g=>[v[g](), v[g]()]);
       return mcq('qa',1,'A field accepts '+lo+' to '+hi+'. Using equivalence partitioning, which value belongs to the <b>'+grp+'</b> group?', right, wrongs,
         'The groups are: too low (below '+lo+'), valid ('+lo+' to '+hi+'), too high (above '+hi+'). '+right+' is '+grp+'.'); }, {noType:true}),
-  sk('Test types', ()=>{ const [s,a] = pick(TESTTYPES); return mcq('qa',1,'"'+s+'" is called:', a, TESTTYPES.map(x=>x[1]), a+'.'); }, {lookup:true})
+  sk('Test types', ()=>{ const [s,a] = pick(TESTTYPES); return mcq('qa',1,'What is this called? "'+s+'"', a, TESTTYPES.map(x=>x[1]), others(a+'.', TESTTYPES.map(([k, v])=>[v, k]))); }, {lookup:true})
  ],2:[
   sk('Testing process', ()=>{ const i = rnd(0, STLC.length-2); return mcq('qa',2,'In the Software Testing Life Cycle, what comes right after "<b>'+STLC[i]+'</b>"?', STLC[i+1], STLC.filter((x,k)=>k!==i),
       'STLC order: '+STLC.join(' → ')+'.'); }),
@@ -282,7 +294,7 @@ const SECRETS = [
 const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const monthName = (m,y)=>{ while(m<0){ m+=12; y--; } while(m>11){ m-=12; y++; } return MON[m]+' '+y; };
 GEN.qa[2].push(
-  sk('Pre-registration', ()=>{ const [s,v] = pick(PREREG); return mcq('qa',2,'A strategy test: "'+s+'" Which describes it?', RESEARCH_VERDICTS[v], RESEARCH_VERDICTS,
+  sk('Pre-registration', ()=>{ const [s,v] = pick(PREREG); return mcq('qa',2,'A trading-strategy backtest: "'+s+'" Which describes it?', RESEARCH_VERDICTS[v], RESEARCH_VERDICTS,
       ['Fixing the rules and the pass mark before seeing results, and reporting every run, is what makes a test honest.','Changing the pass mark after seeing results is moving the goalposts: the test can no longer fail.','Reporting only the best run, or removing bad data, is cherry-picking: luck looks like skill.','Tuning rules until the past looks perfect is overfitting: it memorizes history and fails on new data.'][v]); }, {lookup:true}),
   sk('Walk-forward testing', ()=>{ const y0 = rnd(2012,2018), span = rnd(6,10), y1 = y0+span-1, tr = rnd(2,4), folds = span-tr;
       if(Math.random()<.5) return mcq('qa',2,'Walk-forward test on yearly data from <b>'+y0+'</b> to <b>'+y1+'</b>: train on <b>'+tr+'</b> years, test on the <b>next 1</b> year, then roll forward 1 year. How many test years (folds) are there?', folds, [folds-1, folds+1, folds+2, span, tr],
@@ -390,7 +402,7 @@ GEN.sec[1].push(
 GEN.sec[2].push(
   sk('Incident response', ()=>{ const [s,a] = pick(IR_ACTS); return mcq('sec',2,'"'+s+'." Which incident response step is this?', a, IR_STEPS,
       'Preparation, Detection, Analysis, Containment, Eradication, Recovery, Lessons learned. This one is '+a+'.'); }, {lookup:true}),
-  sk('Incident response', ()=>{ const i = rnd(0, IR_STEPS.length-2); return mcq('sec',2,'In incident response, what comes right after "'+IR_STEPS[i]+'"?', IR_STEPS[i+1], IR_STEPS,
+  sk('Incident response', ()=>{ const i = rnd(0, IR_STEPS.length-2); return mcq('sec',2,'In incident response, what comes right after "'+IR_STEPS[i]+'"?', IR_STEPS[i+1], IR_STEPS.filter((x,k)=>k!==i),
       'The order: '+IR_STEPS.join(' → ')+'. Contain before you eradicate, and recover only once the cause is gone.'); })
 );
 /* SSH hardening (Phase 5, with the ssh-harden lab). OpenSSH uses the FIRST value it reads for a setting; Ubuntu's
@@ -476,7 +488,7 @@ const ENC_TERMS = [
 ];
 const ENC_ALL = ENC_TERMS.map(t=>t[1]);
 GEN.cloud = {1:[
-  sk('Shared responsibility', ()=>{ const [model, task, who] = pick(RESP); return mcq('cloud',1,'<b>'+model+'</b>: who is responsible for <b>'+task.toLowerCase()+'</b>?', who, RESP_ALL,
+  sk('Shared responsibility', ()=>{ const [model, task, who] = pick(RESP); return mcq('cloud',1,'<b>'+model+'</b>: who is responsible for <b>'+lc1(task)+'</b>?', who, RESP_ALL,
       'The provider secures the cloud itself (buildings, hardware, the virtualization layer, and more of the stack as you go from IaaS to PaaS to SaaS). You always own your data, your users\' access and your settings.'); }, {lookup:true, noType:true}),
   sk('IAM & least privilege', ()=>{ const [d, t] = pick(IAM_TERMS); return mcq('cloud',1,'"'+d+'." What is this called in cloud IAM?', t, IAM_ALL,
       'Role = temporary credentials. Root user = the all-powerful first login. Access key = a long-lived secret for scripts. Policy = the JSON permission document. Group = users who share permissions.'); }, {lookup:true}),
@@ -512,7 +524,7 @@ GEN.cloud = {1:[
 ], 2:[
   sk('Leaked key response', ()=>{ const [s, a] = pick(KEY_ACTS); return mcq('cloud',2,'A cloud access key was pushed to a public repository. "'+s+'." Which step handles that?', a, KEY_STEPS,
       'Order: deactivate and replace the key, check the audit log for what it did, clean it out of the code and history, then add secret scanning.'); }, {lookup:true, noType:true}),
-  sk('Leaked key response', ()=>{ const i = rnd(0, KEY_STEPS.length-2); return mcq('cloud',2,'After a key leak, what comes right after "'+KEY_STEPS[i]+'"?', KEY_STEPS[i+1], KEY_STEPS,
+  sk('Leaked key response', ()=>{ const i = rnd(0, KEY_STEPS.length-2); return mcq('cloud',2,'After a key leak, what comes right after "'+KEY_STEPS[i]+'"?', KEY_STEPS[i+1], KEY_STEPS.filter((x,k)=>k!==i),
       'Contain first (deactivate), then investigate (audit log), then clean up (code and history), then prevent (secret scanning).'); }, {noType:true}),
   sk('Encryption & key management', ()=>{ const [d, t] = pick(ENC_TERMS); return mcq('cloud',2,'"'+d+'." What is this called?', t, ENC_ALL,
       'At rest = stored data; in transit = data on the network (TLS). A customer managed key gives you control over its policy and rotation; envelope encryption wraps data keys with a KMS key.'); }, {lookup:true, noType:true})
@@ -561,6 +573,9 @@ const PW_DEF = [
   ['Users change passwords every 90 days as Spring1, Summer1, Fall1', 'Drop forced rotation; require long passphrases and breached-password checks']
 ];
 const CRACK_TIME = ['Under a minute', 'Under a day', 'Under a year', 'A year or more'];
+/* a duration in words, for explanations */
+const ago = t=>{ const u = [[31536000,'year'],[86400,'day'],[3600,'hour'],[60,'minute'],[1,'second']].find(([d])=>t >= d) || [1,'second'];
+  const v = t / u[0], r = v >= 1e6 ? v.toExponential(1).replace('e+', ' × 10^') : v >= 10 ? Math.round(v).toLocaleString('en-US') : v.toFixed(1); return r+' '+u[1]+(r === '1.0' ? '' : 's'); };
 const TACTICS = [
   ['Researching employees on professional networking sites before an attack', 'Reconnaissance'],
   ['A malicious attachment arrives in a user\'s inbox', 'Initial Access'],
@@ -619,10 +634,10 @@ GEN.offsec = {1:[
       const [rate, hash] = pick([[1e10,'a fast, unsalted hash (10,000,000,000 guesses a second)'], [1e4,'bcrypt (10,000 guesses a second)']]);
       const secs = Math.pow(cs, len) / rate, right = CRACK_TIME[secs < 60 ? 0 : secs < 86400 ? 1 : secs < 31536000 ? 2 : 3];
       return mcq('offsec',2,'A password hash leaks. It was made with '+hash+'. The password is '+len+' characters of '+set+', chosen at random. About how long would it take to try every possible password?', right, CRACK_TIME,
-        'Possible passwords = characters in the set to the power of the length, so each extra character multiplies the work. In this example the slow hash cuts guesses per second by a million; real gaps are often larger.'); }, {noType:true}),
+        'Possible passwords = '+cs+' characters to the power of '+len+' = '+Math.pow(cs, len).toExponential(1).replace('e+', ' × 10^')+'. At '+rate.toLocaleString('en-US')+' guesses a second that is about '+ago(secs)+'. Each extra character multiplies the work by '+cs+', and a slow hash like bcrypt cuts the guessing rate by about a million.'); }, {noType:true}),
   sk('MITRE ATT&CK & kill chain', ()=>{ const [a, t] = pick(TACTICS); return mcq('offsec',2,'Which MITRE ATT&CK tactic (the attacker\'s goal) fits this? <b>'+a+'</b>', t, TACTIC_ALL,
       'Tactics are the why. Reconnaissance happens before access; Discovery is looking around once inside. Others: Initial Access, Persistence, Credential Access, Lateral Movement, Collection, Command and Control, Exfiltration, Impact. Techniques are the how.'); }, {lookup:true}),
-  sk('MITRE ATT&CK & kill chain', ()=>{ const i = rnd(0, KILL.length-2); return mcq('offsec',2,'In the Cyber Kill Chain, what comes right after "'+KILL[i]+'"?', KILL[i+1], KILL,
+  sk('MITRE ATT&CK & kill chain', ()=>{ const i = rnd(0, KILL.length-2); return mcq('offsec',2,'In the Cyber Kill Chain, what comes right after "'+KILL[i]+'"?', KILL[i+1], KILL.filter((x,k)=>k!==i),
       'Reconnaissance, Weaponization, Delivery, Exploitation, Installation, Command and Control, Actions on Objectives. Breaking any link stops the attack.'); }),
   sk('Findings report', ()=>{ const scores = shuffle([5.3, 6.5, 7.2, 7.5, 8.1, 8.8, 9.1, 9.8]).slice(0, 4);
       const rows = scores.map((c, i)=>({id:'F-0'+(i+1), c, net:Math.random() < .5, kev:Math.random() < .3}));
@@ -1354,7 +1369,7 @@ GEN.sec[2].push(
       return mcq('sec',2,'Penetration test: "'+s+'" Which term fits?', a, wrongs, 'Known, partially known and unknown environment = how much the testers are told. Passive reconnaissance gathers public information without touching the target; active reconnaissance interacts with its systems.'); },
     {lookup:true, obj:S701_801(['5.5'], ['5.5'])}),
   sk('Security awareness', ()=>{ const [s, a, w] = pick(AWARE);
-      return mcq('sec',2,'"'+s+'" What should you do?', a, w, a+'. When in doubt: don\'t engage, don\'t plug in, and report it to security: reporting is what lets them protect everyone else.'); },
+      return mcq('sec',2,'"'+s+'" What should you do?', a, w, a+'. When a request feels off, check it through a channel you already trust, and report it to security: reporting is what lets them protect everyone else.'); },
     {lookup:true, obj:S701_801(['5.6'], ['5.6'])}),
   sk('Security awareness', ()=>{ const n = pick([200, 300, 400, 500, 800, 1000]), cp = rnd(3, 30), rp = rnd(5, 60), clicked = n * cp / 100, reported = n * rp / 100, askClick = Math.random() < .5;
       const right = (askClick ? cp : rp)+'%', other = (askClick ? rp : cp)+'%';

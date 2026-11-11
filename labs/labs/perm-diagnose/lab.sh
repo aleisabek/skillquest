@@ -2,7 +2,7 @@
 TITLE="Still can't read it"
 LEVEL="Pilot 3 · on your own"
 LESSON="Diagnosing from evidence: ruling a cause out only when an observation shows it, then a least-privilege fix."
-PILOT=1; CONTENT_VERSION=1; FAULT=dir-x
+PILOT=1; CONTENT_VERSION=2; FAULT=dir-x
 source "$LABS_HOME/lib/perm-family.sh"
 HINTS=()
 lab_setup() { pf_setup; }
