@@ -18,13 +18,27 @@
       <span class="pill" title="Days in a row with the full loop done: learn, practice, apply, reviews">🔥 <span id="streak">0</span></span>
       <button id="theme" title="Switch color mode: matrix, cyber, amber">◐ <span id="themeName">matrix</span></button>
       <button id="rainBtn" title="Turn the code rain on or off">⁂ rain</button>
+      <button id="displayBtn" title="Text size, font and screen effects" aria-expanded="false" aria-controls="display">Aa <span class="sr">display</span></button>
     </div>
+  </div>
+  <div id="display" hidden>
+    <fieldset><legend>Text size</legend>
+      <label><input type="radio" name="ts" value="1"> Normal</label>
+      <label><input type="radio" name="ts" value="1.15"> Large</label>
+      <label><input type="radio" name="ts" value="1.3"> Larger</label>
+    </fieldset>
+    <fieldset><legend>Reading</legend>
+      <label><input type="checkbox" id="readableBox"> Easier-to-read font (commands stay monospace)</label><br>
+      <label><input type="checkbox" id="calmBox"> Calm screen: no scanlines, flicker, blinking or code rain</label>
+    </fieldset>
+    <p class="small" style="margin:0">Saved on this device only; your progress isn't affected. <button id="displayClose">Close</button></p>
   </div>
   <nav id="nav" aria-label="Main"></nav>
 </header>
 <canvas id="rain" aria-hidden="true"></canvas>
 <main class="wrap" id="view"></main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sr" id="srSay" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script>{{SCRIPT}}</script>
 </body>

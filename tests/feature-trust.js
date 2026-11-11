@@ -88,7 +88,7 @@ expect(sqlOK(SQLT.find(t => /"printer" anywhere/.test(t[1])), "SELECT * FROM tic
   const view = {}; let html = '';
   Object.defineProperty(view, 'innerHTML', { get: () => html, set: v => { html = v; nodes = {}; } });
   const T = { console, view, esc: String, norm: null, TERM: [], S: { gen: {}, term: {} }, skillIdFor: () => null, recordSkill() {}, addXP: n => { xp += n; }, save() {}, addNote() {},
-    finishMission() {}, startTerm() {}, go() {}, setTimeout: () => { timers++; }, $: sel => nodes[sel] = nodes[sel] || { value: '', focus() {} } };
+    finishMission() {}, startTerm() {}, go() {}, say() {}, setTimeout: () => { timers++; }, $: sel => nodes[sel] = nodes[sel] || { value: '', focus() {} } };
   vm.createContext(T);
   vm.runInContext(line('function norm(') + '\n' + grab('termNorm') + '\n' + grab('termStep') + '\nglobalThis.step = termStep;', T);
   const task = ['Print working directory', [/^pwd$/], 'pwd', 'Use pwd'], ls = ['List all files', [/^ls -la$/], 'ls -la', 'ls'];

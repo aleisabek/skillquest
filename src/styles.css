@@ -22,7 +22,28 @@
 }
 *{box-sizing:border-box}
 html{background:var(--bg)}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 "JetBrains Mono","Cascadia Code",Consolas,ui-monospace,monospace;min-height:100vh}
+/* text size (Display panel): --ts scales every rem, and the scene drawings with it */
+html{font-size:calc(100% * var(--ts,1))}
+body{margin:0;background:var(--bg);color:var(--text);font:.9375rem/1.6 "JetBrains Mono","Cascadia Code",Consolas,ui-monospace,monospace;min-height:100vh}
+/* Display panel: easier-to-read font for reading text; commands and code stay monospace */
+html.readable body,html.readable button,html.readable input,html.readable textarea,html.readable .logo,html.readable h1,html.readable .timer{font-family:system-ui,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:normal}
+html.readable code,html.readable pre,html.readable .mono,html.readable .term,html.readable .term input{font-family:"Cascadia Code",Consolas,ui-monospace,monospace}
+html.readable h1,html.readable .logo,html.readable .timer{text-shadow:none}
+html.readable h1{font-size:2rem;font-weight:700}
+html.readable body{line-height:1.7}
+/* Display panel: calm screen (no scanlines, flicker, blinking or rain), and the OS reduced-motion setting does the same */
+html.calm body::after{display:none}
+html.calm .glitch::before,html.calm .glitch::after{display:none}
+html.calm h1::after,html.calm .timer.low{animation:none}
+html.calm #rain{display:none}
+html.calm .scene .sc{transition:none}
+html.calm .scene .sc-flash{animation:none}
+#display{position:relative;z-index:3;margin:8px 0 0;padding:12px 14px;border:1px solid var(--line);background:var(--panel);max-width:520px}
+#display[hidden]{display:none}
+#display fieldset{border:none;margin:0 0 10px;padding:0}
+#display legend{font-weight:700;margin-bottom:4px}
+#display label{display:inline-flex;align-items:center;gap:6px;margin:4px 14px 4px 0;cursor:pointer}
+#display input{width:1.1rem;height:1.1rem;accent-color:var(--accent)}
 #rain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.16}
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:30;
   background:repeating-linear-gradient(to bottom,rgba(255,255,255,.025) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.55) 100%)}
@@ -43,7 +64,7 @@ header{position:sticky;top:0;z-index:10;background:linear-gradient(var(--bg),rgb
 .logo{font-family:"VT323",monospace;font-size:2rem;line-height:1;color:var(--accent);text-shadow:var(--glow);display:flex;align-items:baseline;gap:8px}
 .logo .ver{font-family:"JetBrains Mono",monospace;font-size:.7rem;color:var(--muted);text-shadow:none}
 .glitch{position:relative;display:inline-block}
-.glitch::before,.glitch::after{content:attr(data-text);position:absolute;inset:0;opacity:.8}
+.glitch::before,.glitch::after{content:attr(data-text);content:attr(data-text) / "";position:absolute;inset:0;opacity:.8}
 .glitch::before{color:var(--accent2);animation:gl1 3.2s infinite steps(1)}
 .glitch::after{color:var(--bad);animation:gl2 3.2s infinite steps(1)}
 @keyframes gl1{0%,92%,100%{clip-path:inset(100% 0 0 0);transform:none}93%{clip-path:inset(10% 0 60% 0);transform:translate(-3px,-1px)}95%{clip-path:inset(55% 0 20% 0);transform:translate(3px,1px)}97%{clip-path:inset(30% 0 45% 0);transform:translate(-2px,0)}}
@@ -71,8 +92,10 @@ nav button::before{content:"./";opacity:.55}
 nav button.on{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);box-shadow:var(--glow)}
 @media (max-width:600px){ nav .tabs,nav .subtabs{flex-wrap:wrap;overflow-x:visible} nav button{padding:5px 8px} }
 h1{font-family:"VT323",monospace;font-weight:400;font-size:2.4rem;line-height:1.1;margin:26px 0 6px;color:var(--accent);text-shadow:var(--glow)}
-h1::before{content:"root@sq:~# ";color:var(--muted);text-shadow:none;font-size:.7em}
-h1::after{content:"█";margin-left:6px;font-size:.8em;animation:blink 1s steps(1) infinite}
+/* decoration only: the "/ ''" alt text keeps screen readers from announcing it before every heading */
+h1::before{content:"root@sq:~# ";content:"root@sq:~# " / "";color:var(--muted);text-shadow:none;font-size:.7em}
+h1::after{content:"█";content:"█" / "";margin-left:6px;font-size:.8em;animation:blink 1s steps(1) infinite}
+html.readable h1::before{content:none}
 @keyframes blink{50%{opacity:0}}
 h2{font-size:.95rem;margin:26px 0 10px;color:var(--accent2);text-transform:uppercase;letter-spacing:.12em;font-weight:600}
 h2::before{content:"// ";color:var(--muted)}
@@ -204,9 +227,9 @@ input.typed.no{border-color:var(--bad)}
 /* lesson snippets ("You'll see this as"): log lines and rule tables keep their columns and scroll sideways on phones */
 .model pre{margin:0 0 6px;white-space:pre;overflow-x:auto;font:inherit;font-size:.85em;color:var(--term-text)}
 /* Animated lesson scenes ("Watch it", see scenes.js): theme variables only; solid = network/focus, dashed = host */
-.scene{border:1px solid var(--line);background:var(--panel2);padding:12px 12px 10px;margin:6px 0 4px;outline:none;max-width:620px}
+.scene{border:1px solid var(--line);background:var(--panel2);padding:12px 12px 10px;margin:6px 0 4px;outline:none;max-width:calc(620px * var(--ts,1))}
 .scene:focus-within{border-color:var(--accent)}
-.scene svg{display:block;width:100%;max-width:520px;height:auto;margin:0 auto;font-family:inherit}
+.scene svg{display:block;width:100%;max-width:calc(520px * var(--ts,1));height:auto;margin:0 auto;font-family:inherit}
 .scene .sc{transition:opacity .4s cubic-bezier(.2,.7,.2,1),fill .4s cubic-bezier(.2,.7,.2,1),stroke .4s cubic-bezier(.2,.7,.2,1),transform .45s cubic-bezier(.2,.7,.2,1)}
 .scene .sc-head{fill:var(--text);font-size:16px;font-weight:700}
 .scene .sc-cell{fill:transparent;stroke:var(--line);stroke-width:1}

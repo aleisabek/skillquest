@@ -12,5 +12,7 @@ case "$1" in
   copy)    [ -n "$f" ] && chmod u+r "$f"; [ -n "$d" ] && chmod u+x "$d"; cp "$(find . -name '*.ini' | head -1)" ./copy.ini;;
   tighten) [ -n "$f" ] && chmod u+r "$f"; [ -n "$d" ] && chmod u+x "$d"; n=$(find . -name notes.txt | head -1); chmod 600 "$n";;
   crash)   rm -f "$HOME/sq-labs/.evidence/"*.base;;
+  unlink)  l=$(find . -type l -name '*.ini' 2>/dev/null | head -1)          # link-r instance: swap the symlink for a readable copy
+           [ -n "$l" ] && { chmod u+r "$f"; t=$(readlink -f "$l"); cp --remove-destination "$t" "$l"; chmod u-r "$t"; };;
 esac
 exit 0

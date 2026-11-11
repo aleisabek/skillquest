@@ -14,14 +14,19 @@
 const PILOT = {
   delay: 3, family: 'perm-read-own-file', skill: 'quiz:linux:Permissions',
   labs: [
-    {id:'perm-guided', step:2, fault:'file-r', title:'Config won\'t open (guided)', what:'The same problem as the worked example, with new names. Up to three hints, each recorded. This is practice: a new dataset of a problem you have already seen.'},
-    {id:'perm-diagnose', step:3, fault:'dir-x', title:'Still can\'t read it', what:'Same symptom, a cause you haven\'t met in steps 1 and 2. No hints. A pass needs three things: a fix that passes the checks, the right cause, and one other likely cause you checked and ruled out. Your first finished attempt is the independent evidence; later attempts are practice.'},
-    {id:'perm-recheck', step:4, fault:'dir-x', title:'A few days later', what:'A fresh copy of the step 3 fault, at least 3 days after you pass step 3 on your own. No hints. It checks whether the diagnosis stuck.'}],
-  faults: {'file-r':'the file\'s own r', 'dir-x':'a folder\'s x on the path'},
+    {id:'perm-guided', step:2, round:1, fault:'file-r', title:'Config won\'t open (guided)', what:'The same problem as the worked example, with new names. Up to three hints, each recorded. This is practice: a new dataset of a problem you have already seen.'},
+    {id:'perm-diagnose', step:3, round:1, fault:'dir-x', title:'Still can\'t read it', what:'Same symptom, a cause you haven\'t met in steps 1 and 2. No hints. A pass needs three things: a fix that passes the checks, the right cause, and one other likely cause you checked and ruled out. Your first finished attempt is the independent evidence; later attempts are practice.'},
+    {id:'perm-recheck', step:4, round:1, fault:'dir-x', title:'A few days later', what:'A fresh copy of the step 3 fault, at least 3 days after you pass step 3 on your own. No hints. It checks whether the diagnosis stuck.'},
+    {id:'perm-diagnose-2', step:3, round:2, fault:'link-r', title:'Still can\'t read it (round 2)', what:'A fault you haven\'t met anywhere in the pilot. No hints. A pass needs a fix that passes the checks, the right cause, and one other likely cause you checked and ruled out. Your first finished attempt is the independent evidence.'},
+    {id:'perm-recheck-2', step:4, round:2, fault:'link-r', title:'A few days later (round 2)', what:'A fresh copy of the round 2 fault, at least 3 days after you pass round 2 on your own. No hints.'}],
+  /* Round 2 exists because round 1's rule-out question (content version 1) never said a rule-out was required. A round is
+     used up once its step 3 has a finished attempt that isn't an independent pass; the next round then becomes the active one. */
+  rounds: [{n:1, diagnose:'perm-diagnose', recheck:'perm-recheck'}, {n:2, diagnose:'perm-diagnose-2', recheck:'perm-recheck-2'}],
+  faults: {'file-r':'the file\'s own r', 'dir-x':'a folder\'s x on the path', 'link-r':'the r of the file a symlink points to'},
   /* keep these in the same order as Q1 and Q2 in labs/sq-evidence.py (a test compares them) */
-  q1: ['file-r', 'dir-x', 'dir-r', 'owner-group', 'other', 'unsure'],
+  q1: ['file-r', 'dir-x', 'dir-r', 'link-r', 'owner-group', 'other', 'unsure'],
   q2: ['file-r', 'dir-x', 'owner-group', 'none', 'unsure'],
-  ruledOut: {'file-r':['dir-x', 'owner-group'], 'dir-x':['file-r', 'owner-group']}
+  ruledOut: {'file-r':['dir-x', 'owner-group'], 'dir-x':['file-r', 'owner-group'], 'link-r':['dir-x', 'owner-group']}
 };
 const PILOT_SCHEMA = 2;
 const ISO_Z = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/, UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -129,13 +134,20 @@ const dayGap = (a, b)=>Math.round((new Date(b+'T12:00:00') - new Date(a+'T12:00:
 function pilotEvidence(){
   const att = pilotAttempts(), done = att.filter(a=>a.rec && a.rec.outcome !== 'abandoned').map(a=>a.rec);
   const of = id=>done.filter(r=>r.content_id === id);
-  const diag = of('perm-diagnose');
-  /* unfamiliar = the first finished step 3 attempt, and only if no earlier report shows this fault type */
-  const first = diag[0] && !diag[0].previous_exposure.some(x=>x.fault_type === diag[0].fault_type) ? diag[0] : null;
-  const indep = first && first.outcome === 'independent-pass' ? first : null;
-  const rech = of('perm-recheck').map(r=>({r, gap:indep ? dayGap(evDay(indep.finished_at), evDay(r.attempt_date)) : null}));
-  const delayed = rech.find(x=>x.gap !== null && x.gap >= PILOT.delay) || null;
-  return {att, unresolved:att.filter(a=>a.unresolved), guided:of('perm-guided'), first, indep, retries:diag.slice(first ? 1 : 0), rech, delayed,
+  const rounds = PILOT.rounds.map(rd=>{
+    const diag = of(rd.diagnose);
+    /* unfamiliar = the round's first finished step 3 attempt, and only if no earlier report shows this fault type */
+    const first = diag[0] && !diag[0].previous_exposure.some(x=>x.fault_type === diag[0].fault_type) ? diag[0] : null;
+    const indep = first && first.outcome === 'independent-pass' ? first : null;
+    const rech = of(rd.recheck).map(r=>({r, gap:indep ? dayGap(evDay(indep.finished_at), evDay(r.attempt_date)) : null}));
+    const delayed = rech.find(x=>x.gap !== null && x.gap >= PILOT.delay) || null;
+    return Object.assign({}, rd, {diag, first, indep, retries:diag.slice(first ? 1 : 0), rech, delayed});
+  });
+  /* the active round: the latest round with a finished step 3 attempt, or the next one if that attempt wasn't an
+     independent pass (the round is used up); round 1 when there is no attempt yet */
+  const last = rounds.map(r=>r.diag.length > 0).lastIndexOf(true);
+  const cur = rounds[last < 0 ? 0 : rounds[last].indep || last === rounds.length - 1 ? last : last + 1];
+  return {att, unresolved:att.filter(a=>a.unresolved), guided:of('perm-guided'), rounds, round:cur, first:cur.first, indep:cur.indep, retries:cur.retries, rech:cur.rech, delayed:cur.delayed,
     worked:(S.pilot||{}).worked || null, legacy:(S.labs||{}).permissions || null};
 }
 
@@ -143,16 +155,17 @@ function pilotEvidence(){
    with its retry command, and an independent pass schedules the delayed check. The lab entries are rebuilt from the
    evidence every time (dates included), so they can't drift from it or depend on the order reports arrived in. */
 function syncPilotJournal(){
-  const ev = pilotEvidence(), want = [], later = [...ev.retries, ...ev.rech.map(x=>x.r)];
-  for(const r of [ev.first, ...later].filter(Boolean)) if(r.outcome === 'fail'){
+  const ev = pilotEvidence(), want = [];
+  for(const rd of ev.rounds){ const later = [...rd.retries, ...rd.rech.map(x=>x.r)];
+  for(const r of [rd.first, ...later].filter(Boolean)) if(r.outcome === 'fail'){
     const fix = later.find(x=>x.fault_type === r.fault_type && x.outcome === 'independent-pass' && x.attempt_date > r.attempt_date);
     want.push({id:'lab-'+r.attempt_id, key:'lab|'+r.attempt_id, at:evDay(r.finished_at), wait:0, done:!!fix, doneAt:fix ? evDay(fix.finished_at) : null,
       task:'Permissions pilot: "'+(PILOT.labs.find(l=>l.id === r.content_id) || {}).title+'" not passed on '+evDay(r.finished_at),
       model:'Retry with a fresh copy: sq-lab start '+r.content_id+'. The explanation was printed when you finished; the worked example is in Labs.'});
   }
-  if(ev.indep){ const d = ev.rech.find(x=>x.gap >= PILOT.delay);
-    want.push({id:'lab-recheck', key:'lab|perm-recheck', at:evDay(ev.indep.finished_at), wait:PILOT.delay, done:!!d, doneAt:d ? evDay(d.r.finished_at) : null,
-      task:'Permissions pilot: delayed check', model:'In Ubuntu: sq-lab start perm-recheck (a fresh copy of the step 3 fault, no hints).'}); }
+  if(rd.indep){ const d = rd.rech.find(x=>x.gap >= PILOT.delay), one = rd.n === 1;
+    want.push({id:one ? 'lab-recheck' : 'lab-recheck-'+rd.n, key:'lab|'+rd.recheck, at:evDay(rd.indep.finished_at), wait:PILOT.delay, done:!!d, doneAt:d ? evDay(d.r.finished_at) : null,
+      task:'Permissions pilot: delayed check'+(one ? '' : ' (round '+rd.n+')'), model:'In Ubuntu: sq-lab start '+rd.recheck+' (a fresh copy of the step 3 fault, no hints).'}); } }
   const made = want.sort((x, y)=>x.key.localeCompare(y.key)).map(w=>{ const e = Object.assign({kind:'lab', count:1, hits:[], why:null, your:'', sid:PILOT.skill}, w);
     if(!e.doneAt) delete e.doneAt; return e; });
   const J = journal(), old = J.filter(e=>e.kind === 'lab');
@@ -196,7 +209,10 @@ function pilotHTML(){
   const rows =
     row('1 · Worked example', ev.worked ? 'viewed '+esc(ev.worked) : 'not yet', 'Help, not evidence.')+
     row('2 · Guided', list(ev.guided), 'Practice: a new dataset of a problem you have seen. Never counted as independent.')+
-    row('3 · Independent', ev.first ? OUT_LABEL[ev.first.outcome]+' ('+when(ev.first)+')' : 'not yet',
+    ev.rounds.filter(r=>r.n < ev.round.n).map(r=>row('3 · Round '+r.n, r.first ? OUT_LABEL[r.first.outcome]+' ('+when(r.first)+')' : 'not counted',
+      (r.first && r.first.content_version === 1 ? 'The question asked after this attempt never said a rule-out was required, so it measured the question, not the skill. ' : '')+
+      'Round '+ev.round.n+' uses a fault you haven\'t met, so a fresh first attempt counts.')).join('')+
+    row('3 · Independent'+(ev.round.n > 1 ? ', round '+ev.round.n : ''), ev.first ? OUT_LABEL[ev.first.outcome]+' ('+when(ev.first)+')' : 'not yet',
       (ev.indep ? 'Shows you can diagnose this one fault type ('+PILOT.faults[ev.indep.fault_type]+') on your own: not "permissions" in general. ' : '')+
       (ev.first && !ev.indep ? 'Only your first finished attempt counts as independent, so later attempts here are practice and can\'t open the delayed check. ' : '')+(ev.retries.length ? 'Later attempts (practice): '+list(ev.retries)+'.' : ''))+
     row('4a · Delayed', ev.delayed ? OUT_LABEL[ev.delayed.r.outcome]+' after '+ev.delayed.gap+' days ('+when(ev.delayed.r)+')' : ev.indep ? 'due from '+esc(recheckDue) : 'after an independent pass in step 3',
@@ -209,7 +225,7 @@ function pilotHTML(){
   return '<div class="card" id="pilot"><h2 style="margin-top:0">🧭 Permissions pilot</h2>'+
     '<p>Can you diagnose a permissions fault you haven\'t seen before, on your own, and does it stick? Four steps, in order. Steps 2 to 4 run in WSL (PC only) and end with a report you paste here.</p>'+
     '<ol class="clean pilot-steps"><li><b>Worked example</b> (here): a config you own won\'t open. Predict, then see what each check shows and what it doesn\'t. <button id="pilotWorked">Open the worked example</button></li>'+
-    PILOT.labs.map(l=>'<li><b>'+esc(l.title)+'</b>: '+esc(l.what)+'<div class="small">In Ubuntu: <code>sq-lab start '+l.id+'</code> · when done: <code>sq-lab finish '+l.id+'</code> · then <code>sq-lab report '+l.id+' | clip.exe</code></div></li>').join('')+
+    PILOT.labs.filter(l=>l.step === 2 || l.round === ev.round.n).map(l=>'<li><b>'+esc(l.title)+'</b>: '+esc(l.what)+'<div class="small">In Ubuntu: <code>sq-lab start '+l.id+'</code> · when done: <code>sq-lab finish '+l.id+'</code> · then <code>sq-lab report '+l.id+' | clip.exe</code></div></li>').join('')+
     '</ol><div id="pilotScene" tabindex="-1"></div>'+conflicts+
     '<h3>What the evidence shows</h3><table class="pilot-ev"><tbody>'+rows+'</tbody></table>'+
     (ev.legacy ? '<p class="small">Earlier "Permission denied" lab: passed '+esc(ev.legacy)+' by completion code (legacy: details unknown, not part of this pilot).</p>' : '')+

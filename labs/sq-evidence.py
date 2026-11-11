@@ -17,11 +17,11 @@ import datetime, glob, hashlib, json, os, re, sys, uuid
 SCHEMA = 2
 CHECKER = {'name': 'sq-lab', 'version': '2.0'}
 # The answer lists sq-lab shows at `finish`, in the same order (numbered from 1). Keep them in step with labs/lib/perm-family.sh.
-Q1 = ['file-r', 'dir-x', 'dir-r', 'owner-group', 'other', 'unsure']      # what blocked access?
+Q1 = ['file-r', 'dir-x', 'dir-r', 'link-r', 'owner-group', 'other', 'unsure']      # what blocked access?
 Q2 = ['file-r', 'dir-x', 'owner-group', 'none', 'unsure']                # which other cause did you rule out?
 # A cause counts as ruled out only if it really was fine in this fault type, and the named observation shows that.
 # (In a dir-x instance the file's own mode can only be seen after the folder is fixed; that order is accepted.)
-RULED_OUT_OK = {'file-r': {'dir-x', 'owner-group'}, 'dir-x': {'file-r', 'owner-group'}}
+RULED_OUT_OK = {'file-r': {'dir-x', 'owner-group'}, 'dir-x': {'file-r', 'owner-group'}, 'link-r': {'dir-x', 'owner-group'}}
 EXPORT = ['schema_version', 'attempt_id', 'content_id', 'content_version', 'attempt_date', 'finished_at', 'scenario_family',
           'scenario_instance_id', 'fault_type', 'previous_exposure', 'assistance_viewed', 'help_used', 'evidence',
           'checker_results', 'outcome', 'reasoning', 'reflection', 'checker']
@@ -160,7 +160,8 @@ def cmd_finish(root, lab, q1, q2, note):
         print('Ruled out: that cause could not be ruled out that way in this lab.')
     if not ruled_ok:
         print('  ' + {'dir-x': 'Here you could have ruled out the file\'s own r (ls -l once the folder was fixed) or ownership (ls -l and id -un).',
-                      'file-r': 'Here you could have ruled out the folders (namei -l showed x on each) or ownership (ls -l and id -un).'}.get(fault, ''))
+                      'file-r': 'Here you could have ruled out the folders (namei -l showed x on each) or ownership (ls -l and id -un).',
+                      'link-r': 'Here you could have ruled out the folders (namei -l showed x on each, including the one the link points into) or ownership (ls -l and id -un).'}.get(fault, ''))
 
 
 def cmd_abandon(root, lab):

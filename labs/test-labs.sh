@@ -69,6 +69,7 @@ pilot() { # pilot LAB RIGHT_Q1 RIGHT_Q2 THE_FAULTS_Q2_NUMBER
   o=$(bash "$SQ" report "$lab"); bash "$SQ" finish "$lab" --q1 "$q1" --q2 "$q2" </dev/null >/dev/null 2>&1 && fail "$lab: finished twice" || pass "$lab: a finished attempt can't be finished again"
   [ "$o" = "$(bash "$SQ" report "$lab")" ] && pass "$lab: report unchanged after the refused finish" || fail "$lab: report changed"
   for m in alt tighten; do fresh; bash "$FX/perm.sh" $m; is "$m fix" "$(fin "$q1" "$q2")" independent-pass; done
+  case "$lab" in *-2) fresh; bash "$FX/perm.sh" unlink; is "symlink replaced by a copy" "$(fin "$q1" "$q2")" fail;; esac
   for m in wrong broken copy crash; do fresh; bash "$FX/perm.sh" $m; is "$m fix" "$(fin "$q1" "$q2")" fail; done
   fresh; bash "$FX/perm.sh" right; is "right fix, wrong cause named" "$(fin 6 "$q2")" fail
   fresh; bash "$FX/perm.sh" right; is "right fix, nothing ruled out" "$(fin "$q1" 4)" fail
@@ -86,6 +87,8 @@ pilot() { # pilot LAB RIGHT_Q1 RIGHT_Q2 THE_FAULTS_Q2_NUMBER
 pilot perm-guided 1 2 1
 pilot perm-diagnose 2 1 2
 pilot perm-recheck 2 3 2
+pilot perm-diagnose-2 4 2 1
+pilot perm-recheck-2 4 3 1
 pkill -f "http.server 8088 --bind 127.0.0.1" 2>/dev/null
 echo; bash "$SQ" list | head -3
 rm -rf "$T"

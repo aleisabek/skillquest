@@ -124,6 +124,15 @@ function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;'
 function rankOf(xp){ let r = RANKS[0], next = null; for(let i=0;i<RANKS.length;i++){ if(xp>=RANKS[i][0]){ r=RANKS[i]; next=RANKS[i+1]||null; } } return {r, next}; }
 let toastT;
 function toast(msg, ms){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'), ms || 1800); }
+/* Screen readers: one permanent live region, so results are read out even though practice screens redraw themselves.
+   Focus moves to the Next button after an answer, so without this only "Next" would be announced. */
+let sayT;
+function say(text){ const el = $('#srSay'); if(!el) return; clearTimeout(sayT); el.textContent = '';
+  sayT = setTimeout(()=>{ el.textContent = String(text).replace(/\s+/g, ' ').trim().slice(0, 600); }, 80); }
+/* feedback written into a result area (#after, #out) is announced automatically */
+new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes)
+  if(n.nodeType === 1 && n.classList.contains('explain') && n.parentElement && /^(after|out)$/.test(n.parentElement.id)) say(n.textContent); })
+  .observe(view, {childList:true, subtree:true});
 function addXP(n, why){
   const before = rankOf(S.xp).r[1];
   S.xp += n; save(); header();
@@ -616,7 +625,7 @@ function vToday(){
     (!saveBlocked && saveFailed ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Progress is not being saved.</b> This browser is refusing to store data (storage full, blocked, or private mode). Download a backup before closing.<div class="row" style="margin-top:10px"><button class="primary" id="fixBackup">Download backup</button></div></div>' : '')+
     (!saveBlocked && !hasProgress() ? '<div class="slim">👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup so your progress follows you. <button id="fixMerge">Merge a backup</button></div>' : '')+
     (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
-    (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start perm-recheck</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
+    (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start '+esc(pilotEvidence().round.recheck)+'</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
     '<h1>Today\'s loop</h1><p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
     '<div class="card today"><div class="row" style="justify-content:space-between"><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
@@ -757,7 +766,7 @@ function quizStep(s){
     const nx = s.i+1 < s.items.length ? 'Next' : 'Finish';
     /* After a correct answer on a skill question, ask whether it was sure or a guess: guesses barely raise mastery. */
     const btns = (sid && ok) ? '<button class="primary" id="sure">'+nx+' · I was sure</button><button id="guess">'+nx+' · I guessed</button>' : '<button class="primary" id="next">'+nx+'</button>';
-    $('#after').innerHTML = '<div class="explain">'+(ok?'✅ <b>Correct.</b> ':'❌ <b>Not quite.</b> ')+(typed && !ok ? 'Answer: <b>'+q[3][q[4]]+'</b>. ' : '')+q[5]+'</div><div class="row" style="margin-top:12px">'+btns+'</div>';
+    $('#after').innerHTML = '<div class="explain">'+(ok?'✅ <b>Correct.</b> ':'❌ <b>Not quite.</b> ')+(!ok ? 'Answer: <b>'+q[3][q[4]]+'</b>. ' : '')+q[5]+'</div><div class="row" style="margin-top:12px">'+btns+'</div>';
     if(sid && ok){
       $('#sure').onclick = ()=>{ recordSkill(sid, true, !viaChoice); advance(); };
       $('#guess').onclick = ()=>{ recordSkill(sid, true, false); advance(); };
@@ -1011,15 +1020,15 @@ function termStep(s){
       if(!s.shown) s.right++;
       if(sid) recordSkill(sid, !s.shown, !s.hinted && !s.wrong);
       if(pts) addXP(pts); else save();
-      s.lines.push([s.shown ? '✔ Locked in (no XP, the answer was shown).' : '✔ Correct (+'+pts+' XP). Model answer: '+t[2], 'ok']);
+      s.lines.push([s.shown ? '✔ Locked in (no XP, the answer was shown).' : '✔ Correct (+'+pts+' XP). Model answer: '+t[2], 'ok']); say(s.lines[s.lines.length - 1][0]);
       termStep(s);
     } else {
       s.wrong = true; s.last = v;
-      s.lines.push([typed === null ? '✘ Check the quotes: they change which words the shell sees (\'ls -la\' is one word, not ls plus -la).' : '✘ Not that one. Try again, or use Hint.', 'no']); termStep(s);
+      s.lines.push([typed === null ? '✘ Check the quotes: they change which words the shell sees (\'ls -la\' is one word, not ls plus -la).' : '✘ Not that one. Try again, or use Hint.', 'no']); say(s.lines[s.lines.length - 1][0]); termStep(s);
     }
   };
-  $('#hint').onclick=()=>{ s.hinted=true; s.lines.push(['hint: '+t[3], '']); termStep(s); };
-  $('#show').onclick=()=>{ s.lines.push(['answer: '+t[2]+'  (type it to lock it in, no XP)', '']); s.hinted=true; s.shown=true; addNote('term', t[0], t[2], s.last, sid); termStep(s); };
+  $('#hint').onclick=()=>{ s.hinted=true; s.lines.push(['hint: '+t[3], '']); say('Hint: '+t[3]); termStep(s); };
+  $('#show').onclick=()=>{ s.lines.push(['answer: '+t[2]+'  (type it to lock it in, no XP)', '']); say('Answer: '+t[2]+'. Type it to lock it in, no XP.'); s.hinted=true; s.shown=true; addNote('term', t[0], t[2], s.last, sid); termStep(s); };
   $('#skip').onclick=()=>{ if(sid) recordSkill(sid, false); addNote('term', t[0], t[2], s.last, sid); s.last = ''; next(); };
 }
 
@@ -1053,6 +1062,7 @@ function startIV(i, mission){
   $('#reveal').onclick=()=>{
     stopTimer();
     $('#reveal').disabled = true;
+    say('Model answer shown below, with a checklist of points to compare against.');
     $('#after').innerHTML = '<h2>Model answer</h2><div class="model">'+esc(q.model)+'</div>'+
       '<p class="small">Anything in [brackets] is for you to fill in with your own real story. Never say something that did not happen.</p>'+
       '<h2>Did you cover these?</h2><div class="checks">'+q.points.map((p,k)=>'<label><input type="checkbox" data-p="'+k+'"> '+esc(p)+'</label>').join('')+'</div>'+
@@ -1377,9 +1387,21 @@ function vGuide(){
 
 /* ===================== THEME + EFFECTS + START ===================== */
 const THEMES = ['matrix','cyber','amber'];
-const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 function pref(k, d){ try{ const v = localStorage.getItem(k); return v===null ? d : v; }catch(e){ return d; } }
 function setPref(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+/* Display settings (per device, outside saved progress): text size, an easier-to-read font, and a calm screen.
+   Calm is on when the OS asks for reduced motion or when it's ticked here. */
+const osCalm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const TEXT_SIZES = ['1', '1.15', '1.3'];
+let calm = osCalm || pref('skillquest-calm', 'off') === 'on';
+function applyDisplay(){
+  const ts = TEXT_SIZES.includes(pref('skillquest-ts', '1')) ? pref('skillquest-ts', '1') : '1';
+  document.documentElement.style.setProperty('--ts', ts);
+  document.documentElement.classList.toggle('readable', pref('skillquest-readable', 'off') === 'on');
+  calm = osCalm || pref('skillquest-calm', 'off') === 'on';
+  document.documentElement.classList.toggle('calm', calm);
+}
+applyDisplay();
 function applyTheme(t){
   if(!THEMES.includes(t)) t = 'matrix';
   document.documentElement.dataset.theme = t;
@@ -1422,6 +1444,23 @@ const rain = (function(){
 })();
 rain.set(!calm && pref('skillquest-rain','on')==='on');
 $('#rainBtn').onclick=()=>{ rain.set(!rain.on); setPref('skillquest-rain', rain.on?'on':'off'); };
+
+/* Display panel */
+(function(){
+  const btn = $('#displayBtn'), box = $('#display');
+  const open = v=>{ box.hidden = !v; btn.setAttribute('aria-expanded', String(v)); if(v) box.querySelector('input:checked, input').focus(); else btn.focus(); };
+  const sync = ()=>{ box.querySelectorAll('input[name=ts]').forEach(r=>{ r.checked = r.value === (TEXT_SIZES.includes(pref('skillquest-ts','1')) ? pref('skillquest-ts','1') : '1'); });
+    $('#readableBox').checked = pref('skillquest-readable','off') === 'on';
+    $('#calmBox').checked = calm; $('#calmBox').disabled = osCalm;
+    $('#calmBox').parentElement.title = osCalm ? 'On because your device asks for reduced motion' : ''; };
+  btn.onclick = ()=>{ sync(); open(box.hidden); };
+  $('#displayClose').onclick = ()=>open(false);
+  box.addEventListener('keydown', e=>{ if(e.key === 'Escape'){ e.preventDefault(); open(false); } });
+  box.querySelectorAll('input[name=ts]').forEach(r=>r.onchange = ()=>{ setPref('skillquest-ts', r.value); applyDisplay(); });
+  $('#readableBox').onchange = e=>{ setPref('skillquest-readable', e.target.checked ? 'on' : 'off'); applyDisplay(); };
+  $('#calmBox').onchange = e=>{ setPref('skillquest-calm', e.target.checked ? 'on' : 'off'); applyDisplay();
+    rain.set(!calm && pref('skillquest-rain','on') === 'on'); };
+})();
 
 /* "Decrypt" effect: page titles scramble, then resolve */
 function decrypt(el){
