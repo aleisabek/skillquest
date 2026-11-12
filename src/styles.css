@@ -769,3 +769,39 @@ html.calm #space .jump{display:none}
 .gl-star[data-star]{cursor:pointer}
 .gl-star[data-star]:hover circle:not(.gl-hit){stroke:var(--text);stroke-width:1.2}
 html.idle #space .jump{animation-play-state:running}   /* a jump always finishes, even if it starts while idle */
+
+/* Mission clock (exam date) and the launch rail beside Today's four steps: a small rocket climbs one stage per
+   finished step. It moves only when a step is finished (a short transition), never on its own. */
+.mclock{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:4px 0 10px}
+.mclock input[type=date]{background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font:inherit;color-scheme:dark}
+.launch{position:relative;padding-left:26px}
+.launch::before{content:"";position:absolute;left:8px;top:14px;bottom:14px;width:2px;border-radius:2px;
+  background:linear-gradient(to top,var(--accent) calc(var(--p) * 25%),color-mix(in srgb,var(--muted) 30%,transparent) calc(var(--p) * 25%))}
+.launch::after{content:"🚀";position:absolute;left:-1px;font-size:15px;line-height:1;transform:rotate(-45deg);
+  bottom:calc(6px + (100% - 34px) * var(--p) / 4);transition:bottom .6s var(--ease-out, ease-out)}
+html.calm .launch::after{transition:none}
+@media (prefers-reduced-motion: reduce){ .launch::after{transition:none} }
+
+/* PBQ station: an alert strip on each task, and a soft red tint over the sky while a system is offline (no flashing) */
+.stalert{border-left:3px solid var(--bad)}
+#space::after{content:"";position:absolute;inset:0;opacity:0;transition:opacity .8s;
+  background:radial-gradient(70% 60% at 50% 0%,color-mix(in srgb,var(--bad) 22%,transparent),transparent 70%)}
+html.redalert #space::after{opacity:1}
+html.calm #space::after{transition:none}
+/* Signal decoding in quiz rounds */
+.signal{margin:-2px 0 10px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
+.sigtext{font-family:"JetBrains Mono","Cascadia Code",Consolas,ui-monospace,monospace;font-size:.85rem;letter-spacing:.04em;color:var(--accent);word-break:break-word}
+/* Review orbits */
+.orbits{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;margin-bottom:14px}
+.orbits svg{width:min(240px,100%);height:auto;flex:0 0 auto}
+.orbits>div{flex:1 1 220px}
+.orb-ring{fill:none;stroke:color-mix(in srgb,var(--muted) 28%,transparent);stroke-dasharray:2 5}
+.orb-planet{fill:color-mix(in srgb,var(--accent2) 55%,var(--bg));filter:drop-shadow(0 0 10px color-mix(in srgb,var(--accent2) 60%,transparent))}
+.orb{transform-box:view-box;transform-origin:170px 170px;animation:orbit 400s linear infinite}
+.orb.o0{animation-duration:160s}.orb.o1{animation-duration:240s;animation-direction:reverse}.orb.o3{animation-duration:600s;animation-direction:reverse}
+html.calm .orb{animation:none}
+html.idle .orb{animation-play-state:paused}
+@media (prefers-reduced-motion: reduce){ .orb{animation:none} }
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle}
+.orbits ul{list-style:none;padding-left:0}
+.orbits ul.clean li::before,.glass .orbits ul.clean li::before{content:none;display:none}

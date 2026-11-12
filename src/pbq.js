@@ -134,18 +134,29 @@ function pbqOrder(title, obj, skill, html, STEPS){
     fields:shown.map(([s,w,n])=>({label:s, options:pos, answer:String(n), why:w}))};
 }
 
+/* Station story: each task kind is a station system to bring back online. The task itself is unchanged; the plain
+   skill name stays next to the story name so nothing is hidden behind the theme. While a task is open the screen
+   takes a soft red alert tint (no flashing), and it clears when you check your answer. */
+const PBQ_STATION = {'Firewall rules':['Shields', '🛡', 'firewall rules'], 'Read the log':['Sensor feed', '📡', 'log reading'],
+  'Place each system':['Hull sections', '🧱', 'network zones'], 'Match controls to attacks':['Defense grid', '🔰', 'security controls'],
+  'Protect the data':['Cargo vault', '🔐', 'data protection'], 'Incident response order':['Damage control', '🧯', 'incident response'],
+  'Change management order':['Flight plan', '🧭', 'change management'], 'Calculate the risk':['Navigation computer', '🧮', 'risk calculation']};
+const pbqSys = t=>PBQ_STATION[t.title] || ['Station system', '🛰', t.title.toLowerCase()];
+const pbqAlert = on=>document.documentElement.classList.toggle('redalert', on);
 let PBQ = null;   /* {list, i, res:[fraction]} */
 const PBQ_ROUND = 4;
 function vPbq(){
-  current = 'pbq'; header(); PBQ = null;
+  current = 'pbq'; header(); PBQ = null; pbqAlert(false);
   view.innerHTML = '<h1>Performance-based practice</h1><p class="sub">Hands-on tasks in the style of the first items on the Security+ exam: configure rules, read logs, place systems, put steps in order, calculate risk. These are SkillQuest\'s own tasks, not CompTIA\'s.</p>'+
     '<div class="card"><p>A round is '+PBQ_ROUND+' tasks, no timer. Each item gets partial credit. On the real exam, PBQs come first and take longer: many people flag them and come back after the multiple-choice questions.</p>'+
     '<p class="small">Tasks: '+PBQ_BUILDERS.length+' kinds (firewall rules, log reading, network zones, controls, data protection, incident response order, change management order, risk calculation), with new details every time.</p>'+
+    '<p class="small">🛰 Station mode: each task is a station system that has gone down (shields = firewall rules, sensor feed = logs, and so on). Fix it to bring it back online.</p>'+
     '<div class="row"><button class="primary" id="pbqGo">Start a round</button></div></div>';
   $('#pbqGo').onclick = ()=>{ PBQ = {list:shuffle(PBQ_BUILDERS).slice(0, PBQ_ROUND).map(b=>b()), i:0, res:[]}; pbqShow(); };
 }
 function pbqShow(){
-  const t = PBQ.list[PBQ.i];
+  const t = PBQ.list[PBQ.i], sys = pbqSys(t);
+  pbqAlert(true);
   const field = (f, k)=>'<label class="pbq-f"><span>'+esc(f.label)+'</span>'+(f.num
       ? '<input type="number" step="any" inputmode="decimal" data-k="'+k+'" aria-label="'+esc(f.label)+'">'
       : '<select data-k="'+k+'" aria-label="'+esc(f.label)+'"><option value="">Choose…</option>'+f.options.map(o=>'<option>'+esc(o)+'</option>').join('')+'</select>')+'</label>';
@@ -153,7 +164,8 @@ function pbqShow(){
     ? '<div class="tw"><table class="res pbq-rules"><thead><tr><th>#</th><th>Action</th><th>Source</th><th>Destination</th><th>Port</th></tr></thead><tbody>'+
       [1,2,3,4].map(r=>'<tr><td>'+r+'</td>'+t.fields.filter(f=>f.rule===r).map(f=>'<td>'+field(f, t.fields.indexOf(f)).replace('<span>'+esc(f.label)+'</span>', '')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>'
     : '<div class="pbq-fields">'+t.fields.map(field).join('')+'</div>';
-  view.innerHTML = '<div class="progress"><span>Task '+(PBQ.i+1)+' of '+PBQ.list.length+'</span><span>SY0-801 '+esc(t.obj.join(', '))+'</span></div>'+
+  view.innerHTML = '<div class="slim stalert"><b>'+sys[1]+' Station alert: '+esc(sys[0])+' offline</b> <span class="small">Bring it back with '+esc(sys[2])+'.</span></div>'+
+    '<div class="progress"><span>Task '+(PBQ.i+1)+' of '+PBQ.list.length+'</span><span>SY0-801 '+esc(t.obj.join(', '))+'</span></div>'+
     '<div class="card"><h2 style="margin-top:4px">'+esc(t.title)+'</h2>'+t.html+body+
     '<div class="row" style="margin-top:14px"><button class="primary" id="pbqCheck">Check</button><button class="quiet" id="pbqShow">Show answer</button></div><div id="after"></div></div>';
   const get = ()=>{ const v = {}; view.querySelectorAll('[data-k]').forEach(el=>{ v[t.fields[+el.dataset.k].label] = el.value; }); return v; };
@@ -165,8 +177,9 @@ function pbqShow(){
     const right = parts.filter(p=>p.ok).length, frac = revealed ? 0 : right / parts.length;
     view.querySelectorAll('[data-k],#pbqCheck,#pbqShow').forEach(el=>el.disabled = true);
     if(!revealed){ recordSkill(t.skill, frac === 1, true); if(frac === 1) addXP(15); else if(frac >= 0.5) addXP(5); }
-    PBQ.res.push(frac);
-    $('#after').innerHTML = '<div class="explain"><b>'+(revealed ? 'Answer shown (no credit).' : right+' of '+parts.length+' right.')+'</b><ul class="clean">'+parts.map(p=>'<li>'+esc(p.text)+'</li>').join('')+'</ul>'+(model ? '<p class="small">'+esc(model)+'</p>' : '')+'</div>'+
+    PBQ.res.push(frac); pbqAlert(false);
+    const status = revealed ? '' : frac === 1 ? '✅ '+sys[0]+' back online. ' : frac >= 0.5 ? '❌ '+sys[0]+' partly restored. ' : '❌ '+sys[0]+' still offline. ';
+    $('#after').innerHTML = '<div class="explain"><b>'+status+(revealed ? 'Answer shown (no credit).' : right+' of '+parts.length+' right.')+'</b><ul class="clean">'+parts.map(p=>'<li>'+esc(p.text)+'</li>').join('')+'</ul>'+(model ? '<p class="small">'+esc(model)+'</p>' : '')+'</div>'+
       '<div class="row" style="margin-top:10px"><button class="primary" id="pbqNext">'+(PBQ.i+1 < PBQ.list.length ? 'Next task' : 'See results')+'</button></div>';
     $('#pbqNext').onclick = ()=>{ PBQ.i++; PBQ.i < PBQ.list.length ? pbqShow() : pbqEnd(); };
     $('#pbqNext').focus();
@@ -178,10 +191,11 @@ function pbqShow(){
   queueMicrotask(enterView);
 }
 function pbqEnd(){
+  pbqAlert(false);
   sessionFlag('sPbq');
   const pct = Math.round(PBQ.res.reduce((a,b)=>a+b, 0) / PBQ.res.length * 100);
-  view.innerHTML = '<h1>Round done</h1><div class="card"><p><b>'+pct+'%</b> of items right across '+PBQ.res.length+' tasks (practice score, not an exam score).</p>'+
-    '<ul class="clean">'+PBQ.list.map((t,i)=>'<li>'+esc(t.title)+': '+Math.round(PBQ.res[i]*100)+'%</li>').join('')+'</ul>'+
+  view.innerHTML = '<h1>Station status</h1><div class="card"><p><b>'+pct+'%</b> of items right across '+PBQ.res.length+' tasks (practice score, not an exam score).</p>'+
+    '<ul class="clean">'+PBQ.list.map((t,i)=>{ const y = pbqSys(t), r = PBQ.res[i]; return '<li>'+(r === 1 ? '🟢 ' : r >= 0.5 ? '🟡 ' : '🔴 ')+y[1]+' '+esc(y[0])+' ('+esc(t.title)+'): '+Math.round(r*100)+'%'+(r === 1 ? ', online' : r >= 0.5 ? ', partly restored' : ', offline')+'</li>'; }).join('')+'</ul>'+
     '<div class="row"><button class="primary" id="pbqAgain">Another round</button><button id="pbqHome">Back to Today</button></div>'+sessionRow()+'</div>';
   $('#pbqAgain').onclick = vPbq;
   $('#pbqHome').onclick = ()=>go('today');

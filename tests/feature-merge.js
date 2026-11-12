@@ -183,6 +183,15 @@ for (const [x, y] of [[lapse, oldName], [oldName, lapse]]) if (M(x, y).mastery['
   const eb = Object.assign(structuredClone(D), { exams: [{ cert: 'secplus8', date: '2026-11-10', n: 20, pct: 65, secs: 950, doms: { 1: 50 } }] });
   for (const [x, y] of [[ea, eb], [eb, ea]]) { const ex = M(x, y).exams;
     if (ex.length !== 2 || !ex[0].qn || ex[0].qn[2] !== 5 || ex[1].qn) fail('per-domain question counts lost or invented in a merge', JSON.stringify(ex)); }
+  /* exam date: the one set most recently wins, whichever backup is merged into which */
+  const ga = Object.assign(structuredClone(D), { goal: { exam: '2026-12-10', set: '2026-11-12' } });
+  const gb = Object.assign(structuredClone(D), { goal: { exam: '2026-12-03', set: '2026-11-14' } });
+  const gn = structuredClone(D);
+  for (const [x, y] of [[ga, gb], [gb, ga]]) if (M(x, y).goal.exam !== '2026-12-03') fail('the most recently set exam date should win a merge', JSON.stringify(M(x, y).goal));
+  for (const [x, y] of [[ga, gn], [gn, ga]]) if (!M(x, y).goal || M(x, y).goal.exam !== '2026-12-10') fail('an exam date on one device only should survive a merge');
+  if ('goal' in M(gn, gn)) fail('no exam date anywhere should stay absent after a merge');
+  const gt = Object.assign(structuredClone(D), { goal: { exam: '2026-12-01', set: '2026-11-14' } });
+  if (JSON.stringify(M(gb, gt).goal) !== JSON.stringify(M(gt, gb).goal)) fail('a same-day exam date tie should merge the same either way');
   if (isFullDay({ sAcr: true, sPbq: true, sWeak: true })) fail('session flags alone made a day full');
   if (!isFullDay(Object.assign({ sAcr: true, sPbq: true }, full))) fail('session flags broke a full day');
 }

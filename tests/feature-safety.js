@@ -56,7 +56,8 @@ const evil = JSON.parse(JSON.stringify({
     { kind: 'quiz', id: 'mok', qi: 0, d: ['linux', 1, '<img src=x onerror=alert(5)>', ['x'], 0, 'y'] },
     { kind: 'bogus' }
   ],
-  cards: { c1: { box: 9, due: '2026-10-01' }, c2: { box: 2, due: 'nope' } }
+  cards: { c1: { box: 9, due: '2026-10-01' }, c2: { box: 2, due: 'nope' } },
+  goal: { exam: '<img src=x onerror=alert(6)>', set: '2026-11-12', extra: 1 }
 }));
 evil.quiz = JSON.parse('{"__proto__": {"polluted": true}, "q3": true, "q4": "<b>"}');
 const s = T.sanitizeBackup(evil);
@@ -67,6 +68,7 @@ else {
   if (s.xp !== 12 || 'lastBackup' in s || Object.keys(s.practice).length) fail('numbers coerced, bad dates dropped');
   if (s.exams.length !== 1 || s.exams[0].pct !== 0) fail('exams: unknown cert and bad date dropped, non-numeric pct zeroed', JSON.stringify(s.exams));
   if (JSON.stringify(s.exams[0].qn) !== '{"1":3,"2":0,"3":1000}') fail('exams: per-domain question counts kept and clamped', JSON.stringify(s.exams[0].qn));
+  if (JSON.stringify(s.goal) !== '{"exam":"","set":"2026-11-12"}') fail('exam date: a bad date is cleared and unknown fields dropped', JSON.stringify(s.goal));
   if (s.journal.length !== 2) fail('unknown journal kinds dropped');
   const g = s.journal[0];
   if (!/^m\w+$/.test(g.id)) fail('unsafe journal id should be replaced');

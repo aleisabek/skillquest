@@ -23,10 +23,10 @@ fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, html);
 console.log('built', path.relative(__dirname, OUT), (html.length / 1024).toFixed(0) + ' KB from', ORDER.join(', '));
 
-// Phone version: published as a private claude.ai artifact. The artifact viewer supplies its own
-// <html>/<head>/<body>, so the file holds just the title, styles and page content, with PHONE = true.
+// Phone version (retired 2026-11-12, built only with --phone): the artifact-viewer shape, PHONE = true, no private.js.
+// Kept as code because its private-content guard is the starting point for the later public build.
 const PHONE_OUT = path.join(__dirname, 'dist', 'SkillQuest-phone.html');
-{
+if (process.argv.includes('--phone')) {
   /* the phone build is shared through claude.ai, so it never carries the private job list (example roles stand in) */
   const phone = page(ORDER.filter(f => f !== 'private.js'));
   if (/function privateJobs\b/.test(phone)) throw new Error('private job list found in the phone build');

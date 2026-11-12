@@ -141,7 +141,7 @@ const RISE_SEL = ':scope > h1, :scope > .sub, :scope > .slim, :scope > h2, :scop
 function warpJump(){
   const j = document.querySelector('#space .jump');
   if(!j || !motionOK() || !document.documentElement.classList.contains('hack')) return;
-  j.classList.remove('go'); void j.offsetWidth; j.classList.add('go');
+  j.classList.remove('go'); void j.offsetWidth; j.classList.add('go'); blip('jump');
 }
 function enterView(){
   if(!motionOK()) return;
@@ -150,7 +150,8 @@ function enterView(){
 }
 /* feedback written into a result area (#after, #out) is announced automatically */
 new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes)
-  if(n.nodeType === 1 && n.classList.contains('explain') && n.parentElement && /^(after|out)$/.test(n.parentElement.id)) say(n.textContent); })
+  if(n.nodeType === 1 && n.classList.contains('explain') && n.parentElement && /^(after|out)$/.test(n.parentElement.id)){ say(n.textContent);
+    const t = n.textContent.trim(); if(t.startsWith('✅')) blip('ok'); else if(t.startsWith('❌')) blip('no'); } })
   .observe(view, {childList:true, subtree:true});
 function addXP(n, why){
   const before = rankOf(S.xp).r[1];
@@ -271,6 +272,9 @@ function mergeProgress(a, b){
   /* exam history: union, newest first */
   const E = new Map(); for(const e of [...(a.exams||[]), ...(b.exams||[])]){ const k = e.cert+e.date+e.pct+e.n+e.secs, o = E.get(k); E.set(k, o ? tieLow(o, e) : e); }
   m.exams = [...E.values()].sort((x,y)=>y.date.localeCompare(x.date) || stableStr(x).localeCompare(stableStr(y))).slice(0, 50);
+  /* exam date (S.goal = {exam, set}): the one set most recently wins, a same-day tie uses the fixed tie-break */
+  { const obj = v=>v && typeof v === 'object' && !Array.isArray(v) ? v : null, ga = obj(a.goal), gb = obj(b.goal);
+    if(ga || gb){ m.goal = !ga ? gb : !gb ? ga : (ga.set||'') !== (gb.set||'') ? ((ga.set||'') > (gb.set||'') ? ga : gb) : tieLow(ga, gb); } else delete m.goal; }
   if(a.typed === false && b.typed === false) m.typed = false; else delete m.typed;
   mergePilot(m, a, b);
   return recountStreak(migrateQuiz(migrateTerm(m)));
@@ -319,6 +323,7 @@ function sanitizeBackup(b){
   const ev = cleanEvidence(b.evidence); s.evidence = ev.list; EV_REJECTED = ev.bad.length;
   s.evres = cleanResolutions(b.evres);
   if(isObj(b.pilot) && okDate(b.pilot.worked)) s.pilot = {worked:b.pilot.worked};
+  if(isObj(b.goal) && okDate(b.goal.set)) s.goal = {exam:okDate(b.goal.exam) || '', set:b.goal.set};
   if(b.typed === false) s.typed = false;
   return s;
 }
@@ -645,7 +650,7 @@ function go(tab){
   if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
   stopRecording(true);   /* leaving the page discards a half-finished recording */
   destroyScene();        /* and stops any lesson animation */
-  current = tab; stopTimer(); header(); warpJump(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,pbq:vPbq,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
+  current = tab; stopTimer(); header(); warpJump(); document.documentElement.classList.remove('redalert'); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,pbq:vPbq,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
 
 /* ===================== VIEWS ===================== */
 /* Today: the loop as a 4-step checklist with one "Next up" button, the last 14 days, one real lab, and a short tip. */
@@ -679,13 +684,14 @@ function vToday(){
     (!saveBlocked && !hasProgress() ? '<div class="slim">👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup so your progress follows you. <button id="fixMerge">Merge a backup</button></div>' : '')+
     (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
     (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start '+esc(pilotEvidence().round.recheck)+'</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
-    '<h1>Today\'s loop</h1><p class="sub">Goal: Security+ SY0-801 in December. Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
+    '<h1>Today\'s loop</h1>'+missionClock()+'<p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
     '<div class="bento"><div class="card today hero"><div class="row" style="justify-content:space-between"><span class="ring" style="--p:'+(doneN*25)+'" aria-hidden="true"><span>'+doneN+'/4</span></span><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
+      '<div class="launch" style="--p:'+doneN+'"><span class="sr">Launch progress: '+doneN+' of 4 stages.</span>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
       step(2, 'Practice', st.practiced, PRACTICE_N+' exercises per lesson, typed, first try counts. A set counts as done with one right answer: that is practice done, not mastery', '<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
       step(3, 'Apply', st.applied, 'one rep in today\'s main area', '<div class="chips"><button class="chip'+(st.applied?' on':'')+'" data-apply="1">'+repTitle+(st.applied?' ✓':'')+'</button></div>')+
-      step(4, 'Reviews', st.reviewed, st.reviewed ? 'handled for today' : dueN+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done (clear them, or do '+REVIEW_CAP+')', st.reviewed ? '' : '<div class="chips"><button class="chip" data-go="review">Open Review</button></div>')+
-      '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<b class="donetoday">Done for today ✓</b> <span class="small">That\'s the daily loop. Stop here, or keep going below.</span>')+'</div>'+(next ? '' : sessionCard())+'</div>'+
+      step(4, 'Reviews', st.reviewed, st.reviewed ? 'handled for today' : dueN+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done (clear them, or do '+REVIEW_CAP+')', st.reviewed ? '' : '<div class="chips"><button class="chip" data-go="review">Open Review</button></div>')+'</div>'+
+      '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<b class="donetoday">Orbit reached: done for today ✓</b> <span class="small">That\'s the daily loop. Stop here, or keep going below.</span> <button id="logGo">🎙 Captain\'s log (1 min)</button>')+'</div>'+(next ? '' : sessionCard())+'</div>'+
     stripHTML()+
     (lab ? '<div class="card"><b>🌐 Outside practice (free)</b> <span class="small">· for today\'s '+esc(lab.sk)+' lesson</span>'+
       '<p style="margin:8px 0"><a href="'+lab.url+'" target="_blank" rel="noopener">'+esc(lab.name)+' ↗</a> <span class="small">'+esc(lab.note)+'</span></p>'+
@@ -697,6 +703,8 @@ function vToday(){
   view.querySelectorAll('[data-apply]').forEach(b=>b.onclick=repGo);
   view.querySelectorAll('[data-go="review"]').forEach(b=>b.onclick=()=>go('review'));
   if(next) on('#nextUp', next[1]);
+  wireMissionClock();
+  on('#logGo', vLog);
   on('#sesGo', ()=>{ SESSION = true; const n = sessionStops().find(x=>!x.done); if(n) n.run(); });
   on('#labUsed', ()=>{ S.practice = S.practice || {}; S.practice[lab.name] = dayStr(); save(); toast('Logged: '+lab.name); vToday(); });
   on('#moreLabs', e=>{ e.preventDefault(); go('practice'); });
@@ -727,6 +735,49 @@ function stripHTML(){
 const LAB_FOR = {linux:['OverTheWire'], net:['Cisco Networking Academy','TryHackMe free rooms'], sec:['picoCTF','Hack The Box Academy','TryHackMe free rooms','CyberDefenders'],
   code:['picoCTF'], sql:['SQLBolt','SQLZoo'], support:['Microsoft Learn','Professor Messer'], cloud:['AWS Skill Builder','flaws.cloud','Microsoft Learn'],
   offsec:['PortSwigger Web Security Academy','OWASP Juice Shop','TryHackMe free rooms']};
+/* ===================== CAPTAIN'S LOG: a one-minute spoken debrief =====================
+   Three prompts to answer out loud, recorded with the same recorder as interview answers (kept on this computer
+   only, never in backups, last 5 per day), plus today's misses from the mistake journal as log entries. Saying it out
+   loud is the "explain it" step that makes learning stick. Nothing new is saved in your progress. */
+function vLog(){
+  current = 'today'; header();
+  const today = dayStr(), miss = journal().filter(e=>e.at === today && Array.isArray(e.d) && Array.isArray(e.d[3]) && e.d[3][e.d[4]] !== undefined);
+  view.innerHTML = '<h1>🎙 Captain\'s log</h1><p class="sub">A one-minute spoken debrief of today. Explaining it out loud is what makes it stick.</p>'+
+    '<div class="card"><h2>Say these three things</h2><ol><li>What did I learn today, in one sentence?</li><li>What tripped me up, and what is the right answer?</li><li>What will I focus on tomorrow?</li></ol><div id="rec"></div></div>'+
+    '<div class="card"><h2>Today\'s log entries</h2>'+(miss.length
+      ? '<p class="small">Your misses today, from the mistake journal. Say the right answer for each one.</p><ul class="clean">'+miss.slice(0, 8).map(e=>'<li>'+esc(plainText(e.d[2]).slice(0, 160))+' → <b>'+esc(plainText(e.d[3][e.d[4]]))+'</b></li>').join('')+'</ul>'
+      : '<p class="small">No misses logged today.</p>')+'</div>'+
+    '<div class="row"><button id="logBack">Back to Today</button></div>';
+  renderRecorder('log:'+today);
+  $('#logBack').onclick = ()=>go('today');
+  enterView();
+}
+
+/* ===================== MISSION CLOCK: your exam date on Today =====================
+   S.goal = {exam:'YYYY-MM-DD' or '', set:'YYYY-MM-DD'}: the date you booked (or are aiming for) and the day it was
+   set, which decides a backup merge (the most recent setting wins). Nothing is assumed: without a date, Today
+   just offers to add one. Days are counted from today's date, the exam day itself not included. */
+const dateNum = d=>Math.floor(new Date(d+'T12:00:00').getTime()/86400000);
+function examDays(){ const g = S.goal; if(!g || !g.exam) return null; return dateNum(g.exam) - dateNum(dayStr()); }
+function missionClock(edit){
+  const g = S.goal || {}, n = examDays();
+  if(edit || !g.exam) return '<div class="slim mclock"><b>🚀 Security+ SY0-801 exam date</b> '+
+    '<label class="small" for="goalDate">'+(g.exam ? 'Change it:' : 'Booked or aiming for a day? Add it for a countdown:')+'</label> '+
+    '<input type="date" id="goalDate" value="'+esc(g.exam||'')+'" min="'+dayStr()+'"> <button id="goalSave">Save</button>'+(g.exam ? ' <button id="goalClear" class="quiet">Remove date</button>' : '')+'</div>';
+  const when = new Date(g.exam+'T12:00:00').toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'});
+  const txt = n > 1 ? 'T-'+n+' days' : n === 1 ? 'Tomorrow' : n === 0 ? 'Today' : 'Exam day has passed';
+  return '<div class="slim mclock"><b>🚀 Security+ SY0-801 · '+txt+'</b> <span class="small">'+esc(when)+(n > 0 ? ' · '+Math.ceil(n / 7)+' week'+(Math.ceil(n / 7) === 1 ? '' : 's')+' of daily loops left' : n < 0 ? ' · set your next date when you have one' : ' · good luck')+'</span> <button id="goalEdit" class="quiet">Change</button></div>';
+}
+function wireMissionClock(){
+  const on = (sel, f)=>{ const b = $(sel); if(b) b.onclick = f; };
+  const swap = edit=>{ const el = $('.mclock'); if(!el) return; el.outerHTML = missionClock(edit); wireMissionClock(); if(edit) $('#goalDate').focus(); };
+  on('#goalEdit', ()=>swap(true));
+  on('#goalSave', ()=>{ const v = okDate($('#goalDate').value);
+    if(!v){ toast('Pick a date first'); return; }
+    S.goal = {exam:v, set:dayStr()}; save(); swap(false); const b = $('#goalEdit'); if(b) b.focus(); say('Exam date saved.'); });
+  on('#goalClear', ()=>{ S.goal = {exam:'', set:dayStr()}; save(); swap(false); const d = $('#goalDate'); if(d) d.focus(); say('Exam date removed.'); });
+}
+
 /* ===================== FULL STUDY SESSION (optional, after Today's four steps) =====================
    Today's loop stays the 20-minute day. Once it is done, Today offers an optional Security+ session: an acronym round,
    a PBQ round, a drill on the weakest Security+ skill, and a 20-question practice exam when none was taken in the
@@ -843,15 +894,26 @@ function startQuiz(tid, n, mission, list, lv, endless, sk){
   const sess = {items, i:0, right:0, mission, tid, lv, endless, sk};
   quizStep(sess);
 }
+/* Signal decoding: each quiz round carries a scrambled transmission (one of the study tips). Every right answer
+   decodes its share of the letters; a miss adds static (the hidden letters scramble again). It's a picture of the
+   round, not a score, so screen readers skip it; the end screen shows the full message as plain text. */
+const SIG_GLYPHS = '#%&*+=<>/\\|{}[]?!01';
+function sigText(s){
+  const n = Math.round(s.sig.msg.length * s.right / s.items.length), shown = new Set(s.sig.order.slice(0, n));
+  return [...s.sig.msg].map((c, i)=>c === ' ' || shown.has(i) ? c : SIG_GLYPHS[Math.floor(Math.random() * SIG_GLYPHS.length)]).join('');
+}
+function sigHTML(s){ return '<div class="signal" aria-hidden="true"><span class="small">📡 Incoming transmission · '+Math.round(100 * s.right / s.items.length)+'% decoded</span><div class="sigtext">'+esc(sigText(s))+'</div></div>'; }
 function quizStep(s){
   if(s.i >= s.items.length) return quizEnd(s);
+  if(!s.sig){ const tip = STRATEGIES[(hashStr(dayStr()) + s.items.length + (s.sk || s.tid || '').length) % STRATEGIES.length], m = plainText(tip[1]);
+    s.sig = {msg:m, order:shuffle([...m].map((c, i)=>i))}; }
   const idx = s.items[s.i], isGen = typeof idx === 'object', q = isGen ? idx.d : QUIZ[idx], t = track(q[0]);
   const sid = isGen && idx.sk ? skillIdFor('quiz', idx.tid, idx.sk) : null;
   /* Generated short-answer questions are typed (recall), unless typed mode is off or you asked to see the choices. */
   const typed = isGen && typedOn() && typeable(idx) && !s.showChoices;
   const order = shuffle(q[3].map((o,k)=>k));
   view.innerHTML = '<h1>'+(s.journalRun ? '📓 Mistake retry' : t.icon+' '+(s.sk ? esc(s.sk) : t.name)+(s.endless?' drill':' quiz'))+' <span class="lv open">L'+q[1]+'</span>'+(isGen && !s.journalRun?' <span class="lv open" title="Freshly generated for you">∞ new</span>':'')+(typed?' <span class="lv open" title="Type the answer from memory">⌨ type it</span>':'')+'</h1>'+
-    '<div class="card"><div class="progress"><span>Question '+(s.i+1)+' of '+s.items.length+'</span><span>'+s.right+' correct</span></div>'+
+    '<div class="card">'+sigHTML(s)+'<div class="progress"><span>Question '+(s.i+1)+' of '+s.items.length+'</span><span>'+s.right+' correct</span></div>'+
     '<div class="q">'+q[2]+'</div>'+
     (typed ? '<div class="row"><input id="ta" class="typed" autocomplete="off" spellcheck="false" placeholder="Type your answer, then Enter" aria-label="Your answer"><button class="primary" id="chk">Check</button></div>'+
              '<p class="small">Recall it from memory; that is what makes it stick. Stuck? <a href="#" id="choices">Show the choices</a> (counts as a guess).</p>'
@@ -874,6 +936,7 @@ function quizStep(s){
         if(fade) noteReview();   /* reviewing a fading question counts, right or wrong (wrong moves it to Learning) */
       }
     }
+    { const sg = view.querySelector('.signal'); if(sg) sg.outerHTML = sigHTML(s); }
     const nx = s.i+1 < s.items.length ? 'Next' : 'Finish';
     /* After a correct answer on a skill question, ask whether it was sure or a guess: guesses barely raise mastery. */
     const btns = (sid && ok) ? '<button class="primary" id="sure">'+nx+' · I was sure</button><button id="guess">'+nx+' · I guessed</button>' : '<button class="primary" id="next">'+nx+'</button>';
@@ -909,7 +972,8 @@ function quizEnd(s){
   if(s.mission) finishMission(s);
   if(SESSION && SESSION_WEAK && !s.mission && s.tid && 'quiz:'+s.tid+':'+s.sk === SESSION_WEAK){ sessionFlag('sWeak'); SESSION_WEAK = null; }
   const pct = Math.round(s.right/s.items.length*100);
-  view.innerHTML = '<h1>'+(s.journalRun?'Mistake retry done':'Quiz complete')+'</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' ('+pct+'%)</p><p>'+
+  view.innerHTML = '<h1>'+(s.journalRun?'Mistake retry done':'Quiz complete')+'</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' ('+pct+'%)</p>'+
+    (s.sig ? '<p class="small sigend">📡 Transmission '+pct+'% decoded. Full message: <i>'+esc(s.sig.msg)+'</i></p>' : '')+'<p>'+
     (s.journalRun ? 'Each mistake needs a correct answer on two different days to clear. The ones you got right today come back tomorrow for the second check.'
       : pct===100?'Perfect round. Try the flashcards next to lock it in.':pct>=70?'Solid. Your misses are saved in the mistake journal (Review tab).':'Good practice. Your misses are in the mistake journal (Review tab); retry them tomorrow.')+'</p>'+
     '<div class="row"><button class="primary" id="again">'+(s.journalRun?'Open the journal':!s.tid?'Back to Review':'Another round')+'</button><button id="home">Back to Today</button></div>'+sessionRow()+'</div>';
@@ -1397,13 +1461,31 @@ function ticketEnd(st){
 }
 
 /* ---------- Review ---------- */
+/* Review orbits: your flashcards as satellites around a planet. The closer the orbit, the sooner the card is due;
+   the inner ring is due now. The counts are written out beside the picture, so nothing depends on seeing it.
+   The rings turn very slowly, only while you're active, and not at all in Calm mode. */
+function reviewOrbits(){
+  const seen = CARDS.map((c, i)=>S.cards[cardId(i)]).filter(c=>c && c.due);
+  if(!seen.length) return '';
+  const t0 = new Date(dayStr()+'T12:00:00').getTime(), days = c=>Math.round((new Date(c.due+'T12:00:00').getTime() - t0) / 864e5);
+  const rings = [['due now', d=>d <= 0, 'var(--warn)'], ['in 1–3 days', d=>d >= 1 && d <= 3, 'var(--accent)'], ['in 4–14 days', d=>d >= 4 && d <= 14, 'var(--accent2)'], ['in 15+ days', d=>d >= 15, 'var(--muted)']];
+  const counts = rings.map(r=>seen.filter(c=>r[1](days(c))).length);
+  const R = [62, 96, 128, 158];
+  const sats = rings.map((r, k)=>{ const n = Math.min(counts[k], 40), off = (k * 47) % 360;
+    return '<g class="orb o'+k+'">'+'<circle cx="170" cy="170" r="'+R[k]+'" class="orb-ring"/>'+
+      Array.from({length:n}, (_, i)=>{ const a = (off + i * 360 / Math.max(n, 1)) * Math.PI / 180;
+        return '<circle cx="'+(170 + R[k] * Math.cos(a)).toFixed(1)+'" cy="'+(170 + R[k] * Math.sin(a)).toFixed(1)+'" r="'+(k ? 3 : 4.2)+'" fill="'+r[2]+'"/>'; }).join('')+'</g>'; }).join('');
+  return '<div class="card orbits"><svg viewBox="0 0 340 340" aria-hidden="true" focusable="false"><circle cx="170" cy="170" r="30" class="orb-planet"/>'+sats+'</svg>'+
+    '<div><h3 style="margin-top:0">🛰 Review orbits</h3><p class="small">Each satellite is a flashcard you have studied. The closer it orbits, the sooner it\'s due.</p><ul class="clean">'+
+    rings.map((r, k)=>'<li><span class="dot" style="background:'+r[2]+'"></span> '+counts[k]+' card'+(counts[k] === 1 ? '' : 's')+' '+r[0]+'</li>').join('')+'</ul></div></div>';
+}
 function vReview(){
   const due = CARDS.map((c,i)=>i).filter(i=>S.cards[cardId(i)] && cardDue(i));
   importOldMisses();
   const open = journal().filter(isOpen).length, jdue = journal().filter(isDue).length;
   const weak = IV.map((q,i)=>i).filter(i=>S.iv['i'+i]===1);
   const fq = fadingQuiz();
-  view.innerHTML = '<h1>Review</h1><p class="sub">This is where learning sticks. Come here whenever something is due.</p><div class="grid">'+
+  view.innerHTML = '<h1>Review</h1><p class="sub">This is where learning sticks. Come here whenever something is due.</p>'+reviewOrbits()+'<div class="grid">'+
     '<div class="card mission"><h3>🃏 Due flashcards</h3><p>'+due.length+' card'+(due.length===1?'':'s')+' due today.</p><div><button class="primary" id="rc" '+(due.length?'':'disabled')+'>Review cards</button></div></div>'+
     '<div class="card mission"><h3>🔁 Fading quiz questions</h3><p>'+fq.length+' question'+(fq.length===1?'':'s')+' you answered right over '+QUIZ_FADE+' days ago. Answer again to keep them counted.</p><div><button class="primary" id="rf" '+(fq.length?'':'disabled')+'>Review '+Math.min(fq.length,10)+'</button></div></div>'+
     '<div class="card mission"><h3>📓 Mistake journal</h3><p>'+open+' open mistake'+(open===1?'':'s')+', '+jdue+' due for a retry today.</p><div class="row"><button class="primary" id="rq" '+(jdue?'':'disabled')+'>Retry due</button><button id="rj">Open journal</button></div></div>'+
@@ -1656,6 +1738,32 @@ $('#theme').onclick=()=>{
 };
 
 
+/* ===================== SOUND (optional, off by default) =====================
+   A soft low hum, plus short tones for right answers, misses and screen jumps, all made in the browser (no audio
+   files). Off unless ticked under Aa; silent in Calm mode; suspended while idle or when the tab is hidden, so it
+   uses nothing in the background. var (not let) on purpose: go() can run before this block on first load. */
+var SND = {ctx:null, hum:false};
+function soundOn(){ return pref('skillquest-sound', 'off') === 'on' && !calm; }
+function applySound(){
+  const want = soundOn() && !document.hidden && !document.documentElement.classList.contains('idle');
+  if(!want){ if(SND.ctx && SND.ctx.state === 'running') SND.ctx.suspend(); return; }
+  if(!SND.ctx){ const AC = window.AudioContext || window.webkitAudioContext; if(!AC) return; SND.ctx = new AC(); }
+  const c = SND.ctx;
+  if(!SND.hum){ SND.hum = true;
+    const g = c.createGain(), f = c.createBiquadFilter(); g.gain.value = 0.02; f.type = 'lowpass'; f.frequency.value = 300;
+    f.connect(g); g.connect(c.destination);
+    [55, 82.6, 110.4].forEach((hz, i)=>{ const o = c.createOscillator(); o.type = i ? 'sine' : 'triangle'; o.frequency.value = hz; o.connect(f); o.start(); }); }
+  if(c.state !== 'running') c.resume().catch(()=>{});
+}
+function blip(kind){
+  if(!SND || !SND.ctx || SND.ctx.state !== 'running' || !soundOn()) return;
+  const c = SND.ctx, t = c.currentTime, notes = kind === 'ok' ? [660, 880] : kind === 'no' ? [240, 190] : [320];
+  notes.forEach((hz, i)=>{ const o = c.createOscillator(), g = c.createGain(), at = t + i * 0.09;
+    o.type = 'sine'; o.frequency.setValueAtTime(hz, at); if(kind === 'jump') o.frequency.exponentialRampToValueAtTime(1200, at + 0.3);
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.05, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.28);
+    o.connect(g); g.connect(c.destination); o.start(at); o.stop(at + 0.32); });
+}
+
 /* Idle pause: nothing in the background keeps the computer busy while nobody is using the page. After 30 seconds
    without input, or as soon as the tab is hidden, the background drift, the stars and the looping title
    effects stop; the next mouse move, key press, touch or scroll starts them again. Timers that matter (exam, recorder)
@@ -1663,9 +1771,9 @@ $('#theme').onclick=()=>{
 (function(){
   const IDLE_MS = 30000; let t = 0, idle = false;
   const html = document.documentElement;
-  function sleep(){ if(idle) return; idle = true; html.classList.add('idle'); }
+  function sleep(){ if(idle) return; idle = true; html.classList.add('idle'); applySound(); }
   function wake(){ clearTimeout(t); t = setTimeout(sleep, IDLE_MS);
-    if(!idle || document.hidden) return; idle = false; html.classList.remove('idle'); }
+    if(!idle || document.hidden) return; idle = false; html.classList.remove('idle'); applySound(); }
   ['pointermove','pointerdown','keydown','wheel','touchstart','scroll'].forEach(e=>addEventListener(e, wake, {passive:true}));
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ clearTimeout(t); sleep(); } else wake(); });
   wake();
@@ -1677,6 +1785,7 @@ $('#theme').onclick=()=>{
   const open = v=>{ box.hidden = !v; btn.setAttribute('aria-expanded', String(v)); if(v) box.querySelector('input:checked, input').focus(); else btn.focus(); };
   const sync = ()=>{ box.querySelectorAll('input[name=ts]').forEach(r=>{ r.checked = r.value === (TEXT_SIZES.includes(pref('skillquest-ts','1')) ? pref('skillquest-ts','1') : '1'); });
     $('#readableBox').checked = pref('skillquest-readable','off') === 'on';
+    $('#soundBox').checked = pref('skillquest-sound','off') === 'on';
     $('#calmBox').checked = calm; $('#calmBox').disabled = osCalm;
     $('#calmBox').parentElement.title = osCalm ? 'On because your device asks for reduced motion' : ''; };
   btn.onclick = ()=>{ sync(); open(box.hidden); };
@@ -1687,7 +1796,8 @@ $('#theme').onclick=()=>{
   box.addEventListener('keydown', e=>{ if(e.key === 'Escape'){ e.preventDefault(); open(false); } });
   box.querySelectorAll('input[name=ts]').forEach(r=>r.onchange = ()=>{ setPref('skillquest-ts', r.value); applyDisplay(); });
   $('#readableBox').onchange = e=>{ setPref('skillquest-readable', e.target.checked ? 'on' : 'off'); applyDisplay(); };
-  $('#calmBox').onchange = e=>{ setPref('skillquest-calm', e.target.checked ? 'on' : 'off'); applyDisplay(); };
+  $('#calmBox').onchange = e=>{ setPref('skillquest-calm', e.target.checked ? 'on' : 'off'); applyDisplay(); applySound(); };
+  $('#soundBox').onchange = e=>{ setPref('skillquest-sound', e.target.checked ? 'on' : 'off'); applySound(); };
 })();
 
 /* "Decrypt" effect: page titles scramble, then resolve */

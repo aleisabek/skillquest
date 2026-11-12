@@ -17,9 +17,9 @@ An offline practice app for entry-level IT jobs: IT support & Microsoft 365, net
 
 ## Phone version
 
-`npm run build` also writes `dist/SkillQuest-phone.html`: the same app with `PHONE = true` (no file downloads or microphone; backups move by copy/paste), shaped for the claude.ai artifact viewer, and built without `src/private.js`.
+`node build.js --phone` writes `dist/SkillQuest-phone.html` (normal builds no longer do): the same app with `PHONE = true` (no file downloads or microphone; backups move by copy/paste), shaped for the claude.ai artifact viewer, and built without `src/private.js`.
 
-**Retired 2026-11-12:** the published phone artifact was deleted and is no longer updated. The build target stays because its private-content guard is the starting point for a later public build.
+**Retired 2026-11-12:** the published phone artifact was deleted and is no longer updated. The build target stays (opt-in since 2026-11-12, so normal builds skip it) because its private-content guard is the starting point for a later public build.
 
 ## Layout
 
