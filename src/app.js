@@ -29,8 +29,10 @@ function load(){
 /* true when progress reached storage */
 function save(){
   if(saveBlocked){ warnSave('Not saved: your earlier progress could not be read. Open Today to choose what to do.'); return false; }
-  try{ localStorage.setItem(KEY, JSON.stringify(S)); saveFailed = false; return true; }
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); saveFailed = false; }
   catch(e){ saveFailed = true; warnSave('Progress NOT saved: browser storage is full or blocked. Download a backup from How to use → Backup now.'); return false; }
+  try{ syncSoon(); }catch(e){}   /* the sync file is extra: a problem there never counts as a failed save */
+  return true;
 }
 /* warned only once the toast really showed: at startup toast isn't defined yet, so the first real save failure still warns */
 function warnSave(msg){ if(saveWarned) return; try{ toast(msg); saveWarned = true; }catch(e){} }
@@ -684,7 +686,7 @@ function vToday(){
     (!saveBlocked && !hasProgress() ? '<div class="slim">👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup so your progress follows you. <button id="fixMerge">Merge a backup</button></div>' : '')+
     (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
     (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start '+esc(pilotEvidence().round.recheck)+'</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
-    '<h1>Today\'s loop</h1>'+missionClock()+'<p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
+    '<h1>Today\'s loop</h1>'+missionClock()+syncNote()+'<p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
     '<div class="bento"><div class="card today hero"><div class="row" style="justify-content:space-between"><span class="ring" style="--p:'+(doneN*25)+'" aria-hidden="true"><span>'+doneN+'/4</span></span><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
       '<div class="launch" style="--p:'+doneN+'"><span class="sr">Launch progress: '+doneN+' of 4 stages.</span>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
@@ -704,6 +706,7 @@ function vToday(){
   view.querySelectorAll('[data-go="review"]').forEach(b=>b.onclick=()=>go('review'));
   if(next) on('#nextUp', next[1]);
   wireMissionClock();
+  on('#syncResume', async()=>{ const r = await syncPull(true); toast(r === 'paused' ? 'Still paused: allow access to the file when the browser asks.' : 'Sync resumed.'); });
   on('#logGo', vLog);
   on('#sesGo', ()=>{ SESSION = true; const n = sessionStops().find(x=>!x.done); if(n) n.run(); });
   on('#labUsed', ()=>{ S.practice = S.practice || {}; S.practice[lab.name] = dayStr(); save(); toast('Logged: '+lab.name); vToday(); });
@@ -1621,12 +1624,112 @@ function vProgress(){
   $('#toBackup').onclick = ()=>go('backup');
 }
 
+/* ===================== SYNC FILE: progress shared through a file in a cloud folder =====================
+   Chrome and Edge only (they can keep a file you picked and write to it again; Safari can't). You pick a file in a
+   folder OneDrive (or any cloud service) keeps on both computers. SkillQuest writes your progress to it a few seconds
+   after each save and when you leave the page, and merges the file in when you open SkillQuest or come back to it.
+   Safety:
+   - Every write is file + this device merged (mergeProgress, the same order-independent merge as "Merge a backup"),
+     so one computer never overwrites the other's progress, and it writes only when something changed.
+   - A file that isn't a readable SkillQuest backup is never written over.
+   - The file is merged into this device's progress only on Today, the Backup page or at startup, never in the middle
+     of a quiz or exam, where code may still hold parts of the old progress.
+   - Nothing about sync is stored in progress itself: the picked file lives in this browser's IndexedDB.
+   - Reset everything turns sync off on this computer first; otherwise the other computer's progress would come back. */
+var SYNC = {h:null, name:'', state:'off', at:null, err:'', busy:false, t:0};
+const syncSupported = ()=>!PHONE && typeof showSaveFilePicker === 'function' && typeof showOpenFilePicker === 'function' && typeof indexedDB !== 'undefined';
+function syncDB(){ return new Promise((ok, no)=>{ const q = indexedDB.open('skillquest-sync', 1);
+  q.onupgradeneeded = ()=>q.result.createObjectStore('h'); q.onsuccess = ()=>ok(q.result); q.onerror = ()=>no(q.error); }); }
+async function syncKeep(h){ const db = await syncDB();
+  await new Promise((ok, no)=>{ const tx = db.transaction('h', 'readwrite'), st = tx.objectStore('h'); if(h) st.put(h, 'file'); else st.delete('file');
+    tx.oncomplete = ok; tx.onerror = ()=>no(tx.error); }); db.close(); }
+async function syncKept(){ const db = await syncDB();
+  const h = await new Promise(ok=>{ const r = db.transaction('h').objectStore('h').get('file'); r.onsuccess = ()=>ok(r.result || null); r.onerror = ()=>ok(null); });
+  db.close(); return h; }
+/* ask = may show the browser's permission prompt (only from a click) */
+async function syncPerm(h, ask){ const o = {mode:'readwrite'};
+  try{ if(await h.queryPermission(o) === 'granted') return true; if(ask && await h.requestPermission(o) === 'granted') return true; }catch(e){}
+  return false; }
+/* pull = also merge the file into this device's progress. Answers 'ok', 'pulled' (progress here changed), 'paused'
+   (no permission yet), 'bad' (not a SkillQuest file; left alone), 'error', or 'off'. */
+async function syncRun(o){
+  o = o || {};
+  if(!SYNC.h) return 'off';
+  if(SYNC.busy) return SYNC.state;
+  SYNC.busy = true; clearTimeout(SYNC.t);
+  try{
+    if(!await syncPerm(SYNC.h, o.ask)) return SYNC.state = 'paused';
+    const txt = await (await SYNC.h.getFile()).text();
+    let b = null;
+    if(txt.trim()){ try{ b = sanitizeBackup(JSON.parse(txt)); }catch(e){} if(!b) return SYNC.state = 'bad'; }
+    let pulled = false;
+    if(b && o.pull && !saveBlocked){ const m = mergeProgress(S, b); if(stableStr(m) !== stableStr(S)){ S = m; pulled = true; save(); } }
+    const out = JSON.stringify(b && !pulled ? mergeProgress(S, b) : S);
+    /* write only when the file would really change (compared after the same cleaning a read does), so an idle
+       computer doesn't keep re-uploading the file */
+    let same = false; if(b){ try{ same = syncSig(sanitizeBackup(JSON.parse(out))) === syncSig(b); }catch(e){} }
+    if(!same && out !== txt){ const w = await SYNC.h.createWritable(); await w.write(out); await w.close(); }
+    SYNC.state = 'on'; SYNC.at = new Date(); SYNC.err = '';
+    return pulled ? 'pulled' : 'ok';
+  }catch(e){ SYNC.err = String(e && e.message || e).slice(0, 120); return SYNC.state = 'error'; }
+  finally{ SYNC.busy = false; }
+}
+/* compare progress ignoring empty sections (a merge adds empty ones, such as qfirst:{}) */
+const syncSig = o=>stableStr(Object.fromEntries(Object.entries(o).filter(([k, v])=>!(v && typeof v === 'object' && !Object.keys(v).length))));
+function syncSoon(){ if(!SYNC || !SYNC.h || SYNC.state === 'paused' || SYNC.state === 'bad') return; clearTimeout(SYNC.t); SYNC.t = setTimeout(()=>syncRun(), 4000); }
+/* where merging the file in is safe: Today's main page or the Backup page, with no exam running */
+const syncSafeView = ()=>!EX && (!!view.querySelector('.launch, .mclock') || (current === 'backup' && !!$('#syncBox')));
+function syncRedraw(){ header(); if(current === 'backup' && $('#syncBox')) vBackup(); else if(view.querySelector('.launch, .mclock')) vToday(); }
+async function syncPull(ask){ const r = await syncRun({pull:true, ask}); if(r === 'pulled' || r === 'paused') syncRedraw(); return r; }
+async function syncUse(h){
+  SYNC.h = h; SYNC.name = h.name || 'sync file'; SYNC.state = 'on';
+  try{ await syncKeep(h); }catch(e){}
+  const r = await syncPull(true);
+  toast({ok:'Sync is on: progress is saved to '+SYNC.name+'.', pulled:'Sync is on, and the progress in '+SYNC.name+' was merged in.',
+    paused:'Almost there: click Resume sync and allow access to the file.', bad:'That file isn\'t a SkillQuest sync file, so nothing was written to it. Pick another file.',
+    error:'Sync failed: '+SYNC.err}[r] || 'Sync is on.');
+  if(current === 'backup') vBackup();
+}
+async function syncStop(){ clearTimeout(SYNC.t); SYNC.h = null; SYNC.name = ''; SYNC.state = 'off'; try{ await syncKeep(null); }catch(e){} }
+const SYNC_TYPES = [{description:'SkillQuest sync file', accept:{'application/json':['.json']}}];
+function syncPanel(){
+  if(!syncSupported()) return '<p class="small">This browser can\'t sync to a file. Open SkillQuest in Chrome or Edge to use automatic sync.</p>';
+  const how = '<p class="small">Pick a file in a folder that OneDrive (or another cloud service) keeps in sync on both computers. SkillQuest saves your progress to it as you study, and merges in the other computer\'s progress when you open SkillQuest. Nothing is lost: it uses the same merge as <b>Merge a backup</b>. On the first computer choose <b>Create a sync file</b>; on the other, choose <b>Use an existing sync file</b> and pick the same file. Use one computer at a time for the smoothest sync.</p>';
+  if(!SYNC.h) return how+'<div class="row"><button class="primary" id="syncNew">Create a sync file</button><button id="syncOpen">Use an existing sync file</button></div>';
+  const when = SYNC.at ? SYNC.at.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'}) : '';
+  const st = {on:when ? '✅ Last synced at '+esc(when)+'.' : '✅ On.', paused:'⏸ Paused: the browser needs your permission to use the file again.',
+    bad:'⚠️ That file isn\'t a SkillQuest sync file, so nothing was written to it. Stop syncing and pick another file.',
+    error:'⚠️ The last sync failed ('+esc(SYNC.err)+'). Is the cloud folder still there?', off:''}[SYNC.state] || '';
+  return '<p>Syncing with <b>'+esc(SYNC.name)+'</b>. '+st+'</p>'+
+    '<div class="row">'+(SYNC.state === 'paused' ? '<button class="primary" id="syncResume">Resume sync</button>' : '<button id="syncNow">Sync now</button>')+'<button id="syncOff" class="quiet">Stop syncing</button></div>'+
+    '<p class="small">Reset everything (below) also turns sync off on this computer, so the other computer\'s progress doesn\'t come back.</p>';
+}
+function wireSync(){
+  const on = (id, f)=>{ const b = $(id); if(b) b.onclick = f; };
+  const pick = async f=>{ try{ await f(); }catch(e){ if(e && e.name !== 'AbortError') toast('Could not use that file: '+(e.message || e)); } };
+  on('#syncNew', ()=>pick(async()=>syncUse(await window.showSaveFilePicker({suggestedName:'SkillQuest-sync.json', types:SYNC_TYPES}))));
+  on('#syncOpen', ()=>pick(async()=>syncUse((await window.showOpenFilePicker({types:SYNC_TYPES, multiple:false}))[0])));
+  on('#syncResume', async()=>{ const r = await syncPull(true); toast(r === 'paused' ? 'Still paused: allow access to the file when the browser asks.' : 'Sync resumed.'); if(current === 'backup') vBackup(); });
+  on('#syncNow', async()=>{ const r = await syncPull(false); toast({ok:'Synced.', pulled:'Synced: progress from the other computer was merged in.', paused:'Paused: click Resume sync.', bad:'Not synced: that file isn\'t a SkillQuest sync file.', error:'Sync failed: '+SYNC.err}[r] || 'Synced.'); if(current === 'backup') vBackup(); });
+  on('#syncOff', async()=>{ await syncStop(); toast('Sync is off on this computer. The file is left as it is.'); vBackup(); });
+}
+/* Today: a paused sync needs a click (browsers only show the permission prompt after one) */
+function syncNote(){ return SYNC.h && SYNC.state === 'paused' ? '<div class="slim">🔄 Sync is paused until you allow the file again. <button id="syncResume">Resume sync</button></div>' : ''; }
+/* start: reconnect the file picked earlier; come back to the page: merge; leave it: write now */
+function syncStart(){
+  if(!syncSupported()) return;
+  syncKept().then(h=>{ if(!h || SYNC.h) return; SYNC.h = h; SYNC.name = h.name || 'sync file'; SYNC.state = 'on'; return syncSafeView() ? syncPull(false) : syncRun(); }).catch(()=>{});
+  document.addEventListener('visibilitychange', ()=>{ if(!SYNC.h || SYNC.state === 'bad') return;
+    if(document.hidden) syncRun(); else if(syncSafeView()) syncPull(false); });
+}
+
 /* ---------- Backup (How to use → Backup) ---------- */
 function vBackup(){
   view.innerHTML = '<h1>Backup</h1>'+
     '<div class="card"><p class="small">Progress is saved in this browser only. A new computer, a new browser or cleared browser data starts empty, so download a backup once a week. To bring progress here from another device, use <b>Replace</b> on a device that has nothing yet, or <b>Merge</b> to combine two devices you both use. Last backup: <b>'+esc(S.lastBackup || 'never')+'</b>.</p>'+
     '<div class="row"><button class="primary" id="exp"'+(PHONE?' hidden':'')+'>Download backup file</button><button id="mrgb" title="Combine a backup file with the progress here. Nothing is lost.">Merge a backup file in</button><button id="impb" title="Throw away the progress here and use the backup instead">Replace with a backup file</button><input type="file" id="imp" accept=".json,application/json,text/plain" hidden><button id="reset">Reset everything</button>'+
     (prevSnapshot() && daysSince(prevSnapshot().at) <= UNDO_DAYS ? '<button id="undo" title="Go back to how progress was before the last merge, restore or reset">↺ Undo last '+esc(prevSnapshot().what)+' ('+esc(prevSnapshot().at)+')</button>' : '')+'</div>'+
+    '<h3>Automatic sync (Chrome or Edge)</h3><div id="syncBox">'+syncPanel()+'</div>'+
     '<h3>Move progress between your PC and phone</h3>'+
     '<p class="small">Your PC and your phone each keep their own progress. To combine them: on one device tap <b>Copy backup</b>, send the text to yourself (email, OneDrive or a note), then on the other device paste it below and tap <b>Merge</b>. Merging keeps the best of both (higher scores, all missions, mistakes and exams) and never erases anything.</p>'+
     '<div class="row"><button class="primary" id="cpb">Copy backup</button></div>'+
@@ -1635,6 +1738,7 @@ function vBackup(){
     '<div class="row" style="margin-top:8px"><button id="pasteMerge">Merge pasted backup</button><button id="pasteReplace" title="Throw away the progress here and use the pasted backup instead">Replace with pasted backup</button></div></div>';
   $('#exp').onclick=()=>{ downloadBackup(); vBackup(); };
   $('#cpb').onclick = copyBackupText;
+  wireSync();
   const pasted = mode=>{
     const raw = $('#pasteBk').value.trim(), r = importBackup(raw, mode);
     if(r !== 'bad') replaceDone(r, (mode === 'merge' ? 'Backup merged in.' : 'Backup restored.')+evNote(), ()=>importBackup(raw, mode, true));
@@ -1652,7 +1756,8 @@ function vBackup(){
       else toast('That file is not a SkillQuest backup');
       e.target.value = ''; };
     rd.readAsText(f); };
-  $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device? You can undo it once from this page.', 'Erase everything', ()=>{
+  $('#reset').onclick=()=>askConfirm('Erase ALL SkillQuest progress on this device?'+(SYNC.h ? ' Sync will be turned off on this computer, so the other computer\'s progress doesn\'t come back.' : '')+' You can undo it once from this page.', 'Erase everything', ()=>{
+    if(SYNC.h) syncStop();
     const erase = force=>replaceProgress('reset', ()=>structuredClone(DEFAULT), force);
     replaceDone(erase(false), 'Progress erased.', ()=>erase(true)); });
   /* Undo puts back the whole snapshot, so anything done since then is lost: say so, and only offer it for UNDO_DAYS */
@@ -1830,3 +1935,4 @@ document.addEventListener('keydown', e=>{
 /* Ask the browser not to clear SkillQuest's storage under disk pressure (silently ignored where unsupported). */
 try{ if(navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(()=>{}); }catch(e){}
 header(); vToday();
+syncStart();
