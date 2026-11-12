@@ -38,7 +38,16 @@ async function main(){
   if (process.platform === 'linux') args.unshift('--no-sandbox', '--disable-dev-shm-usage');   /* CI runners */
   const proc = spawn(bin, args, { stdio: 'ignore' });
   /* on Windows, kill() stops only the first process and leaves the browser's children running: end the whole tree */
-  const stop = () => { try { if (process.platform === 'win32') require('child_process').spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); else proc.kill(); } catch (e) {} };
+  /* Edge also hands work to processes outside that tree, so on Windows any browser still using this run's own profile
+     folder is ended too (matched by the folder's unique name). Runs on normal exit and on the timeout. */
+  let stopped = false;
+  const stop = () => { if (stopped) return; stopped = true;
+    try { if (process.platform === 'win32') {
+      const cp = require('child_process');
+      cp.spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+      cp.spawnSync('powershell', ['-NoProfile', '-Command', "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*" + path.basename(dir) + "*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"], { stdio: 'ignore' });
+    } else proc.kill(); } catch (e) {} };
+  process.on('exit', stop);
   /* never hang CI: the whole check has 90 seconds */
   const guard = setTimeout(() => { fail('timed out after 480s'); stop(); process.exit(1); }, 480000);   /* 8 looks × 6 scenes */
   guard.unref();
