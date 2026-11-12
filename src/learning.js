@@ -79,6 +79,23 @@ function typedOn(){ return S.typed !== false; }
 /* ---- Mini-lessons ---- */
 function lessonFor(id){ return (typeof LESSONS !== 'undefined' && LESSONS[id]) || null; }
 /* opts.preview: a locked track's sample lesson. Read-only: no practice button, and nothing is recorded. */
+/* Lesson stepper (glass looks): a row of section buttons above the lesson. Each one scrolls to its heading and moves
+   focus there; the section you are reading is marked while you scroll. Hidden in the hacker looks. */
+let lessonObs = null;
+function lessonSteps(){
+  if(lessonObs){ lessonObs.disconnect(); lessonObs = null; }
+  const card = view.querySelector('.card.reading'); if(!card) return;
+  const hs = [...card.querySelectorAll(':scope > h2')]; if(hs.length < 3) return;
+  const nav = document.createElement('nav'); nav.className = 'lsteps'; nav.setAttribute('aria-label', 'Lesson sections');
+  nav.innerHTML = hs.map((h, i)=>'<button type="button" data-step="'+i+'">'+esc(h.textContent)+'</button>').join('');
+  card.before(nav);
+  nav.querySelectorAll('[data-step]').forEach(b=>b.onclick=()=>{ const h = hs[+b.dataset.step]; h.tabIndex = -1;
+    h.scrollIntoView({behavior: motionOK() ? 'smooth' : 'auto', block:'start'}); h.focus({preventScroll:true}); });
+  if(!('IntersectionObserver' in window)) return;
+  lessonObs = new IntersectionObserver(es=>{ es.forEach(e=>{ if(!e.isIntersecting) return; const i = hs.indexOf(e.target);
+    nav.querySelectorAll('[data-step]').forEach((b, k)=>b.toggleAttribute('aria-current', k === i)); }); }, {rootMargin:'-30% 0px -60% 0px'});
+  hs.forEach(h=>lessonObs.observe(h));
+}
 function vLesson(id, mission, opts){
   const preview = !!(opts && opts.preview);
   const s = skillById(id), L = lessonFor(id);
@@ -104,6 +121,7 @@ function vLesson(id, mission, opts){
     (preview ? '<p class="small" style="margin-top:16px">🔒 Preview: reading this records nothing. '+esc(track(s.tid).name)+' opens when '+unlockText(s.tid)+'.</p><div class="row"><button id="back">Back</button></div></div>'
       : '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: '+(fromPlan ? PRACTICE_N+' exercises (today’s plan)' : '6 fresh problems')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div>');
   if(SCENES[id]) mountScene($('#scene'), SCENES[id]); else destroyScene();
+  lessonSteps();
   if(preview){ $('#back').onclick = ()=>go(opts.back || 'skills'); return; }
   if($('#toLabs')) $('#toLabs').onclick = e=>{ e.preventDefault(); markRead(); go('labs'); };
   $('#prac').onclick = ()=>{ markRead(); startSkill(s, fromPlan ? PRACTICE_N : 6, mission || null); };
@@ -114,7 +132,8 @@ function vLesson(id, mission, opts){
 function skillRow(s){
   const v = skillScore(s.id), [st, cls] = skillStatus(s.id), m = (S.mastery||{})[s.id];
   const tag = '<span class="lv '+(cls==='good'?'open':'')+'" style="'+(cls==='bad'?'border-color:var(--bad);color:var(--bad)':cls==='mid'?'border-color:var(--warn);color:var(--warn)':'')+'">'+st+'</span>';
-  return '<div class="ritem"><span>'+esc(s.sk)+' <span class="small">'+s.lvs.map(l=>'L'+l).join('/')+'</span></span>'+
+  /* .sring: a score ring that only the glass looks show (the meter shows the same number in the hacker looks) */
+  return '<div class="ritem skill"><i class="sring '+(cls||'none')+'" style="--v:'+v+'" aria-hidden="true"></i><span>'+esc(s.sk)+' <span class="small">'+s.lvs.map(l=>'L'+l).join('/')+'</span></span>'+
     '<div class="meter"><i style="width:'+v+'%"></i></div><span class="small" style="width:42px;text-align:right">'+v+'%</span>'+tag+
     (lessonFor(s.id) ? '<button data-learn="'+esc(s.id)+'">📖 Learn</button>' : '')+
     '<button data-drill="'+esc(s.id)+'">Drill</button>'+
@@ -143,7 +162,7 @@ function vSkills(){
       if(gate && !trackOpen(gate)) return '<h2>'+esc(name)+' 🔒</h2><div class="card"><p>Opens when '+unlockText(gate)+'. '+inStage.length+' skills are waiting: '+inStage.map(s=>esc(s.sk)).join(', ')+'.</p>'+
         '<div class="row"><button data-preview="'+gate+'">Preview a lesson (records nothing)</button></div></div>';
       return '<h2>'+esc(name)+'</h2><p class="small">'+note+'</p>'+[...new Set(inStage.map(s=>s.area))].map(a=>
-        '<h3 class="area">'+esc(a)+'</h3><div class="card">'+inStage.filter(s=>s.area===a).map(skillRow).join('')+'</div>').join(''); }).join('');
+        '<h3 class="area">'+esc(a)+'</h3><div class="card skillgrid">'+inStage.filter(s=>s.area===a).map(skillRow).join('')+'</div>').join(''); }).join('');
   view.querySelectorAll('[data-learn]').forEach(b=>b.onclick=()=>vLesson(b.dataset.learn));
   view.querySelectorAll('[data-preview]').forEach(b=>b.onclick=()=>vLesson(previewLesson(b.dataset.preview), null, {preview:true}));
   view.querySelectorAll('[data-drill]').forEach(b=>b.onclick=()=>startSkill(skillById(b.dataset.drill), 8, null));

@@ -575,7 +575,7 @@ function checkFullDay(){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['acronyms','Acronyms'],['exams','Exams'],['labs','Labs'],['practice','Free resources'],['ready','Job practice'],['progress','Progress'],['guide','How to use'],['backup','Backup']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['acronyms','Acronyms'],['exams','Exams'],['pbq','PBQs'],['labs','Labs'],['practice','Free resources'],['ready','Job practice'],['progress','Progress'],['guide','How to use'],['backup','Backup']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
@@ -598,7 +598,7 @@ function header(){
 /* Six top tabs, each grouping existing screens; a group with more than one screen shows them as sub-tabs.
    Screen keys are unchanged, so go('sql'), go('ready') and the rest still work everywhere. */
 const GROUPS = [['Today',['today']], ['Study',['skills','tracks']], ['Hands-on',['terminal','sql','labs']],
-  ['Job prep',['interview','tickets','exams','ready']], ['Review',['review','acronyms','progress']], ['Guide',['guide','backup','practice']]];
+  ['Job prep',['interview','tickets','exams','pbq','ready']], ['Review',['review','acronyms','progress']], ['Guide',['guide','backup','practice']]];
 const lastIn = {};   /* the screen you were last on in each group, so a top tab returns you there */
 function groupOf(k){ return GROUPS.find(g=>g[1].includes(k)) || GROUPS[0]; }
 /* Gliding pill: remember where the lit tab was, redraw the nav, then slide a copy of the pill from there to the new
@@ -636,7 +636,7 @@ function go(tab){
   if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
   stopRecording(true);   /* leaving the page discards a half-finished recording */
   destroyScene();        /* and stops any lesson animation */
-  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
+  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,pbq:vPbq,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
 
 /* ===================== VIEWS ===================== */
 /* Today: the loop as a 4-step checklist with one "Next up" button, the last 14 days, one real lab, and a short tip. */
@@ -1599,11 +1599,28 @@ const rain = (function(){
     set(v){ on = v; $('#rainBtn').style.opacity = v ? 1 : .5;
       if(v && !raf){ size(); raf = requestAnimationFrame(frame); }
       if(!v && raf){ cancelAnimationFrame(raf); raf = null; ctx.clearRect(0,0,cv.width,cv.height); } },
-    get on(){ return on; }
+    get on(){ return on; },
+    /* idle pause: stop or restart the drawing loop without changing the on/off setting */
+    pause(p){ if(p && raf){ cancelAnimationFrame(raf); raf = null; } else if(!p && on && !raf){ raf = requestAnimationFrame(frame); } }
   };
 })();
 rain.set(!calm && pref('skillquest-rain','on')==='on');
 $('#rainBtn').onclick=()=>{ rain.set(!rain.on); setPref('skillquest-rain', rain.on?'on':'off'); };
+
+/* Idle pause: nothing in the background keeps the computer busy while nobody is using the page. After 30 seconds
+   without input, or as soon as the tab is hidden, the background drift, the code rain and the looping title
+   effects stop; the next mouse move, key press, touch or scroll starts them again. Timers that matter (exam, recorder)
+   are not touched. */
+(function(){
+  const IDLE_MS = 30000; let t = 0, idle = false;
+  const html = document.documentElement;
+  function sleep(){ if(idle) return; idle = true; html.classList.add('idle'); rain.pause(true); }
+  function wake(){ clearTimeout(t); t = setTimeout(sleep, IDLE_MS);
+    if(!idle || document.hidden) return; idle = false; html.classList.remove('idle'); rain.pause(false); }
+  ['pointermove','pointerdown','keydown','wheel','touchstart','scroll'].forEach(e=>addEventListener(e, wake, {passive:true}));
+  document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ clearTimeout(t); sleep(); } else wake(); });
+  wake();
+})();
 
 /* Display panel */
 (function(){

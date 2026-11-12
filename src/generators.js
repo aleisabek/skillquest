@@ -1536,6 +1536,99 @@ GEN.sec[2].push(
       return mcq('sec',2,'"'+s+'" Which AI threat is this?', a, wrongs, scWhy(AI_DEF, a, row[3])); },
     {lookup:true, obj:{'SY0-801':['2.6']}})
 );
+/* Security+ SY0-801 1.2 (change management), 3.1 (architecture models), 4.2 (asset management) and 4.6 (automation and
+   orchestration). Same rules as domain 2: every answer is a term from the objectives document, and a row's third item
+   lists options that would also be defensible for that situation, so they are never offered beside it. */
+const CHANGE_T = [
+  ["Before a firewall upgrade, a group of managers from IT, security and the business reviews the request and votes to approve it.", "Change advisory board (CAB)", [], "a formal group reviews and approves changes before they happen."],
+  ["Before approving a database patch, the team lists which apps, users and reports would be affected if it goes wrong.", "Impact analysis", ["Dependencies"], "it works out what the change could affect before anyone approves it."],
+  ["The change request includes the exact steps to put the old version back if the update fails.", "Backout planning", ["Fail forward"], "a planned way back to the last working state."],
+  ["Changes to production may only be made on Sundays from 2:00 to 4:00 a.m., when the fewest customers are online.", "Maintenance window", [], "an agreed time slot for changes, chosen to hurt the business least."],
+  ["The update failed halfway, and rolling back would lose the new orders, so the team pushes a small fix forward instead.", "Fail forward", ["Backout planning"], "fixing forward instead of rolling back, when going back costs more."],
+  ["The web app can't be patched yet, because the payment service it calls only works with the old library version.", "Dependencies", ["Legacy applications", "Impact analysis"], "one system relies on another, so changing one can break the other."],
+  ["An old billing system only runs on an operating system that no longer gets updates, so every change has to work around it.", "Legacy applications", ["Dependencies"], "old software that can't easily be updated or replaced limits what you can change."],
+  ["After a new subnet is added, the network map is redrawn so responders see the real layout.", "Updating diagrams", ["Version control"], "documentation has to change when the network does, or responders work from a wrong map."],
+  ["Every edit to the firewall configuration is saved with who changed it and when, so any earlier version can be restored.", "Version control", ["Updating diagrams", "Backout planning"], "each version is kept and labelled, so you can compare or go back."],
+  ["A newly approved monitoring tool is added to the list of programs endpoints are permitted to run.", "Allow lists/deny lists", [], "the change only works if the lists of permitted and blocked software are updated too."],
+  ["Each change request names one person who is accountable for the change and its outcome.", "Ownership", [], "one named owner answers for the change."],
+  ["The change ticket attaches proof from the staging environment that the patch installed and the app still worked.", "Test results", [], "evidence from testing is part of what the approvers look at."]
+];
+const CHANGE_ALL = [...new Set(CHANGE_T.map(x=>x[1]))];
+const CHANGE_DEF = {"Change advisory board (CAB)":"the group that reviews and approves changes", "Impact analysis":"working out what a change could affect",
+  "Backout planning":"planned steps to undo a change", "Maintenance window":"the agreed time slot for making changes", "Fail forward":"fixing forward instead of rolling back",
+  "Dependencies":"systems that rely on each other", "Legacy applications":"old software that is hard to update", "Updating diagrams":"redrawing network and system maps after a change",
+  "Version control":"keeping every labelled version of code or configuration", "Allow lists/deny lists":"lists of what may and may not run or connect",
+  "Ownership":"the one person accountable for a change", "Test results":"evidence that the change worked in testing"};
+const ARCH_T = [
+  ["The team runs its code as small functions that the cloud provider starts on demand; there are no servers for the team to patch.", "Serverless", [], "the provider runs and patches the servers, and you only manage your code and its permissions."],
+  ["Email runs in one cloud provider and the data warehouse in another, so one provider's outage can't take everything down.", "Multicloud", ["Hybrid cloud"], "more than one cloud provider is used."],
+  ["Customer records stay in the company's own data center, while the public website runs in a cloud provider.", "Hybrid cloud", ["Multicloud", "On-premises infrastructure"], "a mix of the company's own infrastructure and a cloud."],
+  ["Several hospitals share one cloud environment built for health care, with security rules they agreed on together.", "Community cloud", [], "a cloud shared by organizations with the same needs."],
+  ["A startup rents servers from a large provider whose hardware is shared with many other customers.", "Public cloud", ["Multicloud"], "shared provider hardware, available to anyone who pays."],
+  ["One company rents a cloud environment whose hardware no other customer uses.", "Private cloud", ["On-premises infrastructure"], "a cloud used by one organization only."],
+  ["The company owns its servers, keeps them in its own building, and handles power, cooling and physical security itself.", "On-premises infrastructure", ["Private cloud"], "everything, including the building's security, is the company's job."],
+  ["Servers are defined in template files kept in version control, so every new environment is built the same way.", "Infrastructure as Code (IaC)", [], "infrastructure is written as code, so it can be reviewed, repeated and checked for drift."],
+  ["The plant's control network has no connection to any other network, and updates arrive on scanned removable media.", "Air-gapped network", ["Physical segmentation"], "no network path in or out at all."],
+  ["The app is split into many small services that each do one job and talk to each other over the network.", "Microservices", ["Serverless"], "small separate services, so one flaw or failure doesn't take down the whole app."],
+  ["Guest Wi-Fi and staff devices share the same switches but are kept apart with separate virtual networks (VLANs) and firewall rules.", "Logical segmentation", ["Physical segmentation"], "separation by configuration on shared hardware."],
+  ["Payment terminals are on their own switches and cables, completely separate from the office network.", "Physical segmentation", ["Air-gapped network", "Logical segmentation"], "separate hardware and cabling keep the networks apart."],
+  ["A law requires citizens' data to stay in the country, so the company picks a cloud region inside its borders.", "Data sovereignty", [], "data is subject to the laws of the country where it is stored."]
+];
+const ARCH_ALL = [...new Set(ARCH_T.map(x=>x[1]))];
+const ARCH_DEF = {"Serverless":"code run on demand by the provider, with no servers for you to manage", "Multicloud":"using more than one cloud provider",
+  "Hybrid cloud":"your own infrastructure combined with a cloud", "Community cloud":"a cloud shared by organizations with the same needs",
+  "Public cloud":"provider hardware shared by many customers", "Private cloud":"a cloud used by one organization only",
+  "On-premises infrastructure":"servers you own and run in your own building", "Infrastructure as Code (IaC)":"infrastructure defined in code files",
+  "Air-gapped network":"a network with no connection to any other", "Microservices":"an app built from small separate services",
+  "Logical segmentation":"separation by configuration (VLANs, firewall rules) on shared hardware", "Physical segmentation":"separate hardware and cabling",
+  "Data sovereignty":"data falls under the laws of the country where it is stored"};
+const ASSET_T = [
+  ["Before buying laptops, IT decides how many are needed, what data they will hold and what security they must have.", "Planning/scoping", [], "security requirements are set before anything is bought."],
+  ["New servers are bought only from approved suppliers, and security checks them before they are accepted.", "Acquisition/procurement process", [], "buying through a controlled process keeps unvetted or tampered hardware out."],
+  ["Each laptop is recorded against the employee who receives it, so someone is accountable for it.", "Assignment/accounting", [], "every asset has a named owner."],
+  ["When an employee leaves, their phone is reassigned in the inventory to the person replacing them.", "Assignment/accounting", [], "the record of who holds the asset is kept current."],
+  ["An agent reports each device's location, software and patch level to the inventory, so a missing laptop is noticed quickly.", "Monitoring/asset tracking", [], "you can only protect what you know you have, and where it is."],
+  ["A quarterly scan finds 14 devices on the network that are not in the inventory.", "Monitoring/asset tracking", [], "tracking shows assets the inventory doesn't know about."],
+  ["Old drives are wiped or shredded, with a certificate of destruction, before the servers are recycled.", "Disposal/decommissioning", [], "data must be destroyed before the hardware leaves."],
+  ["A retired app's server is shut down, its accounts and DNS (Domain Name System) records removed, and its data archived.", "Disposal/decommissioning", [], "a forgotten server or account left running is an open door."]
+];
+const ASSET_ALL = [...new Set(ASSET_T.map(x=>x[1]))];
+const ASSET_DEF = {"Planning/scoping":"deciding what is needed and its security requirements", "Acquisition/procurement process":"buying through approved, checked channels",
+  "Assignment/accounting":"recording who owns or holds each asset", "Monitoring/asset tracking":"knowing where each asset is and its current state",
+  "Disposal/decommissioning":"retiring assets and destroying their data safely"};
+const AUTO_T = [
+  ["When HR marks a new hire as started, a script creates their accounts and adds them to the right groups.", "User provisioning", [], "accounts are created the same way every time, with only the access the role needs."],
+  ["A developer requests a test server, and automation builds it from an approved template with logging turned on.", "Resource provisioning", ["Continuous integration and continuous deployment (CI/CD)"], "systems are built from a secure template instead of by hand."],
+  ["Every hour a tool compares the servers' settings with the approved baseline and changes back anything that drifted.", "Desired state management", ["AI-augmented baselines"], "the system is kept in its approved state automatically."],
+  ["A script flags a service account that suddenly downloads 50 times more data than usual.", "Anomaly detection", ["AI-augmented baselines", "Predictive analysis"], "it spots behavior that differs from normal."],
+  ["Each new alert automatically opens a ticket, assigns it to the analyst on call, and closes it when the fix is confirmed.", "Ticket management", [], "the work is tracked automatically, so nothing is dropped."],
+  ["The automated account cleanup disables at most 20 accounts per run, and never touches admin accounts without a person's approval.", "Guardrails", [], "limits stop automation from doing damage when its logic or input is wrong."],
+  ["Every code change is built, scanned for vulnerabilities and released automatically if all checks pass.", "Continuous integration and continuous deployment (CI/CD)", ["Resource provisioning"], "security checks run in the pipeline on every change."],
+  ["An AI tool investigates an alert on its own: it searches the logs, isolates the laptop and writes up what it did.", "Agentic AI", ["Chatbot"], "the AI takes actions by itself, so it needs tight limits and review."],
+  ["Analysts ask an AI assistant questions in plain language, such as which hosts talked to a given address today.", "Chatbot", ["Agentic AI"], "it answers questions; a person still decides and acts."],
+  ["A model forecasts which servers are most likely to fail or be attacked next month, based on past incidents.", "Predictive analysis", ["Anomaly detection"], "it predicts what is likely to happen, so you can act first."],
+  ["An AI learns what normal sign-ins look like for each user and adjusts the alert thresholds as their habits change.", "AI-augmented baselines", ["Anomaly detection", "Desired state management"], "the AI keeps the picture of normal up to date."]
+];
+const AUTO_ALL = [...new Set(AUTO_T.map(x=>x[1]))];
+const AUTO_DEF = {"User provisioning":"creating and removing accounts automatically", "Resource provisioning":"building systems automatically from templates",
+  "Desired state management":"keeping systems in their approved configuration automatically", "Anomaly detection":"spotting behavior that differs from normal",
+  "Ticket management":"opening, assigning and closing tickets automatically", "Guardrails":"limits on what automation is allowed to do",
+  "Continuous integration and continuous deployment (CI/CD)":"automatic build, test and release of code changes", "Agentic AI":"AI that takes actions on its own",
+  "Chatbot":"AI that answers questions in conversation", "Predictive analysis":"forecasting what is likely to happen", "AI-augmented baselines":"AI keeping the picture of normal behavior current"};
+GEN.sec[2].push(
+  sk('Change management', ()=>{ const {s, a, wrongs} = pickSc(CHANGE_T, CHANGE_ALL), row = CHANGE_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which part of change management is this?', a, wrongs, scWhy(CHANGE_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['1.2']}}),
+  sk('Architecture models', ()=>{ const {s, a, wrongs} = pickSc(ARCH_T, ARCH_ALL), row = ARCH_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which architecture model or concept is this?', a, wrongs, scWhy(ARCH_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['3.1']}}),
+  sk('Asset management', ()=>{ const {s, a, wrongs} = pickSc(ASSET_T, ASSET_ALL), row = ASSET_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which stage of the asset management life cycle is this?', a, wrongs, scWhy(ASSET_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.2']}}),
+  sk('Automation & orchestration', ()=>{ const {s, a, wrongs} = pickSc(AUTO_T, AUTO_ALL), row = AUTO_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which automation use, consideration or capability is this?', a, wrongs, scWhy(AUTO_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.6']}})
+);
 /* Acronyms (deck in acronyms.js): pick the acronym from its one-line job, against lookalikes from the same group.
    The typed modes live on Review → Acronyms and score into this same skill. */
 GEN.sec[2].push(
