@@ -80,7 +80,7 @@ function typedOn(){ return S.typed !== false; }
 function lessonFor(id){ return (typeof LESSONS !== 'undefined' && LESSONS[id]) || null; }
 /* opts.preview: a locked track's sample lesson. Read-only: no practice button, and nothing is recorded. */
 /* Lesson stepper (glass looks): a row of section buttons above the lesson. Each one scrolls to its heading and moves
-   focus there; the section you are reading is marked while you scroll. Hidden in the hacker looks. */
+   focus there; the section you are reading is marked while you scroll. (Glass looks; every look is glass since the hacker looks were retired.) */
 let lessonObs = null;
 function lessonSteps(){
   if(lessonObs){ lessonObs.disconnect(); lessonObs = null; }
@@ -128,11 +128,51 @@ function vLesson(id, mission, opts){
   $('#back').onclick = ()=>{ markRead(); go(fromPlan ? 'today' : 'skills'); };
 }
 
+/* ---- Skill galaxy: every skill as a star, every track as a constellation ----
+   A star's size and brightness follow its practice score (skillScore), its colour its status (strong, learning,
+   needs review); a never-practised skill is a faint point. Tracks that are still locked are drawn dashed and
+   can't be clicked. Positions come from a hash of the ids, so the sky is the same every visit. Mouse users can
+   click a star to drill it; the list further down has the same Drill buttons for keyboard and screen readers, so
+   the drawing itself is hidden from them. Static SVG: no animation, so it costs nothing while you read. */
+function galaxySVG(skills){
+  const tids = TRACKS.map(t=>t.id).filter(t=>skills.some(s=>s.tid===t));
+  const W = 1000, H = 520, cols = Math.ceil(tids.length / 2), cw = W / cols, ch = H / 2;
+  const col = {good:'var(--accent)', mid:'var(--warn)', bad:'var(--bad)', '':'var(--muted)'};
+  let out = '';
+  tids.forEach((tid, ti)=>{
+    const h = hashStr(tid), open = !isGated(tid) || trackOpen(tid);
+    const cx = cw * (ti % cols + .5) + ((h % 41) - 20), cy = ch * (Math.floor(ti / cols) + .5) - 14 + ((h >> 6) % 31 - 15);
+    const list = skills.filter(s=>s.tid===tid), n = list.length, spin = (h % 360) * Math.PI / 180;
+    const pts = list.map((sk, i)=>{ const r = 14 + Math.min(cw, ch) * .36 * Math.sqrt((i + .6) / n), a = spin + i * 2.39996;
+      return [sk, cx + r * Math.cos(a) * 1.15, cy + r * Math.sin(a) * .8]; });
+    /* constellation lines: each star joins its nearest earlier star, so the lines branch like a real star chart */
+    const seg = pts.slice(1).map((p, i)=>{ const q = pts.slice(0, i + 1).reduce((b, c)=>Math.hypot(c[1]-p[1], c[2]-p[2]) < Math.hypot(b[1]-p[1], b[2]-p[2]) ? c : b);
+      return 'M'+p[1].toFixed(1)+' '+p[2].toFixed(1)+'L'+q[1].toFixed(1)+' '+q[2].toFixed(1); }).join('');
+    out += '<path class="gl-line'+(open ? '' : ' locked')+'" d="'+seg+'"/>';
+    pts.forEach(([sk, x, y])=>{ const v = skillScore(sk.id), cls = skillStatus(sk.id)[1], r = (1.4 + v / 100 * 4.2).toFixed(1);
+      out += '<g class="gl-star'+(open ? '' : ' locked')+'"'+(open ? ' data-star="'+esc(sk.id)+'"' : '')+'><title>'+esc(sk.sk)+' · '+(open ? v+'%' : 'locked')+'</title>'+
+        (v >= 60 ? '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(r * 3.2).toFixed(1)+'" fill="'+col[cls]+'" opacity=".16"/>' : '')+
+        '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+r+'" fill="'+(v ? col[cls] : 'var(--muted)')+'" opacity="'+(open ? (.35 + v / 160).toFixed(2) : .25)+'"/>'+
+        '<circle class="gl-hit" cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="12"/></g>'; });
+    const t = track(tid);
+    out += '<text class="gl-name" x="'+cx.toFixed(1)+'" y="'+(cy + ch * .45).toFixed(1)+'" text-anchor="middle">'+esc(t.name)+(open ? '' : ' 🔒')+'</text>';
+  });
+  return '<svg class="galaxy" viewBox="0 0 '+W+' '+H+'" aria-hidden="true" focusable="false">'+out+'</svg>';
+}
+function galaxyCard(skills){
+  const lit = skills.filter(s=>skillScore(s.id) > 0).length;
+  return '<div class="card galaxycard"><div class="row" style="justify-content:space-between"><b>Your skill galaxy</b><span class="small">'+lit+' of '+skills.length+' stars lit</span></div>'+
+    galaxySVG(skills)+
+    '<p class="small">Each star is a skill and each constellation a track. Stars grow and brighten as your practice score rises, and fade if you leave them. '+
+    (lit ? 'Bright: strong · amber: learning · red: needs review. Click a star to drill it.' : 'Nothing is lit yet: practise any skill (Today is the easiest start) and its star appears.')+
+    ' Keyboard and screen readers: the same skills, with Drill buttons, are listed below.</p></div>';
+}
+
 /* ---- Skills map view ---- */
 function skillRow(s){
   const v = skillScore(s.id), [st, cls] = skillStatus(s.id), m = (S.mastery||{})[s.id];
   const tag = '<span class="lv '+(cls==='good'?'open':'')+'" style="'+(cls==='bad'?'border-color:var(--bad);color:var(--bad)':cls==='mid'?'border-color:var(--warn);color:var(--warn)':'')+'">'+st+'</span>';
-  /* .sring: a score ring that only the glass looks show (the meter shows the same number in the hacker looks) */
+  /* .sring: a score ring that only the glass looks show (the meter is the fallback without glass) */
   return '<div class="ritem skill"><i class="sring '+(cls||'none')+'" style="--v:'+v+'" aria-hidden="true"></i><span>'+esc(s.sk)+' <span class="small">'+s.lvs.map(l=>'L'+l).join('/')+'</span></span>'+
     '<div class="meter"><i style="width:'+v+'%"></i></div><span class="small" style="width:42px;text-align:right">'+v+'%</span>'+tag+
     (lessonFor(s.id) ? '<button data-learn="'+esc(s.id)+'">📖 Learn</button>' : '')+
@@ -155,6 +195,7 @@ function vSkills(){
   view.innerHTML = '<h1>🧠 Skills map</h1><p class="sub">Every skill has a practice score from your answers here: sure, correct answers raise it; misses and time lower it, so old skills come back for review before you forget them. It reflects this practice (questions you have seen before count too), not exam or job readiness.</p>'+
     '<div class="row" style="margin-bottom:6px"><span class="pill">'+skills.length+' skills</span><span class="pill">'+started+' started</span><span class="pill">'+strong+' strong (85%+ on 2 days)</span>'+
     '<button id="typedT">⌨ Typed answers: '+(typedOn()?'ON':'OFF')+'</button></div>'+
+    galaxyCard(skills)+
     '<h2>Recommended now</h2><div class="grid">'+rec.map(s=>{ const [st] = skillStatus(s.id);
       return '<div class="card mission"><div class="tag">'+esc(s.area)+'</div><h3>'+s.icon+' '+esc(s.sk)+'</h3><p>'+st+' · practice score '+skillScore(s.id)+'%</p><div class="row">'+
         (lessonFor(s.id) ? '<button class="primary" data-learn="'+esc(s.id)+'">📖 Learn + practice</button>' : '')+'<button data-drill="'+esc(s.id)+'">Drill</button></div></div>'; }).join('')+'</div>'+
@@ -166,5 +207,6 @@ function vSkills(){
   view.querySelectorAll('[data-learn]').forEach(b=>b.onclick=()=>vLesson(b.dataset.learn));
   view.querySelectorAll('[data-preview]').forEach(b=>b.onclick=()=>vLesson(previewLesson(b.dataset.preview), null, {preview:true}));
   view.querySelectorAll('[data-drill]').forEach(b=>b.onclick=()=>startSkill(skillById(b.dataset.drill), 8, null));
+  view.querySelectorAll('[data-star]').forEach(g=>g.onclick=()=>startSkill(skillById(g.dataset.star), 8, null));
   $('#typedT').onclick = ()=>{ S.typed = !typedOn(); save(); vSkills(); toast('Typed answers '+(typedOn()?'on':'off')); };
 }

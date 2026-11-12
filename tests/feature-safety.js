@@ -50,7 +50,7 @@ if (!T.failed || !toasts.some(t => /NOT saved/.test(t))) fail('a failed save sho
 const cert = T.CERTS[0].id;
 const evil = JSON.parse(JSON.stringify({
   xp: '12', lastBackup: '<img src=x onerror=alert(1)>', practice: { picoCTF: '<img src=x onerror=alert(2)>' },
-  exams: [{ cert: 'evil', date: '2026-10-01', pct: 50 }, { cert, date: '<b>x</b>', pct: 1 }, { cert, date: '2026-10-02', pct: '<script>', n: 5, secs: 9 }],
+  exams: [{ cert: 'evil', date: '2026-10-01', pct: 50 }, { cert, date: '<b>x</b>', pct: 1 }, { cert, date: '2026-10-02', pct: '<script>', n: 5, secs: 9, qn: { 1: 3, 2: '<b>', 3: 9e9 } }],
   journal: [
     { kind: 'quiz', id: '"><img src=x onerror=alert(3)>', qi: null, d: ['linux', 1, 'Q <img src=x onerror=alert(4)> <code onclick="x()">ls</code>', ['<script>a()</script>', 'b'], 0, '<b style="color:red">ok</b>'] },
     { kind: 'quiz', id: 'mok', qi: 0, d: ['linux', 1, '<img src=x onerror=alert(5)>', ['x'], 0, 'y'] },
@@ -66,6 +66,7 @@ else {
   if (/<(img|script)/i.test(text) || /<[^>]*\son\w+\s*=/i.test(text)) fail('cleaned backup still contains live markup: ' + text.slice(0, 200));
   if (s.xp !== 12 || 'lastBackup' in s || Object.keys(s.practice).length) fail('numbers coerced, bad dates dropped');
   if (s.exams.length !== 1 || s.exams[0].pct !== 0) fail('exams: unknown cert and bad date dropped, non-numeric pct zeroed', JSON.stringify(s.exams));
+  if (JSON.stringify(s.exams[0].qn) !== '{"1":3,"2":0,"3":1000}') fail('exams: per-domain question counts kept and clamped', JSON.stringify(s.exams[0].qn));
   if (s.journal.length !== 2) fail('unknown journal kinds dropped');
   const g = s.journal[0];
   if (!/^m\w+$/.test(g.id)) fail('unsafe journal id should be replaced');

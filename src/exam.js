@@ -164,11 +164,16 @@ function submitExam(){
     if(!it.ok) addMistake(it.d, {kind:'quiz', your: it.pick===null ? '(no answer)' : plainText(it.d[3][it.pick]), sid: it.sid, qi: it.qi==null ? null : it.qi});
   });
   const pct = Math.round(right/ex.items.length*100);
-  S.exams = S.exams || []; S.exams.unshift({cert:ex.cert.id, date:dayStr(), n:ex.items.length, pct, secs:used, doms:Object.fromEntries(Object.entries(byDom).map(([k,v])=>[k, Math.round(v.r/v.t*100)]))});
+  S.exams = S.exams || []; S.exams.unshift({cert:ex.cert.id, date:dayStr(), n:ex.items.length, pct, secs:used, doms:Object.fromEntries(Object.entries(byDom).map(([k,v])=>[k, Math.round(v.r/v.t*100)])),
+    qn:Object.fromEntries(Object.entries(byDom).map(([k,v])=>[k, v.t]))});   /* qn: how many questions each domain's % rests on (saved from 2026-11-12) */
   S.exams.length = Math.min(S.exams.length, 50);
   addXP(Math.round(right*3), 'Exam submitted');
   save();
   const weakest = Object.entries(byDom).map(([k,v])=>[+k, v.r/v.t]).sort((a,b)=>a[1]-b[1])[0];
+  /* the lowest-scoring skill in the weakest domain, so the result screen can send you straight to it */
+  const weakDom = weakest && ex.cert.domains.find(d=>d.n===weakest[0]);
+  const weakDrill = weakDom ? [...new Set(weakDom.gens.map(g=>'quiz:'+g[0]+':'+g[1]).concat((weakDom.tagged||[]).map(g=>'quiz:'+g.tid+':'+g.sk)))]
+    .map(skillById).filter(Boolean).sort((a,b)=>skillScore(a.id) - skillScore(b.id))[0] : null;
   view.innerHTML = '<h1>📝 Partial practice results</h1><div class="card"><p class="q">'+right+' / '+ex.items.length+' ('+pct+'%) on what this practice covers</p>'+
     '<p class="small">'+coverageLine(ex.cert)+'</p>'+
     '<p>'+(pct>=85 ? 'Strong on what was tested.' : pct>=75 ? 'Good on what was tested. Drill your weakest domain below.' : 'Keep building. Read the lessons for your weakest domain and drill it before the next attempt.')+
@@ -178,9 +183,11 @@ function submitExam(){
       return '<div class="ritem"><span>'+d.n+'. '+esc(d.name)+' <span class="small">('+d.w+'% of real exam)</span></span>'+
         (b ? '<div class="meter"><i style="width:'+Math.round(b.r/b.t*100)+'%"></i></div><span class="small" style="width:70px;text-align:right">'+b.r+'/'+b.t+(domThin(d) ? ' · thin' : '')+'</span>' : '<span class="small">unmeasured: no questions yet</span>')+'</div>'; }).join('')+
     (weakest ? '<p class="small" style="margin-top:10px">👉 Weakest domain: <b>'+esc(ex.cert.domains.find(d=>d.n===weakest[0]).name)+'</b>. Your misses are saved in the mistake journal.</p>' : '')+
-    '<div class="row" style="margin-top:12px"><button class="primary" id="rev">Review answers</button><button id="again">New exam</button><button id="home">Back to Today</button></div></div><div id="review"></div>';
+    '<div class="row" style="margin-top:12px">'+(weakDrill ? '<button class="primary" id="drillWeak">Drill '+esc(weakDrill.sk)+' (weakest domain)</button>' : '')+'<button id="rev">Review answers</button><button id="again">New exam</button><button id="home">Back to Today</button></div>'+sessionRow()+'</div><div id="review"></div>';
   $('#again').onclick = ()=>vExams();
   $('#home').onclick = ()=>go('today');
+  if(weakDrill) $('#drillWeak').onclick = ()=>startSkill(weakDrill, 6, null);
+  sessionWire();
   $('#rev').onclick = ()=>{ $('#review').innerHTML = '<h2>All answers</h2>'+ex.items.map((it,j)=>'<details class="card" style="margin:8px 0" '+(it.ok?'':'open')+'><summary>'+(it.ok?'✅':'❌')+' '+(j+1)+'. '+it.d[2].replace(/<table[\s\S]*?<\/table>/g,' [table] ')+(it.flag?' 🚩':'')+'</summary>'+
       '<p>You: <b>'+(it.pick===null?'(no answer)':it.d[3][it.pick])+'</b><br>Right: <b>'+it.d[3][it.d[4]]+'</b></p><div class="explain">'+it.d[5]+'</div></details>').join(''); $('#rev').disabled = true; };
 }
@@ -188,11 +195,13 @@ function vExams(){
   current = 'exams'; header(); stopExamTimer();
   if(EX){ examStep(); askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; vExams(); }); return; }
   const hist = S.exams || [];
+  /* questions you have answered per domain across saved exams (only exams from 2026-11-12 on record the count) */
+  const answered = (cid, n)=>hist.filter(h=>h.cert===cid && h.qn).reduce((a,h)=>a + (Number(h.qn[n])||0), 0);
   view.innerHTML = '<h1>📝 Partial practice exams</h1><p class="sub">Timed, exam-style practice on the CompTIA domains SkillQuest has questions for. No feedback until you submit. Each one covers only part of the real exam (listed below), may repeat questions you have seen, and has no performance-based questions: a score here measures this practice, not exam readiness.</p>'+
     CERTS.map(c=>{ const mine = hist.filter(h=>h.cert===c.id), best = mine.length ? Math.max(...mine.map(h=>h.pct)) : null;
       return '<div class="card cert" style="margin-bottom:14px"><div class="row" style="justify-content:space-between"><h3 style="margin:0">'+esc(c.name)+' <span class="small">'+c.code+'</span></h3>'+(best!==null?'<span class="pill">best '+best+'% on covered domains · '+mine.length+' tries</span>':'')+'</div>'+
         '<p class="small">Real exam: '+esc(c.real)+'</p>'+(c.note ? '<p class="small">'+esc(c.note)+'</p>' : '')+'<p class="small"><b>'+coverageLine(c)+'</b></p>'+
-        '<div class="doms">'+c.domains.map(d=>'<div class="ritem dom'+(domCovered(d) ? '' : ' unmeasured')+'"><i class="wbar" style="--w:'+d.w+'" aria-hidden="true"></i><span>'+d.n+'. '+esc(d.name)+' <span class="small">'+d.w+'%</span></span><span class="small">'+
+        '<div class="doms">'+c.domains.map(d=>'<div class="ritem dom'+(domCovered(d) ? '' : ' unmeasured')+'"><i class="wbar" style="--w:'+d.w+'" aria-hidden="true"></i><span>'+d.n+'. '+esc(d.name)+' <span class="small">'+d.w+'%</span></span><span class="small">'+(answered(c.id, d.n) ? '<b>'+answered(c.id, d.n)+' answered</b> · ' : '')+
           (!domCovered(d) ? '⚠ unmeasured: no questions yet' : (domThin(d) ? '⚠ thin: ' : '')+(d.qs.length+' fixed question'+(d.qs.length === 1 ? '' : 's')+(domGen(d)?' + generated variants, some repeat ('+[...new Set(d.gens.map(g=>g[1]).concat((d.tagged || []).map(g=>g.sk)))].join(', ')+')':'')))+'</span></div>').join('')+'</div>'+
         '<div class="row" style="margin-top:10px"><button class="primary" data-ex="'+c.id+'" data-n="20">Quick exam · 20 questions · 20 min</button><button data-ex="'+c.id+'" data-n="45">Longer practice · 45 questions · 45 min</button></div></div>'; }).join('')+
     (hist.length ? '<h2>History</h2><div class="card">'+hist.slice(0,10).map(h=>{ const pct = Math.round(Number(h.pct)||0), c = CERTS.find(c=>c.id===h.cert); return '<div class="ritem"><span>'+esc(h.date)+' · '+esc(c ? c.name : h.cert)+' · '+esc(h.n)+' Q</span><div class="meter"><i style="width:'+pct+'%"></i></div><span class="small" style="width:50px;text-align:right">'+pct+'%</span></div>'; }).join('')+'</div>' : '')+

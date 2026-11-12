@@ -26,7 +26,7 @@ An offline practice app for entry-level IT jobs: IT support & Microsoft 365, net
 ```
 src/
   shell.html      page skeleton ({{STYLE}} and {{SCRIPT}} are filled in by the build)
-  styles.css      hacker theme (matrix / cyber / amber modes)
+  styles.css      six deep-space glass looks (warp style, one world per look)
   content.js      tracks, flashcards, quiz questions, terminal tasks, interview bank, SQL challenges, ticket scenarios
   lessons/*.js    per-skill mini-lessons (loaded after content.js)
   generators.js   random problem generators for quizzes, terminal and SQL

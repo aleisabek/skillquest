@@ -8,6 +8,7 @@
 <style>{{STYLE}}</style>
 </head>
 <body>
+<div id="space" aria-hidden="true"><i class="planet"></i><i class="ring"></i><i class="orbit"><i class="moon"></i></i><i class="comet"></i><i class="jump"></i></div>
 <header>
   <div class="top">
     <div class="logo"><span class="glitch" data-text="SKILLQUEST">SKILLQUEST</span><span class="ver">v2.0 // hack the gap</span></div>
@@ -18,8 +19,7 @@
       <span class="xpbar" title="Progress to next rank"><i id="xpfill" style="width:0"></i></span>
       <span class="pill" title="Days in a row with the full loop done: learn, practice, apply, reviews">🔥 <span id="streak">0</span></span>
       </span>
-      <button id="theme" title="Next color in this look (hacker or glass). All looks are under Aa.">◐ <span id="themeName">matrix</span></button>
-      <button id="rainBtn" title="Turn the code rain on or off">⁂ rain</button>
+      <button id="theme" title="Next look. All looks are under Aa.">◐ <span id="themeName">future</span></button>
       <button id="displayBtn" title="Look, text size, font and screen effects" aria-expanded="false" aria-controls="display">Aa <span class="sr">display</span></button>
     </div>
   </div>
@@ -31,14 +31,13 @@
     </fieldset>
     <fieldset><legend>Reading</legend>
       <label><input type="checkbox" id="readableBox"> Easier-to-read font (commands stay monospace)</label><br>
-      <label><input type="checkbox" id="calmBox"> Calm screen: no scanlines, flicker, blinking, code rain or drifting light</label>
+      <label><input type="checkbox" id="calmBox"> Calm screen: no flicker, blinking, drifting light or moving stars</label>
     </fieldset>
     <fieldset id="lookSet"><legend>Look</legend></fieldset>
     <p class="small" style="margin:0">Saved on this device only; your progress isn't affected. <button id="displayClose">Close</button></p>
   </div>
   <nav id="nav" aria-label="Main"></nav>
 </header>
-<canvas id="rain" aria-hidden="true"></canvas>
 <main class="wrap" id="view"></main>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="sr" id="srSay" role="status" aria-live="polite" aria-atomic="true"></div>

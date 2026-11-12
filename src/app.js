@@ -135,6 +135,14 @@ function motionOK(){ return !calm && !matchMedia('(prefers-reduced-motion: reduc
    is drawn (go, vLesson), never on per-answer redraws, so focus and the live region are untouched. Opacity goes on
    the cards themselves, never on a wrapper, so the frosted glass keeps blurring the light behind it. */
 const RISE_SEL = ':scope > h1, :scope > .sub, :scope > .slim, :scope > h2, :scope > .card, :scope > .row, .grid > .card, .bento > *, .acr-modes > button';
+/* Warp jump: when you move to another screen, star streaks rush outward for a moment (light speed). One short
+   transform/opacity animation on #space .jump; nothing runs between jumps. Skipped in Calm, under reduced motion,
+   and without the warp style. Synchronous on purpose: callers that draw right after go() keep working. */
+function warpJump(){
+  const j = document.querySelector('#space .jump');
+  if(!j || !motionOK() || !document.documentElement.classList.contains('hack')) return;
+  j.classList.remove('go'); void j.offsetWidth; j.classList.add('go');
+}
 function enterView(){
   if(!motionOK()) return;
   [...view.querySelectorAll(RISE_SEL)].slice(0, 14).forEach((el, i)=>{ el.style.setProperty('--i', Math.min(i, 8)); el.classList.add('rise');
@@ -305,7 +313,8 @@ function sanitizeBackup(b){
   s.journal = (Array.isArray(b.journal) ? b.journal : []).map(cleanEntry).filter(Boolean).slice(0, JOURNAL_MAX);
   const certs = CERTS.map(c=>c.id);
   s.exams = (Array.isArray(b.exams) ? b.exams : []).filter(e=>isObj(e) && certs.includes(e.cert) && okDate(e.date))
-    .map(e=>({cert:e.cert, date:e.date, n:clampNum(e.n, 0, 1000), pct:clampNum(e.pct, 0, 100), secs:clampNum(e.secs, 0, 1e6), doms:cleanMap(e.doms, v=>clampNum(v, 0, 100))})).slice(0, 50);
+    .map(e=>({cert:e.cert, date:e.date, n:clampNum(e.n, 0, 1000), pct:clampNum(e.pct, 0, 100), secs:clampNum(e.secs, 0, 1e6), doms:cleanMap(e.doms, v=>clampNum(v, 0, 100)),
+      ...(isObj(e.qn) ? {qn:cleanMap(e.qn, v=>Math.round(clampNum(v, 0, 1000)))} : {})})).slice(0, 50);
   /* pilot lab reports: each one validated in full; a damaged or newer-version report is refused, never half-kept */
   const ev = cleanEvidence(b.evidence); s.evidence = ev.list; EV_REJECTED = ev.bad.length;
   s.evres = cleanResolutions(b.evres);
@@ -636,7 +645,7 @@ function go(tab){
   if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
   stopRecording(true);   /* leaving the page discards a half-finished recording */
   destroyScene();        /* and stops any lesson animation */
-  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,pbq:vPbq,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
+  current = tab; stopTimer(); header(); warpJump(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,pbq:vPbq,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
 
 /* ===================== VIEWS ===================== */
 /* Today: the loop as a 4-step checklist with one "Next up" button, the last 14 days, one real lab, and a short tip. */
@@ -670,15 +679,15 @@ function vToday(){
     (!saveBlocked && !hasProgress() ? '<div class="slim">👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup so your progress follows you. <button id="fixMerge">Merge a backup</button></div>' : '')+
     (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
     (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start '+esc(pilotEvidence().round.recheck)+'</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
-    '<h1>Today\'s loop</h1><p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
+    '<h1>Today\'s loop</h1><p class="sub">Goal: Security+ SY0-801 in December. Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
     '<div class="bento"><div class="card today hero"><div class="row" style="justify-content:space-between"><span class="ring" style="--p:'+(doneN*25)+'" aria-hidden="true"><span>'+doneN+'/4</span></span><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
       step(2, 'Practice', st.practiced, PRACTICE_N+' exercises per lesson, typed, first try counts. A set counts as done with one right answer: that is practice done, not mastery', '<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
       step(3, 'Apply', st.applied, 'one rep in today\'s main area', '<div class="chips"><button class="chip'+(st.applied?' on':'')+'" data-apply="1">'+repTitle+(st.applied?' ✓':'')+'</button></div>')+
       step(4, 'Reviews', st.reviewed, st.reviewed ? 'handled for today' : dueN+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done (clear them, or do '+REVIEW_CAP+')', st.reviewed ? '' : '<div class="chips"><button class="chip" data-go="review">Open Review</button></div>')+
-      '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<span class="small">All four steps done. Extra practice is in Study and Hands-on.</span>')+'</div></div>'+
+      '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<b class="donetoday">Done for today ✓</b> <span class="small">That\'s the daily loop. Stop here, or keep going below.</span>')+'</div>'+(next ? '' : sessionCard())+'</div>'+
     stripHTML()+
-    (lab ? '<div class="card"><b>🌐 Outside practice (free)</b> <span class="small">· fits today\'s '+esc(track(lab.tid).name)+' lesson</span>'+
+    (lab ? '<div class="card"><b>🌐 Outside practice (free)</b> <span class="small">· for today\'s '+esc(lab.sk)+' lesson</span>'+
       '<p style="margin:8px 0"><a href="'+lab.url+'" target="_blank" rel="noopener">'+esc(lab.name)+' ↗</a> <span class="small">'+esc(lab.note)+'</span></p>'+
       '<div class="row"><button id="labUsed"'+(lab.usedToday?' disabled':'')+'>'+(lab.usedToday?'✓ Used today':'✓ Mark used today')+'</button><a href="#" id="moreLabs" class="small">More free resources →</a></div></div>' : '')+
     (()=>{ const tip = STRATEGIES[dayNum() % STRATEGIES.length]; return '<details class="tipline"><summary>💡 Tip: <b>'+tip[0]+'</b></summary><p class="small">'+tip[1]+'</p></details>'; })()+'</div>';
@@ -688,6 +697,7 @@ function vToday(){
   view.querySelectorAll('[data-apply]').forEach(b=>b.onclick=repGo);
   view.querySelectorAll('[data-go="review"]').forEach(b=>b.onclick=()=>go('review'));
   if(next) on('#nextUp', next[1]);
+  on('#sesGo', ()=>{ SESSION = true; const n = sessionStops().find(x=>!x.done); if(n) n.run(); });
   on('#labUsed', ()=>{ S.practice = S.practice || {}; S.practice[lab.name] = dayStr(); save(); toast('Logged: '+lab.name); vToday(); });
   on('#moreLabs', e=>{ e.preventDefault(); go('practice'); });
   on('#bk', ()=>{ downloadBackup(); vToday(); });
@@ -717,14 +727,71 @@ function stripHTML(){
 const LAB_FOR = {linux:['OverTheWire'], net:['Cisco Networking Academy','TryHackMe free rooms'], sec:['picoCTF','Hack The Box Academy','TryHackMe free rooms','CyberDefenders'],
   code:['picoCTF'], sql:['SQLBolt','SQLZoo'], support:['Microsoft Learn','Professor Messer'], cloud:['AWS Skill Builder','flaws.cloud','Microsoft Learn'],
   offsec:['PortSwigger Web Security Academy','OWASP Juice Shop','TryHackMe free rooms']};
+/* ===================== FULL STUDY SESSION (optional, after Today's four steps) =====================
+   Today's loop stays the 20-minute day. Once it is done, Today offers an optional Security+ session: an acronym round,
+   a PBQ round, a drill on the weakest Security+ skill, and a 20-question practice exam when none was taken in the
+   last three days (so the same exam pool doesn't repeat every night). Progress is read from saved data plus three
+   true-only day flags (sAcr, sPbq, sWeak), which the backup merge keeps as "set on either device = set". None of this
+   touches the four steps, isFullDay or the streak. SESSION is in memory only: it decides whether end screens offer
+   "Next in session". */
+let SESSION = false, SESSION_WEAK = null;
+function weakSecSkill(){
+  const list = allSkills().filter(s=>s.id.startsWith('quiz:sec:') && s.id !== ACR_SKILL);
+  const d = hashStr(dayStr());
+  return list.slice().sort((a,b)=>skillScore(a.id) - skillScore(b.id) || ((hashStr(a.id) ^ d) - (hashStr(b.id) ^ d)))[0];
+}
+function sessionStops(){
+  const day = S.days[dayStr()] || {}, ex = (S.exams || []).filter(e=>e.cert === 'secplus8');
+  const examToday = ex.some(e=>e.date === dayStr()), examRecent = ex.some(e=>e.date < dayStr() && e.date >= addDays(dayStr(), -2));
+  const w = SESSION_WEAK ? skillById(SESSION_WEAK) : weakSecSkill();
+  const stops = [
+    {k:'acr', name:'Acronyms round', mins:5, done:!!day.sAcr, run:()=>go('acronyms')},
+    {k:'pbq', name:'PBQ round', mins:12, done:!!day.sPbq, run:()=>go('pbq')},
+    {k:'weak', name:'Weakest Security+ skill: '+w.sk, mins:8, done:!!day.sWeak, run:()=>{ SESSION_WEAK = w.id; startSkill(w, 6, null); }}];
+  if(!examRecent) stops.push({k:'exam', name:'Practice exam, 20 questions', mins:20, done:examToday, run:()=>{ go('exams'); startExam('secplus8', 20); }});
+  return stops;
+}
+function sessionFlag(k){ const d = dayStr(); S.days[d] = S.days[d] || {}; if(!S.days[d][k]){ S.days[d][k] = true; save(); } }
+/* The footer every session stop's end screen shows while a session is running: "Next in session" (focused) or "Session
+   done". Returns '' outside a session, so end screens look as before. */
+function sessionRow(){
+  if(!SESSION) return '';
+  const n = sessionStops().find(x=>!x.done);
+  return '<div class="row sesrow" style="margin-top:12px">'+(n ? '<button class="primary" id="sesNext">Next in session: '+esc(n.name)+' →</button>'
+    : '<button class="primary" id="sesNext">Session done ✓ Back to Today</button>')+'</div>';
+}
+function sessionWire(){
+  const b = $('#sesNext'); if(!b) return false;
+  b.onclick = ()=>{ const n = sessionStops().find(x=>!x.done); if(n) n.run(); else { SESSION = false; go('today'); } };
+  b.focus(); return true;
+}
+function sessionCard(){
+  const stops = sessionStops(), left = stops.filter(x=>!x.done), mins = left.reduce((a,x)=>a+x.mins, 0);
+  return '<div class="session"><b>Full study session</b> <span class="small">· optional · '+(left.length ? 'about '+mins+' min left' : 'done today ✓')+'</span>'+
+    '<ol class="sesstops">'+stops.map(x=>'<li'+(x.done ? ' class="ok"' : '')+'>'+(x.done ? '✓ ' : '')+esc(x.name)+'</li>').join('')+'</ol>'+
+    (left.length ? '<button class="primary" id="sesGo">'+(stops.some(x=>x.done) ? 'Continue: ' : 'Start: ')+esc(left[0].name)+' →</button>' : '<span class="small">Session done. See you tomorrow.</span>')+'</div>';
+}
+
+/* The outside practice card: the free resource that fits today's lessons best. A resource named for the exact skill
+   beats one for its whole track; the first planned lesson counts most; something used in the last 3 days loses out,
+   so the card rotates as the lessons change. The same day always shows the same pick. */
 function labPick(plan){
-  const items = PRACTICE.flatMap(g=>g.items), tids = plan.ids.map(id=>skillById(id).tid);
-  const cand = [...new Set(tids.flatMap(t=>LAB_FOR[t]||[]))].map(n=>items.find(x=>x[0]===n)).filter(Boolean);
-  if(!cand.length) return null;
+  const items = PRACTICE.flatMap(g=>g.items), byName = n=>items.find(x=>x[0]===n);
   const used = n=>(S.practice||{})[n] || '';
-  const fresh = cand.filter(x=>used(x[0]) < addDays(dayStr(), -7));
-  const pick = fresh.length ? fresh[hashStr(dayStr()) % fresh.length] : cand.slice().sort((a,b)=>used(a[0]).localeCompare(used(b[0])))[0];
-  return {name:pick[0], url:pick[1], note:pick[2], tid:tids.find(t=>(LAB_FOR[t]||[]).includes(pick[0])), usedToday:used(pick[0]) === dayStr()};
+  const cands = new Map();
+  const add = (name, hint, score, sid)=>{ const it = byName(name); if(!it) return; const c = cands.get(name);
+    if(!c || score > c.score) cands.set(name, {it, hint, score, sid}); };
+  plan.ids.forEach((id, i)=>{ const w = plan.ids.length - i, s = skillById(id); if(!s) return;
+    const prefix = id.slice(0, id.lastIndexOf(':')+1);
+    if(RES_FOR[id]) add(RES_FOR[id][0], RES_FOR[id][1], 20 + w, id);
+    else if(RES_FOR[prefix]) add(RES_FOR[prefix][0], RES_FOR[prefix][1], 10 + w, id);
+    (LAB_FOR[s.tid] || []).forEach(n=>add(n, '', w, id)); });
+  if(!cands.size) return null;
+  const recent = n=>used(n) !== dayStr() && used(n) >= addDays(dayStr(), -3);
+  const list = [...cands.values()].map(c=>({...c, score: c.score - (recent(c.it[0]) ? 15 : 0)}));
+  const best = Math.max(...list.map(c=>c.score)), top = list.filter(c=>c.score === best);
+  const pick = top[hashStr(dayStr()) % top.length], s = skillById(pick.sid);
+  return {name:pick.it[0], url:pick.it[1], note:pick.hint || pick.it[2], tid:s.tid, sk:s.sk, usedToday:used(pick.it[0]) === dayStr()};
 }
 
 /* Mastery = share of a level's questions and cards that are retained right now (see cardStatus / quizStatus) */
@@ -840,13 +907,15 @@ function quizStep(s){
 }
 function quizEnd(s){
   if(s.mission) finishMission(s);
+  if(SESSION && SESSION_WEAK && !s.mission && s.tid && 'quiz:'+s.tid+':'+s.sk === SESSION_WEAK){ sessionFlag('sWeak'); SESSION_WEAK = null; }
   const pct = Math.round(s.right/s.items.length*100);
   view.innerHTML = '<h1>'+(s.journalRun?'Mistake retry done':'Quiz complete')+'</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' ('+pct+'%)</p><p>'+
     (s.journalRun ? 'Each mistake needs a correct answer on two different days to clear. The ones you got right today come back tomorrow for the second check.'
       : pct===100?'Perfect round. Try the flashcards next to lock it in.':pct>=70?'Solid. Your misses are saved in the mistake journal (Review tab).':'Good practice. Your misses are in the mistake journal (Review tab); retry them tomorrow.')+'</p>'+
-    '<div class="row"><button class="primary" id="again">'+(s.journalRun?'Open the journal':!s.tid?'Back to Review':'Another round')+'</button><button id="home">Back to Today</button></div></div>';
+    '<div class="row"><button class="primary" id="again">'+(s.journalRun?'Open the journal':!s.tid?'Back to Review':'Another round')+'</button><button id="home">Back to Today</button></div>'+sessionRow()+'</div>';
   $('#again').onclick=()=> s.journalRun ? vJournal() : !s.tid ? go('review') : startQuiz(s.tid, s.items.length, null, null, s.lv, s.endless, s.sk);
   $('#home').onclick=()=>go('today');
+  sessionWire();
 }
 
 /* ---------- Flashcards ---------- */
@@ -1442,15 +1511,17 @@ function acrShow(){
   inp.focus();
 }
 function acrEnd(){
+  sessionFlag('sAcr');
   const right = ACR.res.filter(Boolean).length, missed = ACR.list.filter((e,i)=>!ACR.res[i]);
   view.innerHTML = '<h1>Acronyms</h1><p class="sub">Round done.</p><div class="card">'+
     '<p class="q">'+right+' of '+ACR.list.length+' right.</p><p class="small">Practice score for acronyms: '+skillScore(ACR_SKILL)+' / 100. It counts as strong once it stays high on more than one day.</p>'+
     (missed.length ? '<h3>Go over these</h3><ul>'+missed.map(e=>'<li><b>'+esc(e.a)+'</b> = '+esc(e.w)+'. <span class="small">'+esc(e.d)+'</span></li>').join('')+'</ul>' : '<p>Nothing missed this round.</p>')+
-    '<div class="row" style="margin-top:12px"><button class="primary" id="acrAgain">Another round</button><button id="acrMenu" class="quiet">Change mode</button></div></div>';
+    '<div class="row" style="margin-top:12px"><button class="primary" id="acrAgain">Another round</button><button id="acrHome">Back to Today</button><button id="acrMenu" class="quiet">Change mode</button></div>'+sessionRow()+'</div>';
   say(right+' of '+ACR.list.length+' right.');
+  $('#acrHome').onclick = ()=>go('today');
   $('#acrAgain').onclick = ()=>{ ACR = {mode:ACR.mode, list:shuffle(acrPool()).slice(0, ACR_ROUND), i:0, res:[]}; acrShow(); };
   $('#acrMenu').onclick = vAcronyms;
-  $('#acrAgain').focus();
+  if(!sessionWire()) $('#acrAgain').focus();
 }
 
 /* ---------- Progress ---------- */
@@ -1532,16 +1603,19 @@ function vGuide(){
     '<li><b>Fridays:</b> go to Progress and download a backup.</li></ol>'+
     '<p><b>Scoring:</b> quiz +10, flashcard +5, terminal and SQL +15 (+8 with a hint, 0 once the answer is shown), interview rep +10 to +25, full day (learn, practice, apply + reviews) +50.</p>'+
     '<p><b>Levels:</b> Levels 1 (Foundations) and 2 (Job-ready) are ready now. Levels 3 and 4 (Mid-level, Senior) come in a later phase.</p>'+
-    '<p><b>Look and feel:</b> there are two looks. Hacker (matrix, cyber, amber) is a terminal style with code rain. Glass (future, aurora, solar, glacier, jade) is a frosted, modern style. The ◐ button steps through the colors of the look you are in; Aa → Look switches between any of them.</p>'+
+    '<p><b>Look and feel:</b> six looks, all in the same deep-space style: frosted glass over a slow starfield, titles that decode as each screen opens, and a world of their own in the sky. Warp has a ringed giant, Future an ocean planet, Aurora a nebula world, Solar a star, Glacier an ice moon and Jade a gold-ringed world. Calm mode (under Aa) stops all of it.</p>'+
     '<p class="small">Your progress stays on this computer. When you are online, the fonts load from Google Fonts; offline, it uses your built-in coding font.</p></div>';
 }
 
 /* ===================== THEME + EFFECTS + START ===================== */
-/* Looks: three hacker palettes, and five glass palettes that share one futuristic style (html.glass).
-   [id, family, swatch colors for the picker]. The ◐ button cycles within the family you're in; Aa → Look has all of them. */
-const LOOKS = [['matrix','hacker','#39ff88','#00d1ff'], ['cyber','hacker','#00e5ff','#ff2bd6'], ['amber','hacker','#ffb000','#ff6b3d'],
-  ['future','glass','#93a8ff','#5fe3cf'], ['aurora','glass','#c6a2ff','#ffa6dc'], ['solar','glass','#ffb27a','#ffd86e'],
-  ['glacier','glass','#7fd6ff','#a8f5dc'], ['jade','glass','#6cf0b4','#f2cf7c']];
+/* Looks: six palettes that share one futuristic glass style (html.glass); warp adds the hacker effects (html.hack).
+   The ◐ button cycles through them; Aa → Look has all of them. */
+/* [id, family, swatch, swatch, hack?]. The old terminal looks (matrix, cyber, amber) were retired on 2026-11-12;
+   a saved choice of one of them opens warp, the new hacker look. */
+/* Every look is a warp look (stars, decoding titles, scan-in cards) in its own colors, with its own world in the sky. */
+const LOOKS = [['warp','glass','#3ee8ff','#b77bff','hack'],
+  ['future','glass','#93a8ff','#5fe3cf','hack'], ['aurora','glass','#c6a2ff','#ffa6dc','hack'], ['solar','glass','#ffb27a','#ffd86e','hack'],
+  ['glacier','glass','#7fd6ff','#a8f5dc','hack'], ['jade','glass','#6cf0b4','#f2cf7c','hack']];
 const THEMES = LOOKS.map(l=>l[0]);
 const lookFamily = t=>(LOOKS.find(l=>l[0]===t) || LOOKS[0])[1];
 function pref(k, d){ try{ const v = localStorage.getItem(k); return v===null ? d : v; }catch(e){ return d; } }
@@ -1559,14 +1633,18 @@ function applyDisplay(){
   document.documentElement.classList.toggle('calm', calm);
 }
 applyDisplay();
+const RETIRED_LOOKS = ['matrix','cyber','amber'];
 function applyTheme(t){
-  if(!THEMES.includes(t)) t = 'matrix';
+  if(RETIRED_LOOKS.includes(t)) t = 'warp';
+  if(!THEMES.includes(t)) t = 'future';
+  const look = LOOKS.find(l=>l[0]===t);
   document.documentElement.dataset.theme = t;
   document.documentElement.classList.toggle('glass', lookFamily(t) === 'glass');
+  document.documentElement.classList.toggle('hack', look[4] === 'hack');
   $('#themeName').textContent = t;
   document.querySelectorAll('input[name=look]').forEach(r=>{ r.checked = r.value === t; });
 }
-applyTheme(pref('skillquest-theme','matrix'));
+applyTheme(pref('skillquest-theme','future'));
 /* PowerShell line on Linux cards: shown unless turned off */
 function psOn(){ return pref('skillquest-ps','on') !== 'off'; }
 function applyPs(){ document.documentElement.classList.toggle('nops', !psOn()); }
@@ -1577,46 +1655,17 @@ $('#theme').onclick=()=>{
   applyTheme(t); setPref('skillquest-theme', t); toast('Color mode: '+t);
 };
 
-/* Code rain in the background (canvas) */
-const rain = (function(){
-  const cv = $('#rain'), ctx = cv.getContext('2d');
-  const glyphs = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF<>/{}$#';
-  let cols = [], fs = 16, on = false, last = 0, raf = null;
-  function size(){ cv.width = innerWidth; cv.height = innerHeight; cols = Array(Math.ceil(cv.width/fs)).fill(0).map(()=>Math.random()*-60); }
-  function frame(ts){
-    raf = requestAnimationFrame(frame);
-    if(ts - last < 55) return; last = ts;
-    ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(0,0,cv.width,cv.height);
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#39ff88';
-    ctx.font = fs+'px monospace';
-    cols.forEach((y,i)=>{
-      ctx.fillText(glyphs[Math.floor(Math.random()*glyphs.length)], i*fs, y*fs);
-      cols[i] = (y*fs > cv.height && Math.random() > 0.975) ? 0 : y + 1;
-    });
-  }
-  addEventListener('resize', size);
-  return {
-    set(v){ on = v; $('#rainBtn').style.opacity = v ? 1 : .5;
-      if(v && !raf){ size(); raf = requestAnimationFrame(frame); }
-      if(!v && raf){ cancelAnimationFrame(raf); raf = null; ctx.clearRect(0,0,cv.width,cv.height); } },
-    get on(){ return on; },
-    /* idle pause: stop or restart the drawing loop without changing the on/off setting */
-    pause(p){ if(p && raf){ cancelAnimationFrame(raf); raf = null; } else if(!p && on && !raf){ raf = requestAnimationFrame(frame); } }
-  };
-})();
-rain.set(!calm && pref('skillquest-rain','on')==='on');
-$('#rainBtn').onclick=()=>{ rain.set(!rain.on); setPref('skillquest-rain', rain.on?'on':'off'); };
 
 /* Idle pause: nothing in the background keeps the computer busy while nobody is using the page. After 30 seconds
-   without input, or as soon as the tab is hidden, the background drift, the code rain and the looping title
+   without input, or as soon as the tab is hidden, the background drift, the stars and the looping title
    effects stop; the next mouse move, key press, touch or scroll starts them again. Timers that matter (exam, recorder)
    are not touched. */
 (function(){
   const IDLE_MS = 30000; let t = 0, idle = false;
   const html = document.documentElement;
-  function sleep(){ if(idle) return; idle = true; html.classList.add('idle'); rain.pause(true); }
+  function sleep(){ if(idle) return; idle = true; html.classList.add('idle'); }
   function wake(){ clearTimeout(t); t = setTimeout(sleep, IDLE_MS);
-    if(!idle || document.hidden) return; idle = false; html.classList.remove('idle'); rain.pause(false); }
+    if(!idle || document.hidden) return; idle = false; html.classList.remove('idle'); }
   ['pointermove','pointerdown','keydown','wheel','touchstart','scroll'].forEach(e=>addEventListener(e, wake, {passive:true}));
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ clearTimeout(t); sleep(); } else wake(); });
   wake();
@@ -1633,19 +1682,18 @@ $('#rainBtn').onclick=()=>{ rain.set(!rain.on); setPref('skillquest-rain', rain.
   btn.onclick = ()=>{ sync(); open(box.hidden); };
   $('#displayClose').onclick = ()=>open(false);
   $('#lookSet').insertAdjacentHTML('beforeend', '<div class="looks">'+LOOKS.map(([id,fam,c1,c2])=>'<label><input type="radio" name="look" value="'+id+'"'+(id===document.documentElement.dataset.theme?' checked':'')+'>'+
-    '<span class="sw" aria-hidden="true" style="background:linear-gradient(120deg,'+c1+','+c2+')"></span>'+id+(fam==='glass'?' <span class="small">glass</span>':'')+'</label>').join('')+'</div>');
+    '<span class="sw" aria-hidden="true" style="background:linear-gradient(120deg,'+c1+','+c2+')"></span>'+id+'</label>').join('')+'</div>');
   box.querySelectorAll('input[name=look]').forEach(r=>r.onchange = ()=>{ applyTheme(r.value); setPref('skillquest-theme', r.value); });
   box.addEventListener('keydown', e=>{ if(e.key === 'Escape'){ e.preventDefault(); open(false); } });
   box.querySelectorAll('input[name=ts]').forEach(r=>r.onchange = ()=>{ setPref('skillquest-ts', r.value); applyDisplay(); });
   $('#readableBox').onchange = e=>{ setPref('skillquest-readable', e.target.checked ? 'on' : 'off'); applyDisplay(); };
-  $('#calmBox').onchange = e=>{ setPref('skillquest-calm', e.target.checked ? 'on' : 'off'); applyDisplay();
-    rain.set(!calm && pref('skillquest-rain','on') === 'on'); };
+  $('#calmBox').onchange = e=>{ setPref('skillquest-calm', e.target.checked ? 'on' : 'off'); applyDisplay(); };
 })();
 
 /* "Decrypt" effect: page titles scramble, then resolve */
 function decrypt(el){
   const node = [...el.childNodes].find(n=>n.nodeType===3 && n.textContent.trim());
-  if(!node || calm || document.documentElement.classList.contains('glass')) return;   /* the scramble is a hacker-look effect */
+  if(!node || !motionOK() || !document.documentElement.classList.contains('hack')) return;   /* the decode belongs to the warp style */
   const final = node.textContent, chars = '!<>-_\\/[]{}=+*^?#01';
   let frame = 0; const total = 14;
   const tick = ()=>{

@@ -168,5 +168,23 @@ for (const [x, y] of [[lapse, oldName], [oldName, lapse]]) if (M(x, y).mastery['
   const legacy = Object.assign(structuredClone(D), { xp: 1, quiz: { q5: '2026-10-20' }, miss: { q5: true } });
   for (const [x, y] of [[legacy, pcNew], [pcNew, legacy]]) if (!M(x, y).miss.q5) fail('B5: an undated miss (older build) is kept');
 }
+/* Full study session flags (sAcr, sPbq, sWeak): set on either device stays set, in either merge order, and they never
+   make a day full or break one (the session is optional and sits outside the four steps and the streak). */
+{
+  const full = { learn: true, practice: true, apply: true, rev: true };
+  const a = Object.assign(structuredClone(D), { xp: 1, days: { '2026-11-12': Object.assign({ sAcr: true }, full) } });
+  const b = Object.assign(structuredClone(D), { xp: 1, days: { '2026-11-12': { sPbq: true, sWeak: true } } });
+  for (const [x, y] of [[a, b], [b, a]]) { const d = M(x, y).days['2026-11-12'];
+    if (!d.sAcr || !d.sPbq || !d.sWeak) fail('session flags lost in a merge', JSON.stringify(d)); }
+  const norm = d => JSON.stringify(Object.keys(d).sort().map(k => [k, Object.keys(d[k]).sort().map(f => [f, d[k][f]])]));
+  if (norm(M(a, b).days) !== norm(M(b, a).days)) fail('session flags merge differently by order');
+  /* per-domain question counts ride along with their exam through a merge */
+  const ea = Object.assign(structuredClone(D), { exams: [{ cert: 'secplus8', date: '2026-11-12', n: 20, pct: 70, secs: 900, doms: { 1: 75, 2: 60 }, qn: { 1: 4, 2: 5 } }] });
+  const eb = Object.assign(structuredClone(D), { exams: [{ cert: 'secplus8', date: '2026-11-10', n: 20, pct: 65, secs: 950, doms: { 1: 50 } }] });
+  for (const [x, y] of [[ea, eb], [eb, ea]]) { const ex = M(x, y).exams;
+    if (ex.length !== 2 || !ex[0].qn || ex[0].qn[2] !== 5 || ex[1].qn) fail('per-domain question counts lost or invented in a merge', JSON.stringify(ex)); }
+  if (isFullDay({ sAcr: true, sPbq: true, sWeak: true })) fail('session flags alone made a day full');
+  if (!isFullDay(Object.assign({ sAcr: true, sPbq: true }, full))) fail('session flags broke a full day');
+}
 console.log('merge checks | order-independent merges', orderChecked, '| problems', bad);
 process.exitCode = bad ? 1 : 0;

@@ -21,7 +21,7 @@ vm.runInContext(before + '\n' + [
   grab('dailyPlan'), line('const SCEN_TRACK'), grab('applyRep'), grab('lessonNeeded'), grab('todaySteps'), grab('syncPlanFlags'), line('function afterStep('),
   grab('finishMission'), grab('completeMission'), line('const REVIEW_CAP'), line('const STEP_KEYS'), grab('isFullDay'), line('function dueReviewCount('), line('const reviewsOk'),
   grab('checkReviews'), line('function noteReview('), grab('checkFullDay'), grab('dayState'), line('const LAB_FOR'), app.slice(app.indexOf('const LAB_FOR'), app.indexOf('function labPick(')).split('\n').slice(1).join('\n'), grab('labPick'),
-  'globalThis.T = { dailyPlan, finishMission, addDays, trackOpen, unlockText, previewLesson, lessonNeeded, todaySteps, syncPlanFlags, completeMission, isFullDay, dayState, labPick, applyRep, pathSkills, skillLevel, skillById, allSkills, DEFAULT, PATH, LAB_FOR, SCEN,',
+  'globalThis.T = { dailyPlan, finishMission, addDays, trackOpen, unlockText, previewLesson, lessonNeeded, todaySteps, syncPlanFlags, completeMission, isFullDay, dayState, labPick, applyRep, pathSkills, skillLevel, skillById, allSkills, DEFAULT, PATH, LAB_FOR, RES_FOR, SCEN,',
   '  completeLab, LABS, get S(){ return S; }, set S(v){ S = v; }, set today(v){ TODAY = v; } };',
   'vLabs = function(){};'
 ].join('\n'), ctx);
@@ -95,14 +95,19 @@ if (T.S.lastFull !== today) fail('with nothing due, finishing the loop makes a f
 fresh({ days: { [yday]: { learn: true, practice: true, apply: true, rev: true }, '2026-10-27': { p0: true }, [today]: {} } });
 if (T.dayState(yday) !== 'full' || T.dayState('2026-10-27') !== 'part' || T.dayState('2026-10-26') !== 'miss' || T.dayState(today, true) !== 'today') fail('day states: full / part / miss / today');
 
-/* 8. the suggested lab fits today's tracks and rotates away from one used this week */
+/* 8. the suggested resource fits today's lessons, stays put for the day, and rotates away from one used recently */
 fresh(); const p8 = T.dailyPlan();
-const names = new Set(p8.ids.flatMap(id => T.LAB_FOR[sk(id).tid] || []));
+const names = new Set(p8.ids.flatMap(id => { const pre = id.slice(0, id.lastIndexOf(':') + 1);
+  return (T.LAB_FOR[sk(id).tid] || []).concat(T.RES_FOR[id] ? [T.RES_FOR[id][0]] : [], T.RES_FOR[pre] ? [T.RES_FOR[pre][0]] : []); }));
 const lab = T.labPick(p8);
-if (!lab || !names.has(lab.name)) fail('the lab should match today\'s tracks', lab && lab.name);
+if (!lab || !names.has(lab.name)) fail('the resource should match today\'s lessons', lab && lab.name);
+if (T.labPick(p8).name !== lab.name) fail('the same day should keep the same resource');
 T.S.practice = { [lab.name]: today };
 const lab2 = T.labPick(p8);
-if (names.size > 1 && lab2.name === lab.name) fail('a lab used today should not be suggested again when others fit');
+if (lab2.name !== lab.name || !lab2.usedToday) fail('a resource used today stays on the card, marked as done', lab2);
+T.S.practice = { [lab.name]: T.addDays(today, -1) };
+const lab3 = T.labPick(p8);
+if (names.size > 1 && lab3.name === lab.name) fail('a resource used yesterday should rotate away when others fit');
 
 /* 9. the rep: a ticket in the main area until its best score reaches 90, then an interview question */
 fresh();

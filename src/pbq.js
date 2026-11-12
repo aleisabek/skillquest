@@ -178,10 +178,12 @@ function pbqShow(){
   queueMicrotask(enterView);
 }
 function pbqEnd(){
+  sessionFlag('sPbq');
   const pct = Math.round(PBQ.res.reduce((a,b)=>a+b, 0) / PBQ.res.length * 100);
   view.innerHTML = '<h1>Round done</h1><div class="card"><p><b>'+pct+'%</b> of items right across '+PBQ.res.length+' tasks (practice score, not an exam score).</p>'+
     '<ul class="clean">'+PBQ.list.map((t,i)=>'<li>'+esc(t.title)+': '+Math.round(PBQ.res[i]*100)+'%</li>').join('')+'</ul>'+
-    '<div class="row"><button class="primary" id="pbqAgain">Another round</button></div></div>';
+    '<div class="row"><button class="primary" id="pbqAgain">Another round</button><button id="pbqHome">Back to Today</button></div>'+sessionRow()+'</div>';
   $('#pbqAgain').onclick = vPbq;
-  $('#pbqAgain').focus();
+  $('#pbqHome').onclick = ()=>go('today');
+  if(!sessionWire()) $('#pbqAgain').focus();
 }

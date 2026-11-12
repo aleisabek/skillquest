@@ -1,26 +1,14 @@
 
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=VT323&family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;600;700&display=swap');
-/* Three hacker palettes. Offline, fonts fall back to Cascadia Code / Consolas. */
-:root, :root[data-theme="matrix"]{
+/* Base tokens (used for a moment before a look is applied). Offline, fonts fall back to Cascadia Code / Consolas. */
+:root{
   --bg:#030806; --panel:rgba(6,18,12,.88); --panel2:rgba(57,255,136,.07); --text:#c9ffdc; --muted:#6fae86;
   --line:#1b4a31; --accent:#39ff88; --accent2:#00d1ff; --accent-soft:rgba(57,255,136,.12); --on-accent:#021a0c;
   --good:#39ff88; --good-soft:rgba(57,255,136,.10); --bad:#ff4d6d; --bad-soft:rgba(255,77,109,.13);
   --warn:#ffcc33; --xp:#ffcc33; --glow:0 0 12px rgba(57,255,136,.45);
   --term-bg:#000; --term-text:#c9ffdc; --term-green:#39ff88; --radius:4px; --shadow:none; color-scheme:dark;
 }
-:root[data-theme="cyber"]{
-  --bg:#06051a; --panel:rgba(16,12,40,.9); --panel2:rgba(0,229,255,.07); --text:#e7e2ff; --muted:#9a90d6;
-  --line:#33296e; --accent:#00e5ff; --accent2:#ff2bd6; --accent-soft:rgba(0,229,255,.12); --on-accent:#02121a;
-  --good:#00ffa3; --good-soft:rgba(0,255,163,.10); --bad:#ff3d7f; --bad-soft:rgba(255,61,127,.14);
-  --warn:#ffd23f; --xp:#ff2bd6; --glow:0 0 12px rgba(0,229,255,.5); --term-bg:#020114; --term-text:#e7e2ff; --term-green:#00ffa3;
-}
-:root[data-theme="amber"]{
-  --bg:#0a0600; --panel:rgba(24,15,2,.9); --panel2:rgba(255,176,0,.07); --text:#ffdca6; --muted:#b98c4d;
-  --line:#4d3510; --accent:#ffb000; --accent2:#ff6b3d; --accent-soft:rgba(255,176,0,.12); --on-accent:#1a0f00;
-  --good:#ffd257; --good-soft:rgba(255,210,87,.10); --bad:#ff6b4a; --bad-soft:rgba(255,107,74,.14);
-  --warn:#ffe08a; --xp:#ffb000; --glow:0 0 12px rgba(255,176,0,.45); --term-bg:#050300; --term-text:#ffdca6; --term-green:#ffd257;
-}
-/* Glass looks: five futuristic palettes that share one style (the "GLASS LOOK" block near the end), switched on by
+/* Glass looks: six futuristic palettes (warp is the hacker one) that share one style (the "GLASS LOOK" block near the end), switched on by
    the html.glass class that applyTheme sets. Each palette sets its colors plus three soft background lights (--orb1-3). */
 :root[data-theme="future"]{
   --bg:#060914; --text:#e9edfa; --muted:#b6bed8; --accent:#93a8ff; --accent2:#5fe3cf; --on-accent:#0a0f24;
@@ -41,6 +29,11 @@
   --bg:#040d13; --text:#e7f7ff; --muted:#b2cbd8; --accent:#7fd6ff; --accent2:#a8f5dc; --on-accent:#03202c;
   --good:#7cf0b0; --bad:#ffa0af; --warn:#ffdd85; --xp:#7fd6ff;
   --orb1:rgba(80,190,255,.26); --orb2:rgba(140,255,220,.15); --orb3:rgba(120,140,255,.14);
+}
+:root[data-theme="warp"]{
+  --bg:#03020b; --text:#eaf2ff; --muted:#a9b7da; --accent:#3ee8ff; --accent2:#b77bff; --on-accent:#02141c;
+  --good:#5cffc0; --bad:#ff7aa2; --warn:#ffd36e; --xp:#3ee8ff;
+  --orb1:rgba(62,232,255,.20); --orb2:rgba(183,123,255,.24); --orb3:rgba(255,90,170,.12);
 }
 :root[data-theme="jade"]{
   --bg:#05100c; --text:#eafbf2; --muted:#b5d2c3; --accent:#6cf0b4; --accent2:#f2cf7c; --on-accent:#03200f;
@@ -72,7 +65,6 @@ html.readable body{line-height:1.7}
 html.calm body::after{display:none}
 html.calm .glitch::before,html.calm .glitch::after{display:none}
 html.calm h1::after,html.calm .timer.low{animation:none}
-html.calm #rain{display:none}
 html.calm .scene .sc{transition:none}
 html.calm .scene .sc-flash{animation:none}
 #display{position:relative;z-index:3;margin:8px 0 0;padding:12px 14px;border:1px solid var(--line);background:var(--panel);max-width:520px}
@@ -81,7 +73,6 @@ html.calm .scene .sc-flash{animation:none}
 #display legend{font-weight:700;margin-bottom:4px}
 #display label{display:inline-flex;align-items:center;gap:6px;margin:4px 14px 4px 0;cursor:pointer}
 #display input{width:1.1rem;height:1.1rem;accent-color:var(--accent)}
-#rain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.16}
 body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:30;
   background:repeating-linear-gradient(to bottom,rgba(255,255,255,.025) 0 1px,transparent 1px 3px),radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.55) 100%)}
 header,.wrap,.toast{position:relative;z-index:2}
@@ -228,7 +219,7 @@ button .small{color:inherit;opacity:.8;text-transform:none;letter-spacing:0;font
 .ritem button{padding:4px 10px;font-size:.78rem}
 ::selection{background:var(--accent);color:var(--on-accent)}
 @media (max-width:600px){ .xpbar{width:70px} h1{font-size:1.9rem} h1::before{display:none} .ritem>span:first-child{flex-basis:100%} }
-@media (prefers-reduced-motion: reduce){ .glitch::before,.glitch::after,h1::after,.timer.low{animation:none} #rain{display:none} }
+@media (prefers-reduced-motion: reduce){ .glitch::before,.glitch::after,h1::after,.timer.low{animation:none} }
 input.typed{flex:1;min-width:200px;font:inherit;font-size:1.05rem;padding:10px 12px;border:1px solid var(--line);background:rgba(0,0,0,.45);color:var(--text);outline:none;caret-color:var(--accent)}
 input.typed:focus{border-color:var(--accent);box-shadow:var(--glow)}
 input.typed.ok{border-color:var(--good);box-shadow:0 0 10px var(--good-soft)}
@@ -393,7 +384,6 @@ html.calm .acr-tile .rest{transition:none}
 html.calm.glass body::before{animation:none}
 html.calm.glass body::after{display:block}
 @media (prefers-reduced-motion: reduce){ .glass body::before{animation:none} }
-.glass #rain,.glass #rainBtn{display:none}
 .glass ::selection{background:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--text)}
 .glass *{scrollbar-color:rgba(255,255,255,.18) transparent}
 
@@ -658,3 +648,124 @@ html.idle body::before,html.idle .glitch::before,html.idle .glitch::after,html.i
 .glass .cert .ritem.dom>span:first-of-type{flex:none;font-weight:600}
 .glass .cert .ritem.dom.unmeasured{border-style:dashed}
 .glass .wbar{display:block;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--accent),var(--accent2)) 0 0/calc(var(--w,0) * 3.5%) 100% no-repeat,rgba(255,255,255,.08)}
+
+/* ===================== WARP STYLE: shared by every look since 2026-11-12 =====================
+   Deep space instead of green terminal text: a slow starfield drifts behind the glass, page titles decode from
+   symbols when a new screen opens, cards scan in from the top, and headings use a mono font. Every moving part is
+   one-shot or a slow compositor-only drift, and all of it stops in Calm mode, under reduced motion and when idle. */
+.hack body::after{inset:-40%;opacity:.9;-webkit-mask:none;mask:none;
+  background:
+    radial-gradient(1px 1px at 12% 18%,#fff 50%,transparent 51%) 0 0/220px 220px,
+    radial-gradient(1px 1px at 68% 42%,color-mix(in srgb,var(--accent) 45%,#fff) 50%,transparent 51%) 0 0/260px 260px,
+    radial-gradient(1.5px 1.5px at 33% 77%,color-mix(in srgb,var(--accent2) 55%,#fff) 50%,transparent 51%) 0 0/340px 340px,
+    radial-gradient(1px 1px at 85% 9%,rgba(255,255,255,.7) 50%,transparent 51%) 0 0/180px 180px,
+    radial-gradient(2px 2px at 50% 50%,var(--accent) 50%,transparent 51%) 0 0/520px 520px;
+  animation:warpdrift 140s linear infinite}
+@keyframes warpdrift{from{transform:translate3d(0,0,0)}to{transform:translate3d(-12%,8%,0)}}
+.hack h1,.hack h2,.hack .logo{font-family:"JetBrains Mono","Cascadia Code",Consolas,ui-monospace,monospace}
+.hack h1{letter-spacing:-.01em;background:linear-gradient(100deg,var(--text) 0%,var(--accent) 45%,var(--accent2) 70%,var(--text) 100%);background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:holo 1.4s var(--ease-out) both}
+@keyframes holo{from{background-position:100% 0}to{background-position:0 0}}
+.hack h1::after{background:linear-gradient(90deg,var(--accent),var(--accent2),transparent)}
+.hack h2{letter-spacing:.14em}
+.hack h2::before{content:"// ";color:var(--accent);opacity:.7}
+.hack .card{border-top-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.hack .card:hover{box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent),0 12px 40px -12px color-mix(in srgb,var(--accent) 45%,transparent)}
+@keyframes scanin{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(6px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:none}}
+.hack .rise{animation-name:scanin;animation-duration:420ms}
+html.calm.hack body::after,html.calm.hack h1{animation:none}
+html.idle.hack body::after{animation-play-state:paused}
+@media (prefers-reduced-motion: reduce){ .hack body::after,.hack h1{animation:none} }
+
+/* Today: the finish line and the optional full study session */
+.donetoday{color:var(--good)}
+.session{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.sesstops{margin:8px 0 12px;padding-left:22px}
+.sesstops li{margin:3px 0}
+.sesstops li.ok{color:var(--muted)}
+.glass .session{border-top-color:rgba(255,255,255,.1)}
+
+/* ===================== THE SKY: one world per look (2026-11-12) =====================
+   A planet, sometimes a ring and a moon, low in a corner behind the glass. Pure CSS shapes, no images. Movement is
+   transform-only and very slow: the planet's surface bands slide, the moon orbits (4 min), and a comet crosses
+   about once a minute. All of it stops in Calm mode and under reduced motion, and pauses when idle.
+   Kept dim and mostly off-screen so text on the background keeps its contrast. */
+#space{display:none}
+.hack #space{display:block;position:fixed;inset:0;z-index:1;pointer-events:none;overflow:hidden}
+#space i{position:absolute;display:block}
+#space .planet{width:var(--pl-size,46vmin);height:var(--pl-size,46vmin);right:var(--pl-x,-12vmin);bottom:var(--pl-y,-16vmin);
+  border-radius:50%;overflow:hidden;opacity:var(--pl-op,.55);
+  background:radial-gradient(circle at 32% 30%,var(--pl-light),var(--pl-mid) 45%,var(--pl-dark) 78%);
+  box-shadow:0 0 60px -6px var(--pl-glow),inset -18px -22px 60px rgba(0,0,0,.55)}
+/* the surface: wide bands that slide sideways, so the planet turns */
+#space .planet::before{content:"";position:absolute;inset:0 -100% 0 0;opacity:var(--pl-bands,.35);
+  background:repeating-linear-gradient(var(--pl-tilt,8deg),transparent 0 7%,var(--pl-band) 7% 11%,transparent 11% 16%,var(--pl-band2,transparent) 16% 18%);
+  animation:spin 180s linear infinite}
+/* the night side, fixed on top of the turning surface */
+#space .planet::after{content:"";position:absolute;inset:0;border-radius:50%;
+  background:radial-gradient(circle at 30% 28%,transparent 40%,rgba(0,0,0,.65) 85%)}
+@keyframes spin{from{transform:translate3d(-50%,0,0)}to{transform:translate3d(0,0,0)}}
+#space .ring{display:var(--ring,block);width:calc(var(--pl-size,46vmin) * 1.9);height:calc(var(--pl-size,46vmin) * .42);
+  right:calc(var(--pl-x,-12vmin) - var(--pl-size,46vmin) * .45);bottom:calc(var(--pl-y,-16vmin) + var(--pl-size,46vmin) * .29);
+  border-radius:50%;opacity:var(--pl-op,.55);transform:rotate(-14deg);
+  border:2px solid var(--ring-c);box-shadow:0 0 0 6px color-mix(in srgb,var(--ring-c) 22%,transparent),inset 0 0 0 9px color-mix(in srgb,var(--ring-c) 12%,transparent)}
+/* the moon rides an invisible orbit centred on the planet */
+#space .orbit{width:calc(var(--pl-size,46vmin) * 1.6);height:calc(var(--pl-size,46vmin) * 1.6);
+  right:calc(var(--pl-x,-12vmin) - var(--pl-size,46vmin) * .3);bottom:calc(var(--pl-y,-16vmin) - var(--pl-size,46vmin) * .3);
+  display:var(--moon,block);animation:orbit 240s linear infinite}
+#space .moon{width:3.2vmin;height:3.2vmin;left:6%;top:30%;border-radius:50%;opacity:.7;
+  background:radial-gradient(circle at 35% 35%,#fff,var(--moon-c,#9aa) 60%,#222 100%);box-shadow:0 0 14px var(--moon-c,#9aa)}
+@keyframes orbit{to{transform:rotate(360deg)}}
+/* a comet: crosses the upper sky in ~2 s, then waits */
+#space .comet{width:22vmin;height:2px;left:0;top:14%;opacity:0;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 70%,#fff));border-radius:2px;
+  transform:translate3d(-30vmin,0,0) rotate(18deg);animation:comet 61s linear 9s infinite}
+@keyframes comet{0%{opacity:0;transform:translate3d(-30vmin,0,0) rotate(18deg)}
+  1%{opacity:.85}3.5%{opacity:0;transform:translate3d(115vw,36vh,0) rotate(18deg)}100%{opacity:0;transform:translate3d(115vw,36vh,0) rotate(18deg)}}
+html.calm #space *,html.calm #space *::before{animation:none}
+html.calm #space .comet{display:none}
+html.idle #space *,html.idle #space *::before{animation-play-state:paused}
+@media (prefers-reduced-motion: reduce){ #space *,#space *::before{animation:none} #space .comet{display:none} }
+@media (max-width:600px){ #space{--pl-op:.4} }
+
+/* the worlds */
+:root[data-theme="warp"]{ --pl-light:#d9b8ff; --pl-mid:#7a4fd6; --pl-dark:#1a0b3f; --pl-glow:rgba(183,123,255,.5);
+  --pl-band:rgba(62,232,255,.5); --pl-band2:rgba(255,120,200,.35); --ring-c:#3ee8ff; --moon-c:#9feaff }
+:root[data-theme="future"]{ --pl-light:#bfe0ff; --pl-mid:#3f6fe0; --pl-dark:#081a4a; --pl-glow:rgba(110,140,255,.5);
+  --pl-band:rgba(95,227,207,.45); --pl-band2:rgba(255,255,255,.18); --pl-tilt:-4deg; --ring-c:#93a8ff; --moon-c:#cfd8ff;
+  --pl-size:38vmin; --pl-x:auto; --pl-y:auto }
+:root[data-theme="future"] #space .planet,:root[data-theme="future"] #space .ring,:root[data-theme="future"] #space .orbit{right:auto;bottom:auto}
+:root[data-theme="future"] #space .planet{left:-10vmin;top:52vh}
+:root[data-theme="future"] #space .ring{display:none}
+:root[data-theme="future"] #space .orbit{left:-21vmin;top:calc(52vh - 11vmin)}
+:root[data-theme="aurora"]{ --pl-light:#ffd1f0; --pl-mid:#b04fc9; --pl-dark:#2a0838; --pl-glow:rgba(255,120,210,.55);
+  --pl-band:rgba(198,162,255,.55); --pl-band2:rgba(110,255,210,.3); --pl-tilt:22deg; --ring-c:#ffa6dc; --moon:none; --pl-size:52vmin }
+:root[data-theme="solar"]{ --pl-light:#fff6d0; --pl-mid:#ffb04a; --pl-dark:#c2410c; --pl-glow:rgba(255,170,80,.75);
+  --pl-band:rgba(255,240,180,.35); --pl-tilt:0deg; --ring:none; --moon-c:#ffcf9a; --pl-op:.5; --pl-size:50vmin }
+:root[data-theme="solar"] #space .planet{box-shadow:0 0 90px 10px rgba(255,150,60,.45),0 0 200px 40px rgba(255,110,60,.18)}
+:root[data-theme="solar"] #space .planet::after{background:radial-gradient(circle,transparent 55%,rgba(194,65,12,.4) 100%)}
+:root[data-theme="glacier"]{ --pl-light:#ffffff; --pl-mid:#9fd8f0; --pl-dark:#16384d; --pl-glow:rgba(127,214,255,.45);
+  --pl-band:rgba(255,255,255,.35); --pl-band2:rgba(80,140,190,.3); --pl-tilt:-30deg; --pl-bands:.25; --ring:none; --moon-c:#d6f4ff; --pl-size:40vmin }
+:root[data-theme="jade"]{ --pl-light:#d4ffe6; --pl-mid:#2fa877; --pl-dark:#06291b; --pl-glow:rgba(108,240,180,.45);
+  --pl-band:rgba(242,207,124,.35); --pl-band2:rgba(255,255,255,.15); --ring-c:#f2cf7c; --moon-c:#f6e2a8 }
+
+/* Warp jump (app.js warpJump): star streaks rush outward for ~0.5 s when you change screens */
+#space .jump{inset:-30%;opacity:0;pointer-events:none;
+  background:repeating-conic-gradient(from 0deg at 50% 50%,transparent 0deg 3.2deg,color-mix(in srgb,var(--accent) 55%,#fff) 3.2deg 3.5deg,transparent 3.5deg 7deg,color-mix(in srgb,var(--accent2) 45%,transparent) 7deg 7.2deg);
+  -webkit-mask:radial-gradient(circle at 50% 50%,transparent 12%,#000 30%,transparent 70%);mask:radial-gradient(circle at 50% 50%,transparent 12%,#000 30%,transparent 70%)}
+#space .jump.go{animation:jump 520ms cubic-bezier(.2,.7,.2,1) both}
+@keyframes jump{0%{opacity:0;transform:scale(.55)}25%{opacity:.5}100%{opacity:0;transform:scale(1.7)}}
+html.calm #space .jump{display:none}
+@media (prefers-reduced-motion: reduce){ #space .jump{display:none} }
+
+/* Skill galaxy (learning.js galaxySVG) */
+.galaxycard{overflow:hidden}
+.galaxy{display:block;width:100%;height:auto;margin:8px 0 4px;border-radius:10px;
+  background:radial-gradient(60% 70% at 50% 50%,color-mix(in srgb,var(--accent2) 10%,transparent),transparent 75%)}
+.gl-line{fill:none;stroke:color-mix(in srgb,var(--accent) 30%,transparent);stroke-width:.8}
+.gl-line.locked{stroke:color-mix(in srgb,var(--muted) 30%,transparent);stroke-dasharray:3 4}
+.gl-name{fill:var(--muted);font-size:15px;letter-spacing:.08em;font-family:inherit}
+.gl-hit{fill:transparent}
+.gl-star[data-star]{cursor:pointer}
+.gl-star[data-star]:hover circle:not(.gl-hit){stroke:var(--text);stroke-width:1.2}
+html.idle #space .jump{animation-play-state:running}   /* a jump always finishes, even if it starts while idle */
