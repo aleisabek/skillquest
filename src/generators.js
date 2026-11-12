@@ -1629,6 +1629,285 @@ GEN.sec[2].push(
       return mcq('sec',2,'"'+s+'" Which automation use, consideration or capability is this?', a, wrongs, scWhy(AUTO_DEF, a, row[3])); },
     {lookup:true, obj:{'SY0-801':['4.6']}})
 );
+/* Security+ SY0-801 1.1, 1.3, 3.2, 4.1, 4.3, 4.4, 4.5, 4.7 and 4.8 (added 2026-11-12), so every SY0-801 objective has
+   questions. Same rules as above: every answer is a term from the objectives document (document version 2.0), and a
+   row's third item lists options that would also be defensible there, so they are never offered beside it. */
+const CTRL_TYPE = [
+  ["A sign on the server room door warns that all entry is recorded and trespassers will be prosecuted.", "Deterring", ["Directive"], "it discourages an attacker but doesn't physically stop anyone."],
+  ["Cameras record the parking lot, and staff review the footage after a car is broken into.", "Detective", ["Deterring"], "the footage is used to find out what happened after the fact."],
+  ["A locked door with a badge reader stops anyone without a valid badge from entering.", "Preventive", [], "it stops the unwanted action before it happens."],
+  ["After ransomware, the team restores the servers from last night's backups.", "Corrective", [], "it fixes the damage after an incident."],
+  ["After an account is found compromised, its password is reset and all its sessions are ended.", "Corrective", [], "it undoes the effect of an incident that already happened."],
+  ["An old system can't support MFA, so it is placed on an isolated network with extra monitoring until it is replaced.", "Compensating", [], "it stands in for the normal control that can't be used."],
+  ["The team is too small for separate payment approvers, so the manager reviews every payment at the end of each month.", "Compensating", ["Detective"], "it reduces the same risk when separation of duties isn't possible."],
+  ["A policy tells all staff to lock their screens when they leave their desks.", "Directive", [], "it tells people what they must do."],
+  ["An intrusion detection system raises an alert when it sees a port scan.", "Detective", [], "it notices and reports activity; it doesn't block it."],
+  ["Firewall rules block all inbound traffic except web traffic to the web server.", "Preventive", [], "it stops traffic before it reaches anything."]
+];
+const CTRL_TYPE_ALL = [...new Set(CTRL_TYPE.map(x=>x[1]))];
+const CTRL_TYPE_DEF = {"Preventive": "stops something from happening", "Deterring": "discourages an attacker from trying", "Detective": "notices and records that something happened", "Corrective": "fixes things after an incident", "Compensating": "stands in when the normal control can't be used", "Directive": "tells people what to do, such as a policy"};
+const CTRL_CAT = [
+  ["A firewall blocks inbound traffic that no rule allows.", "Technical/logical", [], "a system enforces it automatically."],
+  ["Every company laptop encrypts its drive automatically.", "Technical/logical", [], "software does the work, not a person."],
+  ["Management approves a yearly risk assessment and the written security policy that follows from it.", "Managerial/administrative", [], "it is a decision and a document about how security is run."],
+  ["Before any vendor contract is signed, management requires a security review of the vendor.", "Managerial/administrative", [], "it is a management rule for how decisions are made."],
+  ["A security analyst reviews the admin sign-in report by hand every morning.", "Operational", [], "people carry it out as part of daily work."],
+  ["All staff complete security awareness training each year.", "Operational", [], "it is carried out by and for people, not by a system."],
+  ["A fence and a locked gate surround the data center.", "Physical/environmental", [], "it is a barrier in the real world."],
+  ["The server room has fire suppression and temperature alarms.", "Physical/environmental", [], "it protects against environmental damage."]
+];
+const CTRL_CAT_ALL = [...new Set(CTRL_CAT.map(x=>x[1]))];
+const CTRL_CAT_DEF = {"Technical/logical": "enforced by systems, such as firewalls and encryption", "Managerial/administrative": "decisions and documents, such as policies and risk assessments", "Operational": "carried out by people, such as training and daily reviews", "Physical/environmental": "barriers and protection in the real world, such as locks and fire suppression"};
+const SECCON = [
+  ["A signed approval proves the manager approved the payment, so they can't later deny it.", "Non-repudiation", [], "the proof ties the action to the person, so they can't deny it."],
+  ["Every request is checked for identity and device health, even from inside the office; nothing is trusted because of where it comes from.", "Zero Trust principles", ["Defense in depth"], "trust is never assumed from network location; every request is verified."],
+  ["Help desk staff can reset passwords but can't change firewall rules.", "Least privilege", [], "each person gets only the access their job needs."],
+  ["A contractor's account can only read the one folder their project needs.", "Least privilege", [], "access is limited to exactly what the task requires."],
+  ["The VPN checks who you are, decides what you may reach, and logs what you did.", "Authentication, authorization, and accounting (AAA)", ["Zero Trust principles"], "it proves identity, grants access, and records activity."],
+  ["A web server sits behind a firewall and an intrusion prevention system, and runs antivirus, so one failed layer doesn't expose it.", "Defense in depth", [], "several layers protect the same thing, so one failure isn't a breach."],
+  ["A security plan sets three goals: keep data secret from outsiders, keep it accurate and unchanged, and keep it available when needed.", "Confidentiality, integrity, and availability (CIA)", [], "these are the three core goals of security."]
+];
+const SECCON_ALL = [...new Set(SECCON.map(x=>x[1]))];
+const SECCON_DEF = {"Non-repudiation": "proof that someone did something, so they can't deny it", "Zero Trust principles": "never trust by location; verify every request", "Least privilege": "only the access a job needs", "Authentication, authorization, and accounting (AAA)": "prove who you are, decide what you may do, record what you did", "Defense in depth": "several layers of protection", "Confidentiality, integrity, and availability (CIA)": "the three core security goals"};
+const PKI_T = [
+  ["A browser asks the issuer, in real time, whether one site's certificate has been revoked.", "Online Certificate Status Protocol (OCSP)", ["Certificate revocation lists (CRLs)"], "it checks one certificate's status live."],
+  ["The issuer publishes a list of every certificate it cancelled before its expiry date.", "Certificate revocation lists (CRLs)", ["Online Certificate Status Protocol (OCSP)"], "a published list of revoked certificates."],
+  ["A trusted organization checks a site owner's identity and signs the site's certificate.", "Certificate authorities", ["Third-party", "Root of trust"], "a certificate authority vouches for identities by signing certificates."],
+  ["The company buys its web certificate from an outside provider that browsers already trust, instead of making its own.", "Third-party", ["Certificate authorities"], "a certificate signed by an outside, publicly trusted issuer."],
+  ["One certificate covers www.example.com, mail.example.com and shop.example.com.", "Wildcard", [], "a *.example.com certificate covers every subdomain at one level."],
+  ["A lab server uses a certificate it signed itself, so browsers warn that it isn't trusted.", "Self-signed", [], "no trusted issuer vouches for it."],
+  ["The admin creates a key pair and sends the public key and the site's details to the issuer to be signed.", "Certificate signing request (CSR) generation", [], "the request a certificate authority signs to make the certificate."],
+  ["A trusted third party holds a copy of the company's encryption keys, so data can be recovered if a key is lost.", "Key escrow", [], "a recoverable copy of keys held by someone trusted."],
+  ["The device trusts a site's certificate because its chain ends at a root certificate already built into the operating system's trusted store.", "Root of trust", ["Certificate authorities"], "the starting point that all other trust is built on."],
+  ["Anyone may have this key; others use it to encrypt messages that only you can read.", "Public key", [], "the shareable half of a key pair."],
+  ["Only its owner holds this key, and uses it to sign and to decrypt.", "Private key", [], "the secret half of a key pair."]
+];
+const PKI_T_ALL = [...new Set(PKI_T.map(x=>x[1]))];
+const PKI_T_DEF = {"Online Certificate Status Protocol (OCSP)": "a live check of one certificate's status", "Certificate revocation lists (CRLs)": "published lists of revoked certificates", "Certificate authorities": "trusted issuers that sign certificates", "Third-party": "a certificate from an outside, publicly trusted issuer", "Wildcard": "one certificate for every subdomain (*.example.com)", "Self-signed": "a certificate signed by its own key, trusted by no one else", "Certificate signing request (CSR) generation": "creating the request a certificate authority signs", "Key escrow": "a trusted party holding copies of keys", "Root of trust": "the trusted starting point every chain leads back to", "Public key": "the shareable half of a key pair", "Private key": "the secret half of a key pair"};
+const ENC_T = [
+  ["The same secret key encrypts and decrypts a large backup file quickly.", "Symmetric encryption", [], "one shared key, fast for bulk data."],
+  ["Data is encrypted with one key and can only be decrypted with a different, related key.", "Asymmetric encryption", [], "a key pair: public and private."],
+  ["Two servers agree on a shared session key over the internet without ever sending the key itself.", "Key exchange", [], "it sets up a shared key safely over an untrusted network."],
+  ["Random data is added to each password before it is hashed, so two equal passwords give different hashes.", "Salting", ["Hashing algorithms"], "the random value makes each stored hash unique."],
+  ["Passwords are stored as fixed-length values that can't be turned back into the password.", "Hashing algorithms", ["Salting"], "a one-way fingerprint of the data."],
+  ["The sender signs a contract file with their private key, so the receiver can confirm who sent it and that it wasn't changed.", "Digital signatures", [], "proof of who sent it and that it is unchanged."],
+  ["Code is made deliberately hard to read so attackers can't easily understand it, though it isn't truly encrypted.", "Obfuscation", [], "it hides meaning without real encryption."],
+  ["The team moves to longer keys because the shorter ones can now be broken in a reasonable time.", "Key length", [], "longer keys take far longer to break."],
+  ["A stolen laptop's whole drive, operating system included, is unreadable without the startup PIN.", "Full disk encryption", [], "everything on the drive is encrypted."],
+  ["Only one spreadsheet of salaries is encrypted; the rest of the drive isn't.", "File encryption", [], "a single file is protected."],
+  ["The database software encrypts the entire customer database where it is stored.", "Database encryption", ["Record encryption"], "the whole database is encrypted."],
+  ["Each customer's row in a table is encrypted with its own key.", "Record encryption", ["Database encryption"], "individual records are encrypted separately."],
+  ["TLS protects the data while it travels between the browser and the web server.", "Transport/communication encryption", [], "it protects data in transit."]
+];
+const ENC_T_ALL = [...new Set(ENC_T.map(x=>x[1]))];
+const ENC_T_DEF = {"Symmetric encryption": "one shared key encrypts and decrypts", "Asymmetric encryption": "a public and private key pair", "Key exchange": "agreeing a shared key safely", "Salting": "adding random data before hashing", "Hashing algorithms": "one-way fixed-length fingerprints", "Digital signatures": "proof of sender and integrity", "Obfuscation": "making something hard to read without real encryption", "Key length": "how long a key is; longer is harder to break", "Full disk encryption": "the whole drive is encrypted", "File encryption": "single files are encrypted", "Database encryption": "the whole database is encrypted", "Record encryption": "individual records are encrypted", "Transport/communication encryption": "data is encrypted while it travels"};
+const INFRA_T = [
+  ["The intrusion prevention system is moved inline between the firewall and the internal network, so it sees and can block all inbound traffic.", "Device placement", ["Security zones"], "where a device sits decides what it can see and stop."],
+  ["Internet-facing web servers sit in one zone and internal databases in another, with firewall rules controlling traffic between them.", "Security zones", ["Device placement"], "systems are grouped by trust level, with controls between groups."],
+  ["The team disables unused services and closes ports on every server, so there's less for an attacker to reach.", "Attack surface", [], "fewer open services means fewer ways in."],
+  ["Two firewalls from different vendors are used in a row, so one vendor's flaw doesn't open both.", "Diversity", [], "different products don't share the same weakness."],
+  ["Admins manage the switches over a separate management network, so they can still reach them if the main network is down or compromised.", "Out-of-band management", [], "a separate path for managing devices."],
+  ["Staff working from home connect through an encrypted tunnel to reach internal apps.", "Virtual private network (VPN)", ["Security Service Edge (SSE)"], "an encrypted tunnel into the internal network."],
+  ["A cloud service checks users and filters their web, cloud app and private app traffic wherever they work, without a tunnel back to the office.", "Security Service Edge (SSE)", ["Virtual private network (VPN)"], "security delivered from the cloud, close to the user."],
+  ["A Windows service runs under an account whose password the domain changes automatically and no person knows.", "Group Managed Service Accounts (gMSAs)", ["Least privilege access accounts"], "the domain manages and rotates the service account's password."],
+  ["Admins use a normal account for email and a separate admin account only for admin tasks.", "Least privilege access accounts", [], "everyday work runs without admin rights."],
+  ["Over five years and three job changes, an employee kept every permission from each old role.", "Privilege creep", [], "permissions pile up as people change roles."],
+  ["If the edge firewall crashes, it blocks all traffic instead of letting everything through.", "Failure modes", [], "it decides whether a failed device fails open or closed."],
+  ["Messages are encrypted on the sender's phone and decrypted only on the recipient's phone; the server in the middle can't read them.", "End-to-end encrypted messaging", [], "only the two ends can read the message."],
+  ["Before access is granted, a laptop must prove it is managed and patched, the user signs in with MFA, and each app checks again.", "Zero Trust architecture", ["Security Service Edge (SSE)"], "user, device and app access are all verified every time."]
+];
+const INFRA_T_ALL = [...new Set(INFRA_T.map(x=>x[1]))];
+const INFRA_T_DEF = {"Device placement": "where a security device sits in the network", "Security zones": "groups of systems with the same trust level", "Attack surface": "all the ways an attacker could get in", "Diversity": "using different vendors or technologies", "Out-of-band management": "a separate network path for managing devices", "Virtual private network (VPN)": "an encrypted tunnel into a network", "Security Service Edge (SSE)": "cloud-delivered security for users wherever they are", "Group Managed Service Accounts (gMSAs)": "service accounts whose passwords Windows manages", "Least privilege access accounts": "separate accounts with only the rights a task needs", "Privilege creep": "permissions piling up over time", "Failure modes": "what a device does when it fails: open or closed", "End-to-end encrypted messaging": "only the sender and recipient can read messages", "Zero Trust architecture": "verifying user, device and app access every time"};
+const MIT_T = [
+  ["A file named passwords-2026.xlsx that no one should ever open is placed on the file server; opening it raises an alert.", "Honeyfile", ["Honeytoken", "Honeypot"], "a fake file that alerts when touched."],
+  ["A fake server that looks vulnerable is put on the network to attract and study attackers.", "Honeypot", ["Honeynet"], "a decoy system."],
+  ["A whole fake network of servers and workstations is set up to watch how attackers move between machines.", "Honeynet", ["Honeypot"], "a decoy network of several systems."],
+  ["Fake cloud access keys are planted in an old code repository; any attempt to use them raises an alert.", "Honeytoken", ["Honeyfile", "Canary account"], "fake credentials or data that alert when used."],
+  ["A domain account named svc-backup-admin that nothing uses is created; any sign-in to it raises an alert.", "Canary account", ["Honeytoken"], "an unused account that alerts when someone signs in."],
+  ["Email attachments are opened in an isolated virtual machine to see what they do before they are delivered.", "Sandboxing", [], "suspicious code runs where it can't harm anything."],
+  ["The login page allows at most 10 attempts per minute from one address.", "Rate-limiting requests", ["Web application firewall (WAF)"], "it slows down floods and guessing."],
+  ["A filter in front of the web app blocks requests that contain SQL injection patterns.", "Web application firewall (WAF)", ["Rate-limiting requests"], "it inspects web requests for attacks."],
+  ["A scan of every code commit finds a database password pasted into a configuration file.", "Secrets scanning", [], "it finds credentials stored in code repositories."],
+  ["Staff laptops can run only programs on an approved list.", "Allow lists", [], "anything not on the list is blocked."],
+  ["Guest Wi-Fi shows a page where visitors must accept the terms before they get internet access.", "Captive portals", [], "a web page gate before network access."],
+  ["Before a laptop joins the network, it is checked for current patches and running antivirus; failing laptops go to a quarantine network.", "Endpoint posture/compliance", ["802.1X"], "the device's health decides its access."],
+  ["Switch ports only open after the device authenticates with a certificate through an authentication server.", "802.1X", ["Endpoint posture/compliance"], "port-based network access control."],
+  ["A tool on each laptop records process, file and network activity, and lets analysts isolate a laptop remotely.", "Endpoint detection and response (EDR)", ["Extended detection and response (XDR)", "Antivirus"], "it records and responds on each endpoint."],
+  ["One platform correlates detections from endpoints, email, cloud and the network into one incident.", "Extended detection and response (XDR)", ["Endpoint detection and response (EDR)"], "it joins detection across many sources."],
+  ["Software on each PC compares files against signatures of known malware and quarantines matches.", "Antivirus", ["Endpoint detection and response (EDR)", "Extended detection and response (XDR)"], "signature-based malware blocking."],
+  ["Outgoing email that contains credit card numbers is blocked automatically.", "Data loss prevention (DLP)", [], "it stops sensitive data from leaving."],
+  ["Company phones are enrolled so IT can enforce a PIN, push apps and wipe them if they are lost.", "Mobile device management (MDM)", [], "central control of mobile devices."],
+  ["A Windows domain pushes a password policy and blocks USB storage on every PC.", "Group Policy", ["Hardening"], "Windows settings enforced from the domain."],
+  ["A Linux server confines each service, so a compromised web server can't read files outside its own.", "Security-enhanced Linux (SELinux)", ["Hardening"], "mandatory access rules on Linux."],
+  ["Before a server goes live, default accounts are removed, unneeded services disabled and settings locked down.", "Hardening", ["Group Policy", "Security-enhanced Linux (SELinux)"], "reducing a system's weak points."],
+  ["Wireless sensors detect and block a rogue access point broadcasting the company's network name.", "Wireless intrusion prevention system (WIPS)", [], "it watches the airwaves and blocks wireless attacks."]
+];
+const MIT_T_ALL = [...new Set(MIT_T.map(x=>x[1]))];
+const MIT_T_DEF = {"Honeyfile": "a fake file that alerts when opened", "Honeypot": "a decoy system", "Honeynet": "a decoy network", "Honeytoken": "fake credentials or data that alert when used", "Canary account": "an unused account that alerts on sign-in", "Sandboxing": "running code in isolation", "Rate-limiting requests": "capping how many requests a source can make", "Web application firewall (WAF)": "a filter for web app attacks", "Secrets scanning": "finding credentials in code", "Allow lists": "only listed software may run", "Captive portals": "a web page gate before network access", "Endpoint posture/compliance": "checking a device's health before access", "802.1X": "port-based authentication before network access", "Endpoint detection and response (EDR)": "recording and responding on each endpoint", "Extended detection and response (XDR)": "detection joined across endpoints, email, cloud and network", "Antivirus": "signature-based malware blocking", "Data loss prevention (DLP)": "stopping sensitive data from leaving", "Mobile device management (MDM)": "central control of phones and tablets", "Group Policy": "Windows settings enforced from the domain", "Security-enhanced Linux (SELinux)": "mandatory access rules on Linux", "Hardening": "removing weak points from a system", "Wireless intrusion prevention system (WIPS)": "detecting and blocking wireless attacks"};
+const APPSEC_T = [
+  ["The login form rejects input with characters a username can't contain before it is used in a database query.", "Input validation", [], "it checks input before the app uses it."],
+  ["Session cookies are marked so they are only sent over HTTPS and can't be read by page scripts.", "Secure cookies", [], "cookie flags protect session tokens."],
+  ["A tool reads the source code without running it and flags a likely SQL injection.", "Static code analysis", [], "it finds flaws in code that isn't running."],
+  ["The vendor signs each update, so computers can check it really came from them and wasn't changed.", "Code signing", [], "a signature proves where code came from and that it is unchanged."],
+  ["A DNS record lists the mail servers allowed to send email for the domain.", "Sender Policy Framework (SPF)", [], "it names the allowed senders."],
+  ["Each outgoing email carries a signature that receivers check with a public key published in DNS.", "DomainKeys Identified Mail (DKIM)", [], "it signs each message."],
+  ["The domain's DNS record tells receivers to reject mail that fails the sender checks, and where to send reports.", "Domain-based Message Authentication, Reporting, and Conformance (DMARC)", [], "it sets the policy and reporting for failed checks."],
+  ["Mail apps show the company's verified logo beside its authenticated emails.", "Brand Indicators for Message Identification (BIMI)", [], "it displays a verified brand logo."]
+];
+const APPSEC_T_ALL = [...new Set(APPSEC_T.map(x=>x[1]))];
+const APPSEC_T_DEF = {"Input validation": "checking input before using it", "Secure cookies": "cookie settings that protect session tokens", "Static code analysis": "scanning code without running it", "Code signing": "signing code to prove origin and integrity", "Sender Policy Framework (SPF)": "a list of servers allowed to send a domain's mail", "DomainKeys Identified Mail (DKIM)": "a signature on each email", "Domain-based Message Authentication, Reporting, and Conformance (DMARC)": "the policy for mail that fails checks, with reports", "Brand Indicators for Message Identification (BIMI)": "a verified logo shown beside authenticated mail"};
+const VULNM_T = [
+  ["Every week a tool checks all servers for missing patches and known flaws.", "Scanning", [], "it looks for known vulnerabilities automatically."],
+  ["The team uses its IP address management system to list every address in use, so no device is missed by the scans.", "Internet Protocol Address Management (IPAM)", [], "it shows every address that should be checked."],
+  ["A tool keeps checking the company's cloud accounts for public storage and overly open network rules.", "Cloud security posture management (CSPM)", [], "it finds risky cloud settings."],
+  ["Before release, a second developer reads the new login code looking for flaws.", "Source code review", [], "a person reads the code for weaknesses."],
+  ["Out of 300 findings, the team uses CVSS scores and whether each system faces the internet to decide what to fix first.", "Severity assessment", [], "it ranks findings by how bad and how exposed they are."],
+  ["The team reads the testers' write-up of how they reached domain admin and which flaws they chained together.", "Penetration test report review", [], "it shows which flaws really led somewhere."],
+  ["The missing patch is installed on all affected servers.", "Remediation", ["Verification"], "the flaw is fixed."],
+  ["After patching, the scan is run again to confirm the flaw is gone.", "Verification", ["Remediation", "Scanning"], "proof that the fix worked."],
+  ["Each month, a summary of open vulnerabilities and how long they've been open goes to management.", "Reporting", [], "it keeps owners and leaders informed."],
+  ["Outside researchers are paid for each valid flaw they find in the company's website.", "Bounty program", ["Responsible disclosure policies"], "it rewards outsiders for finding flaws."],
+  ["The website explains how researchers should report flaws and promises no legal action against those who follow the rules.", "Responsible disclosure policies", ["Bounty program"], "it gives outsiders a safe way to report flaws."]
+];
+const VULNM_T_ALL = [...new Set(VULNM_T.map(x=>x[1]))];
+const VULNM_T_DEF = {"Scanning": "automated checks for known flaws", "Internet Protocol Address Management (IPAM)": "tracking every IP address in use", "Cloud security posture management (CSPM)": "checking cloud settings for risk", "Source code review": "a person reading code for flaws", "Severity assessment": "ranking findings by impact and exposure", "Penetration test report review": "reading what testers proved", "Remediation": "fixing the flaw", "Verification": "confirming the fix worked", "Reporting": "telling owners and leaders what is open", "Bounty program": "paying outsiders for valid flaws", "Responsible disclosure policies": "rules for how outsiders report flaws safely"};
+const MON_T = [
+  ["Logs from firewalls, servers and apps are all collected in one central place.", "Log aggregation", ["Security information and event management (SIEM)"], "collecting logs together."],
+  ["A platform collects logs and correlates events across sources to raise alerts on attacks.", "Security information and event management (SIEM)", ["Log aggregation"], "it correlates events and alerts."],
+  ["A rule fires 500 times a day for a harmless backup job, so the team changes it to ignore that job.", "Alert tuning", [], "it cuts false positives so real alerts stand out."],
+  ["Logs older than 30 days are moved to cheaper storage and kept for a year, as the retention policy requires.", "Archiving", [], "keeping old logs for later use."],
+  ["Routers send summaries of which addresses talked, when and how much, without the packet contents.", "NetFlow", ["Packet analyzer"], "flow records: who, when and how much."],
+  ["Network devices send their log messages to a central log server using the standard logging protocol.", "syslog", [], "the standard protocol for sending log messages."],
+  ["A monitoring server polls switches for errors and CPU use, and the switches send traps when something fails.", "Simple Network Management Protocol (SNMP)", [], "polling and traps for device health."],
+  ["Scanners use a standard format to check systems against configuration baselines and report results the same way.", "Security Content Automation Protocol (SCAP)", ["Benchmarks"], "a standard way to describe and check secure configuration."],
+  ["Servers are compared with the recommended secure settings published for their operating system.", "Benchmarks", ["Security Content Automation Protocol (SCAP)"], "published secure configuration settings."],
+  ["A switch copies all traffic from one port to another port where a sensor watches it.", "Port mirroring", ["Packet analyzer"], "a copy of traffic goes to a monitoring port."],
+  ["An analyst opens a capture and reads each packet's headers and contents to see what the malware sent.", "Packet analyzer", ["Port mirroring", "NetFlow"], "it decodes individual packets."],
+  ["One screen shows open alerts, the most attacked hosts and patch status at a glance.", "Dashboards", [], "a summary view of current status."],
+  ["Monitoring is done with remote queries, without installing any software on the systems.", "Agentless", [], "nothing is installed on the monitored system."]
+];
+const MON_T_ALL = [...new Set(MON_T.map(x=>x[1]))];
+const MON_T_DEF = {"Log aggregation": "collecting logs in one place", "Security information and event management (SIEM)": "correlating events across sources and alerting", "Alert tuning": "adjusting rules to cut false positives", "Archiving": "keeping old logs in long-term storage", "NetFlow": "records of who talked to whom, when and how much", "syslog": "the standard protocol for sending log messages", "Simple Network Management Protocol (SNMP)": "polling devices and receiving traps", "Security Content Automation Protocol (SCAP)": "a standard for checking secure configuration", "Benchmarks": "published secure settings", "Port mirroring": "copying traffic to a monitoring port", "Packet analyzer": "a tool that decodes captured packets", "Dashboards": "a summary view of status", "Agentless": "monitoring without installed software"};
+const IAM_ID = [
+  ["Before an account is created, HR checks the new hire's government ID in person.", "Identity proofing", [], "it confirms who someone is before giving them an identity."],
+  ["Employees sign in once in the morning and reach email, HR and file sharing without signing in again.", "Single sign-on (SSO)", ["Federation", "Security Assertion Markup Language (SAML)"], "one sign-in for many apps."],
+  ["Staff at a partner company use their own company's login to reach your supplier portal.", "Federation", ["Single sign-on (SSO)", "Security Assertion Markup Language (SAML)"], "trusting another organization's identities."],
+  ["An XML-based standard passes a signed statement of who the user is from the identity provider to a web app.", "Security Assertion Markup Language (SAML)", ["Federation", "Single sign-on (SSO)"], "the format that carries signed identity statements."],
+  ["A photo app asks for permission to read your cloud drive, without ever getting your password.", "Open authorization (OAuth)", [], "it grants an app limited access without your password."],
+  ["An app looks up a user's group membership in the company directory.", "Lightweight Directory Access Protocol (LDAP)", [], "the protocol for querying the directory."],
+  ["A sealed envelope holds the password to a break-glass admin account, used only when normal sign-in is down.", "Emergency access", [], "an account kept for emergencies only."],
+  ["The day an employee leaves, all of their accounts are disabled.", "Deprovisioning user accounts", [], "access is removed when it is no longer needed."],
+  ["Every quarter, managers confirm whether each person on their team still needs each permission.", "Access review", [], "a regular check that access is still needed."],
+  ["A vendor's support staff get their own accounts, limited to the system they support and expiring with the contract.", "Third-party account", [], "accounts for people outside the organization."],
+  ["The backup software runs its nightly jobs under an account that no person signs in with.", "Service account", [], "an account used by software, not a person."]
+];
+const IAM_ID_ALL = [...new Set(IAM_ID.map(x=>x[1]))];
+const IAM_ID_DEF = {"Identity proofing": "confirming who someone is", "Single sign-on (SSO)": "one sign-in for many apps", "Federation": "trusting another organization's identities", "Security Assertion Markup Language (SAML)": "an XML format for signed identity statements", "Open authorization (OAuth)": "granting apps limited access without your password", "Lightweight Directory Access Protocol (LDAP)": "querying a directory of users and groups", "Emergency access": "break-glass accounts for emergencies", "Deprovisioning user accounts": "removing access when it is no longer needed", "Access review": "regularly checking who still needs access", "Third-party account": "an account for someone outside the organization", "Service account": "an account used by software"};
+const IAM_AC = [
+  ["Nurses get the permissions of the Nurse group and doctors those of the Doctor group.", "Role-based", [], "access follows the job role."],
+  ["The owner of a file decides who else can read or change it.", "Discretionary", [], "the owner decides."],
+  ["Labels such as Secret and Top secret on users and files decide access, and users can't change them.", "Mandatory", [], "the system enforces labels nobody can override."],
+  ["Contractors can sign in only Monday to Friday, 8 a.m. to 6 p.m.", "Time-based", ["Rule-based"], "access depends on the time."],
+  ["The firewall allows a connection only if it matches a rule the admin set, the same for every user.", "Rule-based", ["Time-based"], "admin-defined rules apply to everyone."],
+  ["An admin requests domain admin rights for one hour for a task, and they are removed automatically afterward.", "Just-in-time", ["Time-based"], "rights exist only for the task."]
+];
+const IAM_AC_ALL = [...new Set(IAM_AC.map(x=>x[1]))];
+const IAM_AC_DEF = {"Role-based": "access by job role", "Discretionary": "the owner decides who has access", "Mandatory": "system-enforced labels", "Time-based": "access only at certain times", "Rule-based": "admin-defined rules for everyone", "Just-in-time": "rights granted only for a task, then removed"};
+const IAM_MFA = [
+  ["A small key-fob device shows a new six-digit code every 30 seconds.", "Hard token", ["One-time password (OTP)"], "a physical device that makes codes."],
+  ["An authenticator app on a phone makes the sign-in codes.", "Soft token", ["One-time password (OTP)"], "software that makes codes."],
+  ["A fingerprint reader unlocks the laptop.", "Biometrics", ["Passkey"], "a body feature proves who you are."],
+  ["A code sent by text message works for this one sign-in only.", "One-time password (OTP)", ["Soft token", "Hard token"], "a code that works once."],
+  ["A printed list of single-use codes lets you sign in if the phone with the authenticator app is lost.", "Backup code", ["One-time password (OTP)"], "a fallback when your usual factor is lost."],
+  ["The site makes a key pair for you; the private key stays on your device and is unlocked with your face or PIN, so there is no password.", "Passkey", ["Biometrics"], "a device-held key replaces the password."],
+  ["A tool creates and stores a long, different password for every site.", "Password managers", [], "unique strong passwords without memorizing them."],
+  ["The company is alerted when an employee's work email and password appear in a leaked breach dump.", "Compromised credential monitoring", [], "it watches for leaked credentials."],
+  ["The policy requires passwords of at least 15 characters.", "Password length", [], "longer passwords are much harder to guess."]
+];
+const IAM_MFA_ALL = [...new Set(IAM_MFA.map(x=>x[1]))];
+const IAM_MFA_DEF = {"Hard token": "a physical device that makes codes", "Soft token": "an app that makes codes", "Biometrics": "fingerprint, face or other body features", "One-time password (OTP)": "a code that works once", "Backup code": "a fallback single-use code", "Passkey": "a device-held key that replaces a password", "Password managers": "tools that create and store unique passwords", "Compromised credential monitoring": "watching for leaked credentials", "Password length": "the minimum number of characters"};
+const IR_T = [
+  ["The team talks through a ransomware scenario around a table, without touching any systems.", "Tabletop exercises", ["Simulation"], "a discussion-based walk-through."],
+  ["A realistic fake attack is run, and responders handle it live as if it were real.", "Simulation", ["Tabletop exercises"], "a hands-on rehearsal."],
+  ["Step-by-step instructions for handling a lost laptop are written in advance.", "Playbooks", [], "prepared steps for a known kind of incident."],
+  ["A software vendor warns customers that a flaw in its product is being exploited.", "External advisory", [], "a warning from outside the organization."],
+  ["Analysts search the logs for signs of an attacker that no alert has flagged.", "Threat hunting", [], "actively looking for what alerts missed."],
+  ["The infected laptop is disconnected from the network so the malware can't spread.", "Quarantine/isolation", [], "containment: stopping the spread."],
+  ["Each person who handles the seized drive signs a form saying when they had it and why.", "Chain of custody", ["Preservation"], "a record of who held evidence and when."],
+  ["Lawyers ask IT to collect every email about a contract for a lawsuit.", "E-discovery", ["Preservation"], "collecting electronic data for a legal case."],
+  ["A legal hold stops the logs from being deleted by the normal cleanup job.", "Preservation", ["Chain of custody", "E-discovery"], "keeping evidence unchanged and available."],
+  ["Analysts examine a disk image to find which files the attacker created and when.", "Digital forensics", ["Chain of custody", "Preservation"], "examining evidence to reconstruct what happened."],
+  ["The malware is removed, accounts are reset, and servers are rebuilt from clean images and put back in service.", "Eradication/recovery", [], "removing the threat and restoring service."],
+  ["A specialist firm contacts the ransomware group to discuss its demands.", "Negotiation", [], "talking with the attacker about terms."],
+  ["The company informs the regulator and affected customers within the deadline the law sets.", "Notification/external reporting", [], "telling the people who must be told."],
+  ["A meeting after the incident agrees what to change so it doesn't happen again.", "Lessons learned", ["Root cause analysis"], "turning the incident into improvements."],
+  ["The team traces the breach back to an unpatched VPN appliance as the underlying cause.", "Root cause analysis", ["Lessons learned"], "finding the underlying cause."]
+];
+const IR_T_ALL = [...new Set(IR_T.map(x=>x[1]))];
+const IR_T_DEF = {"Tabletop exercises": "talking through a scenario", "Simulation": "acting out a realistic attack", "Playbooks": "prepared step-by-step responses", "External advisory": "a warning from outside", "Threat hunting": "searching for attackers no alert caught", "Quarantine/isolation": "cutting an affected system off", "Chain of custody": "a record of who held evidence and when", "E-discovery": "collecting electronic data for legal cases", "Preservation": "keeping evidence unchanged", "Digital forensics": "examining evidence to find what happened", "Eradication/recovery": "removing the threat and restoring service", "Negotiation": "talking with the attacker about terms", "Notification/external reporting": "telling regulators, customers and others who must know", "Lessons learned": "agreeing improvements after an incident", "Root cause analysis": "finding the underlying cause"};
+const INV_T = [
+  ["A capture of everything in a running computer's memory, taken before it is shut down.", "Memory dump", ["Snapshot"], "it keeps what was running, which is lost at power-off."],
+  ["An exact copy of a drive, every bit, including deleted and unused space.", "Bit-level copy", ["Snapshot"], "a forensic copy of the whole drive."],
+  ["The hypervisor saves a virtual machine's disk and memory state at one moment, so it can be examined later.", "Snapshot", ["Bit-level copy", "Memory dump"], "a point-in-time copy of a system."],
+  ["Badge reader records show who entered the server room at 2 a.m.", "Physical access logs", ["Surveillance footage"], "records of physical entry."],
+  ["Camera recordings show who walked into the server room.", "Surveillance footage", ["Physical access logs"], "video of what happened."],
+  ["Records of which addresses talked, when and how much data moved, without the contents.", "NetFlow/IPFIX", ["Packet captures"], "flow summaries: who, when and how much."],
+  ["The full traffic of the attack, including the file the attacker downloaded.", "Packet captures", ["NetFlow/IPFIX"], "the complete contents of network traffic."],
+  ["A photo file records the camera model, the location and the time it was taken.", "Metadata", [], "data about data."],
+  ["Hashes of the log files are recorded, so anyone can later show the logs weren't changed.", "File/log integrity", [], "proof that evidence is unchanged."],
+  ["Windows sign-in events show 400 failed logins across 200 accounts from one address.", "Authentication logs", [], "records of sign-in attempts."],
+  ["An analyst uses search filters and regular expressions to pull every failed login out of a million-line log.", "Log-parsing techniques", [], "finding what matters in large logs."],
+  ["Last night's scan shows the server was missing the patch the attacker used.", "Vulnerability scans", [], "it shows which weaknesses were present."]
+];
+const INV_T_ALL = [...new Set(INV_T.map(x=>x[1]))];
+const INV_T_DEF = {"Memory dump": "a copy of a running system's memory", "Bit-level copy": "an exact copy of every bit on a drive", "Snapshot": "a point-in-time copy, often of a virtual machine", "Physical access logs": "badge and door records", "Surveillance footage": "camera recordings", "NetFlow/IPFIX": "flow records without contents", "Packet captures": "full copies of network traffic", "Metadata": "data about data, such as times and locations", "File/log integrity": "hashes that prove files weren't changed", "Authentication logs": "records of sign-in attempts", "Log-parsing techniques": "filtering and searching logs", "Vulnerability scans": "scan results showing weaknesses"};
+GEN.sec[2].push(
+  sk('Security controls', ()=>{ const {s, a, wrongs} = pickSc(CTRL_TYPE, CTRL_TYPE_ALL), row = CTRL_TYPE.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which control type is this?', a, wrongs, scWhy(CTRL_TYPE_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['1.1']}}),
+  sk('Security controls', ()=>{ const {s, a, wrongs} = pickSc(CTRL_CAT, CTRL_CAT_ALL), row = CTRL_CAT.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which control category is this?', a, wrongs, scWhy(CTRL_CAT_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['1.1']}}),
+  sk('Security controls', ()=>{ const {s, a, wrongs} = pickSc(SECCON, SECCON_ALL), row = SECCON.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which security concept is this?', a, wrongs, scWhy(SECCON_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['1.1']}}),
+  sk('PKI & encryption', ()=>{ const {s, a, wrongs} = pickSc(PKI_T, PKI_T_ALL), row = PKI_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which PKI or certificate term is this?', a, wrongs, scWhy(PKI_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['1.3']}}),
+  sk('PKI & encryption', ()=>{ const {s, a, wrongs} = pickSc(ENC_T, ENC_T_ALL), row = ENC_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which cryptographic solution is this?', a, wrongs, scWhy(ENC_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['1.3']}}),
+  sk('Infrastructure security', ()=>{ const {s, a, wrongs} = pickSc(INFRA_T, INFRA_T_ALL), row = INFRA_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which infrastructure concept is this?', a, wrongs, scWhy(INFRA_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['3.2']}}),
+  sk('Mitigations', ()=>{ const {s, a, wrongs} = pickSc(MIT_T, MIT_T_ALL), row = MIT_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which mitigation is this?', a, wrongs, scWhy(MIT_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.1']}}),
+  sk('Mitigations', ()=>{ const {s, a, wrongs} = pickSc(APPSEC_T, APPSEC_T_ALL), row = APPSEC_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which application or email security control is this?', a, wrongs, scWhy(APPSEC_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.1']}}),
+  sk('Vulnerability management', ()=>{ const {s, a, wrongs} = pickSc(VULNM_T, VULNM_T_ALL), row = VULNM_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which vulnerability management task is this?', a, wrongs, scWhy(VULNM_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.3']}}),
+  sk('Monitoring & alerting', ()=>{ const {s, a, wrongs} = pickSc(MON_T, MON_T_ALL), row = MON_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which monitoring activity, tool or protocol is this?', a, wrongs, scWhy(MON_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.4']}}),
+  sk('Identity & access management', ()=>{ const {s, a, wrongs} = pickSc(IAM_ID, IAM_ID_ALL), row = IAM_ID.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which identity and access concept is this?', a, wrongs, scWhy(IAM_ID_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.5']}}),
+  sk('Identity & access management', ()=>{ const {s, a, wrongs} = pickSc(IAM_AC, IAM_AC_ALL), row = IAM_AC.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which access control model is this?', a, wrongs, scWhy(IAM_AC_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.5']}}),
+  sk('Identity & access management', ()=>{ const {s, a, wrongs} = pickSc(IAM_MFA, IAM_MFA_ALL), row = IAM_MFA.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which authentication method or password concept is this?', a, wrongs, scWhy(IAM_MFA_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.5']}}),
+  sk('Incident response activities', ()=>{ const {s, a, wrongs} = pickSc(IR_T, IR_T_ALL), row = IR_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which incident response activity is this?', a, wrongs, scWhy(IR_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.7']}}),
+  sk('Investigation data', ()=>{ const {s, a, wrongs} = pickSc(INV_T, INV_T_ALL), row = INV_T.find(r=>r[0]===s);
+      return mcq('sec',2,'"'+s+'" Which data source or artifact is this?', a, wrongs, scWhy(INV_T_DEF, a, row[3])); },
+    {lookup:true, obj:{'SY0-801':['4.8']}})
+);
 /* Acronyms (deck in acronyms.js): pick the acronym from its one-line job, against lookalikes from the same group.
    The typed modes live on Review → Acronyms and score into this same skill. */
 GEN.sec[2].push(

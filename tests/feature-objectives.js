@@ -12,8 +12,8 @@ eval(js.split('/* ===================== STATE')[0] + ';' + line('shuffle') + ';'
   'TABLES: {GOV_DOCS:[GOV_DOCS, GOV_ALL], DATA_ROLES:[DATA_ROLES, ROLE_ALL], CUSTODY:[CUSTODY, ROLE_ALL], TREAT:[TREAT, TREAT_ALL], RISK_TERMS:[RISK_TERMS, RISK_TERMS_ALL],' +
   'RECOVERY:[RECOVERY, RECOVERY_ALL], AGREE:[AGREE, AGREE_ALL], VENDOR:[VENDOR, VENDOR_ALL], CONSEQ:[CONSEQ, CONSEQ_ALL], AUDIT:[AUDIT, AUDIT_ALL], PENTEST:[PENTEST, PENTEST_ALL],' +
   'NET_ATK:[NET_ATK, NET_ATK_ALL], NET_DEF:[NET_DEF, NET_DEF_ALL], AAA:[AAA, AAA_ALL], REGS:[REGS, REGS_ALL],' +
-  'ACTORS:[ACTORS, ACTORS_ALL], MOTIVES:[MOTIVES, MOTIVES_ALL], VECTORS:[VECTORS, VECTORS_ALL], VULNS:[VULNS, VULNS_ALL], INTEL:[INTEL, INTEL_ALL], IOC:[IOC, IOC_ALL], AI_T:[AI_T, AI_ALL], CHANGE_T:[CHANGE_T, CHANGE_ALL], ARCH_T:[ARCH_T, ARCH_ALL], ASSET_T:[ASSET_T, ASSET_ALL], AUTO_T:[AUTO_T, AUTO_ALL]}, AWARE,' +
-  'DEFS:{ACTORS:[ACTORS, ACTORS_DEF], MOTIVES:[MOTIVES, MOTIVES_DEF], VECTORS:[VECTORS, VECTORS_DEF], VULNS:[VULNS, VULNS_DEF], INTEL:[INTEL, INTEL_DEF], IOC:[IOC, IOC_DEF], AI_T:[AI_T, AI_DEF], CHANGE_T:[CHANGE_T, CHANGE_DEF], ARCH_T:[ARCH_T, ARCH_DEF], ASSET_T:[ASSET_T, ASSET_DEF], AUTO_T:[AUTO_T, AUTO_DEF]}};');
+  'ACTORS:[ACTORS, ACTORS_ALL], MOTIVES:[MOTIVES, MOTIVES_ALL], VECTORS:[VECTORS, VECTORS_ALL], VULNS:[VULNS, VULNS_ALL], INTEL:[INTEL, INTEL_ALL], IOC:[IOC, IOC_ALL], AI_T:[AI_T, AI_ALL], CHANGE_T:[CHANGE_T, CHANGE_ALL], ARCH_T:[ARCH_T, ARCH_ALL], ASSET_T:[ASSET_T, ASSET_ALL], AUTO_T:[AUTO_T, AUTO_ALL], CTRL_TYPE:[CTRL_TYPE, CTRL_TYPE_ALL], CTRL_CAT:[CTRL_CAT, CTRL_CAT_ALL], SECCON:[SECCON, SECCON_ALL], PKI_T:[PKI_T, PKI_T_ALL], ENC_T:[ENC_T, ENC_T_ALL], INFRA_T:[INFRA_T, INFRA_T_ALL], MIT_T:[MIT_T, MIT_T_ALL], APPSEC_T:[APPSEC_T, APPSEC_T_ALL], VULNM_T:[VULNM_T, VULNM_T_ALL], MON_T:[MON_T, MON_T_ALL], IAM_ID:[IAM_ID, IAM_ID_ALL], IAM_AC:[IAM_AC, IAM_AC_ALL], IAM_MFA:[IAM_MFA, IAM_MFA_ALL], IR_T:[IR_T, IR_T_ALL], INV_T:[INV_T, INV_T_ALL]}, AWARE,' +
+  'DEFS:{ACTORS:[ACTORS, ACTORS_DEF], MOTIVES:[MOTIVES, MOTIVES_DEF], VECTORS:[VECTORS, VECTORS_DEF], VULNS:[VULNS, VULNS_DEF], INTEL:[INTEL, INTEL_DEF], IOC:[IOC, IOC_DEF], AI_T:[AI_T, AI_DEF], CHANGE_T:[CHANGE_T, CHANGE_DEF], ARCH_T:[ARCH_T, ARCH_DEF], ASSET_T:[ASSET_T, ASSET_DEF], AUTO_T:[AUTO_T, AUTO_DEF], CTRL_TYPE:[CTRL_TYPE, CTRL_TYPE_DEF], CTRL_CAT:[CTRL_CAT, CTRL_CAT_DEF], SECCON:[SECCON, SECCON_DEF], PKI_T:[PKI_T, PKI_T_DEF], ENC_T:[ENC_T, ENC_T_DEF], INFRA_T:[INFRA_T, INFRA_T_DEF], MIT_T:[MIT_T, MIT_T_DEF], APPSEC_T:[APPSEC_T, APPSEC_T_DEF], VULNM_T:[VULNM_T, VULNM_T_DEF], MON_T:[MON_T, MON_T_DEF], IAM_ID:[IAM_ID, IAM_ID_DEF], IAM_AC:[IAM_AC, IAM_AC_DEF], IAM_MFA:[IAM_MFA, IAM_MFA_DEF], IR_T:[IR_T, IR_T_DEF], INV_T:[INV_T, INV_T_DEF]}};');
 let bad = 0; const fail = (...a) => { bad++; if (bad < 25) console.log('FAIL', ...a); };
 const strip = s => String(s).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
 const all = Object.keys(T.GEN).flatMap(tid => T.genFor(tid, 0).map(f => ({ f, tid })));
@@ -28,6 +28,10 @@ for (const { f, tid } of tagged) for (const [code, list] of Object.entries(f.obj
 }
 for (const [code, e] of Object.entries(T.OBJECTIVES)) {
   if (!/document version \d/.test(e.doc)) fail(code, 'has no document version');
+  /* "full" claims every objective in the document is listed: each domain's objectives must run x.1, x.2 ... with no gap */
+  if (e.full) { const by = {}; for (const o of Object.keys(e.o)) (by[o.split('.')[0]] = by[o.split('.')[0]] || []).push(+o.split('.')[1]);
+    for (const [d, l] of Object.entries(by)) if (l.sort((a, b) => a - b).some((n, i) => n !== i + 1)) fail(code, 'is marked full but domain', d, 'has a gap:', l.join(','));
+    if (Object.keys(by).length !== 5) fail(code, 'is marked full but does not list 5 domains'); }
   for (const o of Object.keys(e.o)) if (!used.has(code + ' ' + o)) fail('listed objective has no questions:', code, o);
 }
 /* term level: every answer a scenario generator gives must be a term that each tagged objective (in that exam version)
