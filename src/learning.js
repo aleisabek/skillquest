@@ -83,14 +83,14 @@ function vLesson(id, mission, opts){
   const preview = !!(opts && opts.preview);
   const s = skillById(id), L = lessonFor(id);
   if(!s || !L){ toast('No lesson for this skill yet'); return; }
-  current = 'skills'; header();
+  current = 'skills'; header(); queueMicrotask(enterView);   /* after the lesson is drawn */
   /* a lesson counts as read when you finish it (Practice or Back), not when it opens. From today's plan (mission
      'p0'..'p2') that can complete the Learn step, and its practice is that slot's exercises. */
   const fromPlan = /^p[0-2]$/.test(mission||'');
   const markRead = ()=>{ S.lessons = S.lessons || {}; S.lessons[id] = dayStr(); S.days[dayStr()] = S.days[dayStr()] || {}; afterStep(); save(); };
   const v = skillScore(id), [st, cls] = skillStatus(id);
   view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · practice score '+v+'% ('+st+') · about 2 minutes</p>'+
-    '<div class="card"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+
+    '<div class="card reading"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+
     '<h2>The core idea</h2>'+L.idea+
     (SCENES[id] ? '<h2>Watch it</h2><div id="scene" role="group" aria-label="Animated explainer: '+esc(SCENES[id].title)+'"></div>' : '')+
     (L.seen ? '<h2>You\'ll see this as</h2><div class="model">'+L.seen+'</div>' : '')+

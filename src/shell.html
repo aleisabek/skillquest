@@ -12,13 +12,15 @@
   <div class="top">
     <div class="logo"><span class="glitch" data-text="SKILLQUEST">SKILLQUEST</span><span class="ver">v2.0 // hack the gap</span></div>
     <div class="stats">
+      <span class="status">
       <span class="pill" id="rank">Intern</span>
       <span class="pill" title="Experience points"><span id="xp">0</span> XP</span>
       <span class="xpbar" title="Progress to next rank"><i id="xpfill" style="width:0"></i></span>
       <span class="pill" title="Days in a row with the full loop done: learn, practice, apply, reviews">🔥 <span id="streak">0</span></span>
-      <button id="theme" title="Switch color mode: matrix, cyber, amber">◐ <span id="themeName">matrix</span></button>
+      </span>
+      <button id="theme" title="Next color in this look (hacker or glass). All looks are under Aa.">◐ <span id="themeName">matrix</span></button>
       <button id="rainBtn" title="Turn the code rain on or off">⁂ rain</button>
-      <button id="displayBtn" title="Text size, font and screen effects" aria-expanded="false" aria-controls="display">Aa <span class="sr">display</span></button>
+      <button id="displayBtn" title="Look, text size, font and screen effects" aria-expanded="false" aria-controls="display">Aa <span class="sr">display</span></button>
     </div>
   </div>
   <div id="display" hidden>
@@ -29,8 +31,9 @@
     </fieldset>
     <fieldset><legend>Reading</legend>
       <label><input type="checkbox" id="readableBox"> Easier-to-read font (commands stay monospace)</label><br>
-      <label><input type="checkbox" id="calmBox"> Calm screen: no scanlines, flicker, blinking or code rain</label>
+      <label><input type="checkbox" id="calmBox"> Calm screen: no scanlines, flicker, blinking, code rain or drifting light</label>
     </fieldset>
+    <fieldset id="lookSet"><legend>Look</legend></fieldset>
     <p class="small" style="margin:0">Saved on this device only; your progress isn't affected. <button id="displayClose">Close</button></p>
   </div>
   <nav id="nav" aria-label="Main"></nav>

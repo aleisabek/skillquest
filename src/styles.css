@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=VT323&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=VT323&family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;600;700&display=swap');
 /* Three hacker palettes. Offline, fonts fall back to Cascadia Code / Consolas. */
 :root, :root[data-theme="matrix"]{
   --bg:#030806; --panel:rgba(6,18,12,.88); --panel2:rgba(57,255,136,.07); --text:#c9ffdc; --muted:#6fae86;
@@ -19,6 +19,43 @@
   --line:#4d3510; --accent:#ffb000; --accent2:#ff6b3d; --accent-soft:rgba(255,176,0,.12); --on-accent:#1a0f00;
   --good:#ffd257; --good-soft:rgba(255,210,87,.10); --bad:#ff6b4a; --bad-soft:rgba(255,107,74,.14);
   --warn:#ffe08a; --xp:#ffb000; --glow:0 0 12px rgba(255,176,0,.45); --term-bg:#050300; --term-text:#ffdca6; --term-green:#ffd257;
+}
+/* Glass looks: five futuristic palettes that share one style (the "GLASS LOOK" block near the end), switched on by
+   the html.glass class that applyTheme sets. Each palette sets its colors plus three soft background lights (--orb1-3). */
+:root[data-theme="future"]{
+  --bg:#060914; --text:#e9edfa; --muted:#b6bed8; --accent:#93a8ff; --accent2:#5fe3cf; --on-accent:#0a0f24;
+  --good:#5fe3a1; --bad:#ff98ab; --warn:#ffd27a; --xp:#5fe3cf;
+  --orb1:rgba(110,130,255,.30); --orb2:rgba(60,220,200,.20); --orb3:rgba(170,110,255,.16);
+}
+:root[data-theme="aurora"]{
+  --bg:#0b0718; --text:#f3ecff; --muted:#c8bde2; --accent:#c6a2ff; --accent2:#ffa6dc; --on-accent:#1a0b2e;
+  --good:#6ff0b6; --bad:#ff98a8; --warn:#ffd57d; --xp:#ff90d2;
+  --orb1:rgba(170,100,255,.32); --orb2:rgba(255,100,190,.20); --orb3:rgba(80,200,255,.14);
+}
+:root[data-theme="solar"]{
+  --bg:#110a08; --text:#fcefe6; --muted:#d8c0b2; --accent:#ffb27a; --accent2:#ffd86e; --on-accent:#2a1206;
+  --good:#7fe3a8; --bad:#ff9a9a; --warn:#ffd86e; --xp:#ffb27a;
+  --orb1:rgba(255,140,70,.26); --orb2:rgba(255,200,90,.16); --orb3:rgba(255,90,120,.14);
+}
+:root[data-theme="glacier"]{
+  --bg:#040d13; --text:#e7f7ff; --muted:#b2cbd8; --accent:#7fd6ff; --accent2:#a8f5dc; --on-accent:#03202c;
+  --good:#7cf0b0; --bad:#ffa0af; --warn:#ffdd85; --xp:#7fd6ff;
+  --orb1:rgba(80,190,255,.26); --orb2:rgba(140,255,220,.15); --orb3:rgba(120,140,255,.14);
+}
+:root[data-theme="jade"]{
+  --bg:#05100c; --text:#eafbf2; --muted:#b5d2c3; --accent:#6cf0b4; --accent2:#f2cf7c; --on-accent:#03200f;
+  --good:#5ee6a8; --bad:#ffa0a0; --warn:#f2cf7c; --xp:#f2cf7c;
+  --orb1:rgba(60,220,150,.22); --orb2:rgba(240,200,110,.14); --orb3:rgba(60,170,220,.14);
+}
+/* what every glass palette shares */
+:root.glass{
+  --panel:rgba(255,255,255,.045); --panel2:rgba(255,255,255,.05); --line:rgba(255,255,255,.11);
+  --accent-soft:color-mix(in srgb,var(--accent) 16%,transparent); --good-soft:color-mix(in srgb,var(--good) 14%,transparent);
+  --bad-soft:color-mix(in srgb,var(--bad) 14%,transparent);
+  --glow:0 0 0 1px color-mix(in srgb,var(--accent) 35%,transparent),0 8px 28px -10px color-mix(in srgb,var(--accent) 55%,transparent);
+  --grad:linear-gradient(120deg,var(--accent),var(--accent2));
+  --term-bg:rgba(3,5,12,.72); --term-text:var(--text); --term-green:var(--good);
+  --radius:12px; --shadow:0 20px 50px -24px rgba(0,0,0,.9);
 }
 *{box-sizing:border-box}
 html{background:var(--bg)}
@@ -306,3 +343,279 @@ input.typed.no{border-color:var(--bad)}
 #pilot textarea{font-family:inherit;font-size:.85rem;background:var(--panel);color:var(--text);border:1px solid var(--line);padding:6px;box-sizing:border-box}
 #pilot code{overflow-wrap:anywhere}
 #pilotScene:empty{display:none}
+
+/* ===================== ACRONYM GAME ===================== */
+.acr-modes{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));margin-bottom:14px}
+.acr-modes button{text-align:left;padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.acr-modes button b{font-size:1rem;color:var(--text)}
+.acr-modes button span{font-size:.82rem;color:var(--muted)}
+.acr-modes button[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.acr-stage{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;min-height:84px;margin:8px 0 18px}
+.acr-tile{display:inline-flex;align-items:baseline;padding:10px 14px;border:1px solid var(--line);border-radius:var(--radius);
+  background:var(--panel2);font-size:1.5rem;font-weight:700;line-height:1;color:var(--text);letter-spacing:.02em}
+.acr-tile .rest{display:inline-block;max-width:0;overflow:hidden;white-space:nowrap;opacity:0;vertical-align:bottom;
+  font-weight:500;color:var(--muted);transition:max-width .2s ease-out,opacity .2s ease-out}
+.acr-stage.open .acr-tile .rest{max-width:16em;opacity:1}
+.acr-stage.open .acr-tile{font-size:1.15rem}
+.acr-stage.ok .acr-tile{border-color:var(--good);background:var(--good-soft)}
+.acr-stage.ok .acr-tile b{color:var(--good)}
+.acr-stage.words .acr-tile{font-size:1.1rem;font-weight:500}
+.acr-prompt{text-align:center;font-size:1.05rem;margin:0 auto 14px;max-width:620px}
+.acr-dots{display:flex;gap:6px;justify-content:center;margin:0 0 6px}
+.acr-dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.acr-dots i.now{background:var(--accent)}
+.acr-dots i.r{background:var(--good)} .acr-dots i.w{background:var(--bad)}
+html.calm .acr-tile .rest{transition:none}
+@media (prefers-reduced-motion: reduce){ .acr-tile .rest{transition:none} }
+.acr-tile.minor{font-size:.95rem;font-weight:500;color:var(--muted);background:transparent;border-style:dashed}
+.acr-stage.open .acr-tile.minor{font-size:.95rem}
+.acr-tile.minor .rest{font-weight:500}
+.acr-stage.ok .acr-tile.minor{border-color:var(--line);background:transparent}
+.acr-tile .rest b{color:inherit;font-weight:800}
+.acr-stage.ok .acr-tile .rest b{color:var(--good)}
+
+/* ===================== GLASS LOOK (future, aurora, solar, glacier, jade) =====================
+   Every rule starts with .glass, so the hacker themes are untouched. Frosted panels over soft colored light,
+   a light-catching edge on each panel, rounded shapes and a clean sans-serif. Motion is slow and decorative only,
+   and calm mode / reduced motion stop all of it. */
+.glass body{font-family:"Inter",system-ui,"Segoe UI",Roboto,Arial,sans-serif;letter-spacing:.003em;background:var(--bg)}
+/* the light behind the glass: three soft orbs that drift very slowly, plus a fine grid */
+.glass body::before{content:"";position:fixed;inset:-20%;z-index:0;pointer-events:none;
+  background:radial-gradient(38% 42% at 78% 12%,var(--orb1),transparent 70%),
+             radial-gradient(34% 40% at 12% 30%,var(--orb2),transparent 70%),
+             radial-gradient(40% 40% at 55% 95%,var(--orb3),transparent 70%);
+  filter:blur(20px);animation:orbs 60s ease-in-out infinite alternate}
+@keyframes orbs{from{transform:translate3d(0,0,0) rotate(0)}to{transform:translate3d(-4%,3%,0) rotate(8deg)}}
+.glass body::after{z-index:0;opacity:1;
+  background:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px) 0 0/56px 56px,
+             linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px) 0 0/56px 56px;
+  -webkit-mask:radial-gradient(ellipse at 50% 0%,#000 30%,transparent 80%);mask:radial-gradient(ellipse at 50% 0%,#000 30%,transparent 80%)}
+html.calm.glass body::before{animation:none}
+html.calm.glass body::after{display:block}
+@media (prefers-reduced-motion: reduce){ .glass body::before{animation:none} }
+.glass #rain,.glass #rainBtn{display:none}
+.glass ::selection{background:color-mix(in srgb,var(--accent) 45%,transparent);color:var(--text)}
+.glass *{scrollbar-color:rgba(255,255,255,.18) transparent}
+
+/* the frosted surface, shared by every panel */
+.glass .card,.glass .slim,.glass #display,.glass .explain,.glass .model,.glass .scene,.glass .term,.glass .toast,.glass .opt,
+.glass input.typed,.glass textarea,.glass select,.glass .pill,.glass button:not(.primary){
+  background:linear-gradient(160deg,rgba(255,255,255,.075),rgba(255,255,255,.025));
+  border:1px solid rgba(255,255,255,.10);border-top-color:rgba(255,255,255,.18)}
+/* real blur only on the big surfaces (blurring every button would cost speed for no visible gain) */
+.glass .card,.glass .slim,.glass #display,.glass .toast,.glass .term{-webkit-backdrop-filter:blur(18px) saturate(150%);backdrop-filter:blur(18px) saturate(150%)}
+.glass button[aria-pressed=true]{border-color:var(--accent);color:var(--text);
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 26%,transparent),color-mix(in srgb,var(--accent2) 10%,transparent))}
+
+/* header: a floating glass bar */
+.glass header{background:transparent;border-bottom:none;backdrop-filter:none;padding-top:10px}
+.glass header .top,.glass nav{max-width:1000px}
+.glass header .top{margin:0 auto;border-radius:20px 20px 0 0;padding:12px 18px 8px;
+  background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.03));-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);
+  border:1px solid rgba(255,255,255,.10);border-bottom:none;border-top-color:rgba(255,255,255,.2)}
+.glass nav{border-radius:0 0 20px 20px;padding:4px 18px 12px;margin:0 auto;
+  background:linear-gradient(160deg,rgba(255,255,255,.05),rgba(255,255,255,.02));-webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);
+  border:1px solid rgba(255,255,255,.10);border-top:none;box-shadow:var(--shadow)}
+.glass #display{border-radius:16px;margin:8px auto 0;max-width:560px;box-shadow:var(--shadow)}
+.glass .logo{font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-weight:700;font-size:1.3rem;letter-spacing:.34em;text-shadow:none}
+.glass .logo .glitch{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+.glass .logo .ver{font-family:"Inter",system-ui,sans-serif;letter-spacing:.06em;font-size:.68rem}
+.glass .glitch::before,.glass .glitch::after{display:none}
+
+/* type */
+.glass h1{font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-weight:600;font-size:2.3rem;letter-spacing:-.02em;line-height:1.15;
+  color:var(--text);text-shadow:none;margin-top:34px}
+.glass h1::before{content:none}
+.glass h1::after{content:"";display:block;width:64px;height:3px;margin:12px 0 0;border-radius:3px;animation:none;background:var(--grad)}
+.glass h2{font-family:"Space Grotesk","Inter",system-ui,sans-serif;letter-spacing:.2em;font-size:.76rem;font-weight:600;color:var(--accent2)}
+.glass h2::before,.glass .sub::before{content:none}
+.glass h3{font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-weight:600;letter-spacing:-.005em}
+.glass a:hover{text-shadow:none}
+.glass code{border-radius:6px;background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.12);color:color-mix(in srgb,var(--accent) 55%,#fff)}
+.glass ul.clean li::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;margin:0 10px 2px 2px;background:var(--grad)}
+.glass .ladder .me{text-shadow:none}
+.glass .timer{font-family:"Space Grotesk","Inter",system-ui,sans-serif;font-weight:600;text-shadow:none}
+
+/* buttons */
+.glass button{border-radius:12px;transition:background .2s,border-color .2s,box-shadow .2s,transform .2s}
+.glass button:not(.primary):hover{border-color:color-mix(in srgb,var(--accent) 55%,transparent);color:var(--text);
+  background:linear-gradient(160deg,rgba(255,255,255,.12),rgba(255,255,255,.04));box-shadow:none}
+.glass button.primary{text-transform:none;letter-spacing:.01em;font-size:.9rem;font-weight:700;border:none;color:var(--on-accent);
+  background:var(--grad) var(--accent);box-shadow:0 8px 24px -10px color-mix(in srgb,var(--accent) 80%,transparent),inset 0 1px 0 rgba(255,255,255,.35)}
+.glass button.primary::before{content:none}
+.glass button.primary:hover{filter:brightness(1.07) saturate(1.1);transform:translateY(-1px)}
+.glass button:disabled{transform:none}
+.glass .top button{border-radius:999px}
+
+/* navigation: pill tabs with a lit active pill */
+.glass nav .tabs,.glass nav .subtabs{gap:4px}
+.glass nav button:not(.primary){text-transform:none;border-radius:999px;padding:6px 15px;background:transparent;border-color:transparent}
+.glass nav button::before,.glass nav .subtabs button::before{content:none}
+.glass nav button.on:not(.primary){color:var(--text);box-shadow:inset 0 1px 0 rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.14);
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 30%,transparent),color-mix(in srgb,var(--accent2) 14%,transparent))}
+.glass nav .subtabs{border-left:none;padding-left:2px}
+.glass nav .subtabs button.on:not(.primary){background:rgba(255,255,255,.08)}
+
+/* header stats */
+.glass .pill{border-radius:999px}
+.glass #rank{text-transform:none;letter-spacing:.02em;color:var(--text);border-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.glass #rank::before,.glass #rank::after{content:none}
+.glass .xpbar,.glass .meter{height:8px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08)}
+.glass .xpbar i,.glass .meter i{background:var(--grad);box-shadow:0 0 12px color-mix(in srgb,var(--accent) 60%,transparent);border-radius:999px}
+
+/* cards: frosted, a light-catching edge, a gentle lift on hover */
+.glass .card{clip-path:none;border-radius:20px;padding:20px;box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.07);overflow:hidden}
+.glass .card::before{left:0;right:0;top:0;width:auto;height:1px;box-shadow:none;opacity:.8;
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 80%,transparent),color-mix(in srgb,var(--accent2) 80%,transparent),transparent)}
+.glass .card::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:radial-gradient(120% 60% at 0% 0%,rgba(255,255,255,.06),transparent 50%)}
+.glass .card:hover{border-color:rgba(255,255,255,.2)}
+.glass .grid .card:hover{transform:translateY(-2px)}
+.glass .grid .card{transition:transform .25s ease,border-color .25s}
+html.calm.glass .grid .card:hover,html.calm.glass button.primary:hover{transform:none}
+@media (prefers-reduced-motion: reduce){ .glass .grid .card:hover,.glass button.primary:hover{transform:none} }
+.glass .mission .tag{letter-spacing:.16em;color:var(--accent2)}
+.glass .mission .tag::before,.glass .mission .tag::after{content:none}
+.glass .mission.done{border-color:color-mix(in srgb,var(--good) 45%,transparent);background:linear-gradient(160deg,var(--good-soft),rgba(255,255,255,.03))}
+.glass .mission.done .tag::after{content:" · done ✓";content:" · done ✓" / " done"}
+.glass .ask{background:rgba(0,0,0,.45);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.glass .ask .card{background:linear-gradient(160deg,rgba(40,44,70,.85),rgba(20,22,40,.85))}
+
+/* answers and feedback */
+.glass .opt{border-radius:14px;padding:13px 16px 13px 40px}
+.glass .opt::before{left:16px}
+.glass .opt.right{border-color:color-mix(in srgb,var(--good) 60%,transparent);background:linear-gradient(160deg,var(--good-soft),rgba(255,255,255,.02));box-shadow:none}
+.glass .opt.wrong{border-color:color-mix(in srgb,var(--bad) 60%,transparent);background:linear-gradient(160deg,var(--bad-soft),rgba(255,255,255,.02))}
+.glass .explain,.glass .model{border-radius:14px;border-left:3px solid var(--accent2)}
+.glass .model{border-left-color:var(--accent)}
+.glass .slim{border-radius:14px;border-left:3px solid var(--xp)}
+.glass input.typed,.glass textarea,.glass select{border-radius:12px;color:var(--text)}
+.glass input.typed:focus,.glass textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+.glass input.typed.ok{border-color:var(--good);box-shadow:0 0 0 3px var(--good-soft)}
+.glass input.typed.no{border-color:var(--bad);box-shadow:0 0 0 3px var(--bad-soft)}
+.glass :focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.glass .term{border-radius:16px;background:var(--term-bg);box-shadow:var(--shadow);padding-top:38px;position:relative}
+.glass .term::before{content:"";position:absolute;top:14px;left:16px;width:10px;height:10px;border-radius:50%;
+  background:var(--bad);box-shadow:16px 0 0 var(--warn),32px 0 0 var(--good);opacity:.8}
+.glass .scene{border-radius:16px}
+.glass .flash{border-radius:20px}
+.glass table.res th{background:rgba(255,255,255,.06);color:var(--text)}
+.glass table.res th,.glass table.res td{border-color:rgba(255,255,255,.09)}
+.glass .toast{border-radius:999px;color:var(--text);background:linear-gradient(160deg,rgba(40,44,70,.9),rgba(20,22,40,.9));box-shadow:var(--shadow)}
+.glass .toast::before{content:"✦ ";color:var(--accent2)}
+.glass .lv,.glass .chip{border-radius:999px;font-family:"Inter",system-ui,sans-serif}
+.glass .sq{border-radius:4px}
+.glass .today .step{border-top-color:rgba(255,255,255,.07)}
+.glass .acr-tile{border-radius:14px;background:linear-gradient(160deg,rgba(255,255,255,.09),rgba(255,255,255,.02));
+  border-color:rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
+.glass .acr-stage.ok .acr-tile:not(.minor){background:linear-gradient(160deg,var(--good-soft),rgba(255,255,255,.02));border-color:color-mix(in srgb,var(--good) 55%,transparent)}
+.glass .acr-tile.minor{background:transparent;box-shadow:none}
+/* look picker in the Display panel */
+.looks{display:flex;flex-wrap:wrap;gap:6px 14px}
+.looks label{display:inline-flex;align-items:center;gap:8px}
+.sw{display:inline-block;width:26px;height:16px;border-radius:999px;border:1px solid rgba(255,255,255,.25)}
+.glass nav .subtabs button:not(.primary){padding:4px 12px;font-size:.8rem}
+@media (max-width:600px){ .glass .card{padding:14px;border-radius:16px} .glass header{padding-top:4px} .glass header .top{padding:10px 12px 6px} .glass nav{padding:4px 10px 10px} .glass h1{font-size:1.9rem} }
+/* the Aa panel floats under the header bar as a dropdown, instead of splitting the bar */
+.glass #display{position:absolute;top:100%;right:max(16px,calc(50% - 500px));z-index:20;margin-top:8px;width:min(560px,calc(100% - 32px));
+  background:linear-gradient(160deg,rgba(40,44,70,.82),rgba(16,18,34,.86))}
+/* a disabled main button turns into quiet glass, not a faded gradient */
+.glass button.primary:disabled{background:rgba(255,255,255,.06);color:var(--muted);box-shadow:none;border:1px solid rgba(255,255,255,.1);opacity:1;filter:none}
+
+/* ===================== MOTION + LAYOUT (redesign, 2026-11-12) =====================
+   Motion explains change and stays short: 120 ms for presses, 200 ms for small state changes, 280 ms for a new
+   screen. Springs only on small things. Everything here stops in Calm mode and under reduced motion. */
+:root{--dur-1:120ms;--dur-2:200ms;--dur-3:280ms;--ease-out:cubic-bezier(.2,.8,.2,1);--ease-spring:cubic-bezier(.34,1.4,.64,1)}
+@supports (transition-timing-function: linear(0, 1)){
+  :root{--ease-spring:linear(0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1)}
+}
+.status{display:contents}
+.ring{display:none}
+.bento{display:block}
+
+/* screen entry: added by enterView() only when motion is allowed */
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.rise{animation:rise var(--dur-3) var(--ease-out) both;animation-delay:calc(var(--i,0) * 32ms)}
+
+/* overlays: toast springs up, the confirm box and the Aa panel ease in (all looks) */
+.toast{transition:opacity var(--dur-2),transform var(--dur-3) var(--ease-spring);transform:translate(-50%,12px)}
+.toast.show{transform:translate(-50%,0)}
+@keyframes popin{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:none}}
+@keyframes dropin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.ask{animation:fadein var(--dur-2) ease-out}
+.ask .card{animation:popin var(--dur-3) var(--ease-spring)}
+#display:not([hidden]){animation:dropin var(--dur-2) var(--ease-out)}
+
+/* a right answer gets one soft ring pulse */
+@keyframes okring{from{box-shadow:0 0 0 0 var(--good-soft),0 0 0 0 color-mix(in srgb,var(--good) 45%,transparent)}to{box-shadow:0 0 0 3px var(--good-soft),0 0 0 12px transparent}}
+.opt.right,input.typed.ok{animation:okring .45s var(--ease-out) both}
+
+/* acronym tiles unfold one after another */
+.acr-tile .rest{transition-delay:calc(var(--i,0) * 30ms)}
+
+/* calm / reduced motion: none of the above moves */
+html.calm .rise,html.calm .ask,html.calm .ask .card,html.calm #display,html.calm .opt.right,html.calm input.typed.ok{animation:none}
+html.calm .toast{transition:opacity var(--dur-2);transform:translate(-50%,0)}
+html.calm .acr-tile .rest{transition-delay:0s}
+@media (prefers-reduced-motion: reduce){
+  .rise,.ask,.ask .card,#display,.opt.right,input.typed.ok{animation:none}
+  .toast{transition:opacity var(--dur-2);transform:translate(-50%,0)}
+  .acr-tile .rest{transition-delay:0s}
+}
+
+/* ---------- glass: buttons ---------- */
+.glass button{transition:background var(--dur-2),border-color var(--dur-2),box-shadow var(--dur-2),color var(--dur-2),transform var(--dur-2) var(--ease-spring)}
+.glass button:active:not(:disabled){transform:scale(.97);transition-duration:var(--dur-1)}
+.glass button.primary{position:relative;overflow:hidden;isolation:isolate}
+/* a slow light sheen crosses the main button on hover (::after: ::before belongs to the hacker looks) */
+.glass button.primary::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(110deg,transparent 30%,rgba(255,255,255,.35) 50%,transparent 70%) no-repeat;background-size:250% 100%;background-position:150% 0;
+  transition:background-position .7s var(--ease-out)}
+.glass button.primary:hover:not(:disabled)::after{background-position:-50% 0}
+.glass button.primary:disabled::after{display:none}
+/* third tier: quiet text buttons for secondary actions */
+.glass button.quiet{background:transparent;border-color:transparent;color:var(--muted);text-decoration:underline;text-decoration-color:transparent;text-underline-offset:4px}
+.glass button.quiet:hover{background:transparent;border-color:transparent;color:var(--text);text-decoration-color:currentColor}
+.glass :focus-visible{transition:outline-offset var(--dur-2) var(--ease-spring)}
+
+/* ---------- glass: gliding tab pill ---------- */
+.glass nav .tabs,.glass nav .subtabs{position:relative}
+.glass .navghost{position:absolute;z-index:0;border-radius:999px;pointer-events:none;border:1px solid rgba(255,255,255,.14);
+  background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 30%,transparent),color-mix(in srgb,var(--accent2) 14%,transparent))}
+.glass nav .subtabs .navghost{background:rgba(255,255,255,.08)}
+.glass nav button{position:relative;z-index:1}
+.glass nav button.on.landing:not(.primary){background:transparent;border-color:transparent;box-shadow:none}
+/* sub-tabs as a segmented control */
+.glass nav .subtabs{display:inline-flex;align-self:flex-start;gap:2px;padding:3px;border-radius:999px;background:rgba(0,0,0,.18);border:1px solid rgba(255,255,255,.07);margin-left:0}
+
+/* ---------- glass: status capsule with an XP ring ---------- */
+.glass .status{display:inline-flex;align-items:center;gap:2px;padding:3px 10px 3px 3px;border-radius:999px;
+  background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.1);border-top-color:rgba(255,255,255,.18)}
+.glass .status .pill{background:transparent;border:none;padding:3px 8px}
+.glass .status #rank{background:var(--accent-soft);border:1px solid color-mix(in srgb,var(--accent) 40%,transparent)}
+.glass .status .xpbar{width:22px;height:22px;border-radius:50%;border:none;margin:0 2px;
+  background:conic-gradient(var(--accent) calc(var(--pct,0) * 1%),rgba(255,255,255,.1) 0);
+  -webkit-mask:radial-gradient(circle,transparent 6px,#000 7px);mask:radial-gradient(circle,transparent 6px,#000 7px)}
+.glass .status .xpbar i{display:none}
+
+/* ---------- glass: Today as a bento ---------- */
+.glass .bento{display:grid;gap:14px;grid-template-columns:minmax(0,1.65fr) minmax(0,1fr);align-items:start}
+.glass .bento > .hero{grid-row:span 3}
+.glass .bento > .card{margin:0}
+.glass .bento > .tipline{grid-column:1 / -1;margin:0}
+.glass .hero > .row:first-child{justify-content:flex-start !important;gap:12px}
+.glass .hero > .row:first-child .small{margin-left:auto}
+.glass .ring{display:grid;place-items:center;width:52px;height:52px;border-radius:50%;flex:none;
+  background:conic-gradient(var(--accent) calc(var(--p,0) * 1%),var(--accent2) calc(var(--p,0) * 1%),rgba(255,255,255,.09) 0);
+  -webkit-mask:radial-gradient(circle,transparent 19px,#000 20px);mask:radial-gradient(circle,transparent 19px,#000 20px)}
+.glass .ring span{display:none}
+.glass .strip .sqs{gap:4px}
+.glass .strip .sq{width:15px;height:15px;border-radius:4px}
+@media (max-width:820px){ .glass .bento{grid-template-columns:1fr} .glass .bento > .hero{grid-row:auto} }
+
+/* ---------- glass: reading surfaces (lessons) a little more solid, at a readable width ---------- */
+.glass .card.reading{background:linear-gradient(160deg,rgba(22,26,44,.86),rgba(14,16,30,.86))}
+.glass .card.reading p,.glass .card.reading ul,.glass .card.reading .model{max-width:72ch}
+.glass .card.reading h2{margin-top:30px}
+.glass .card.reading h2:first-child{margin-top:4px}

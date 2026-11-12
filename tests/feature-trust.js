@@ -216,6 +216,11 @@ const recorderRun = async () => {
   /* Security+ governance and Network+ network security now have generated questions (gap-filling, 2026-11-04) */
   expect(!sec.missing.length && !sec.thin.some(d => /Oversight/.test(d.name)), 'Security+ governance should now be measured, with generated questions');
   expect(!net.missing.length && !net.thin.some(d => d.name === 'Network Security'), 'Network+ network security should now be measured, with generated questions');
+  /* SY0-801 (added 2026-11-12): weights from comptia.org sum to 100, every domain measured, and its scores are kept apart from SY0-701's */
+  const s8 = CERTS.find(c => c.id === 'secplus8'), sec8 = cov('secplus8');
+  expect(s8 && s8.code === 'SY0-801' && s8.domains.reduce((a, d) => a + d.w, 0) === 100 && s8.domains.map(d => d.w).join() === '16,24,19,27,14', 'SY0-801 weights are 16/24/19/27/14');
+  expect(!sec8.missing.length && !sec8.thin.some(d => /Oversight/.test(d.name)), 'SY0-801 governance should be measured, with generated questions');
+  expect(CERTS.find(c => c.id === 'secplus').code === 'SY0-701', 'the old id keeps meaning SY0-701, so old exam history is not relabelled');
   const exam = fs.readFileSync(__dirname + '/../src/exam.js', 'utf8');
   for (const gone of ['Close to ready', 'readiness signal', 'before booking the real one', 'Full practice', 'not covered yet', '<h1>📝 Practice exams'])
     expect(!exam.includes(gone), 'exam pages should no longer say', gone);

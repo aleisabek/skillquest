@@ -11,17 +11,15 @@ An offline practice app for entry-level IT jobs: IT support & Microsoft 365, net
 | Command | What it does |
 |---|---|
 | `npm run build` | Builds `dist/SkillQuest.html` |
-| `npm run install-app` (or `npm run release`) | One-command release: runs every check and stops on a failure, keeps the old install as `SkillQuest.prev.html`, installs to `Documents\Job Search\SkillQuest.html` (where the Desktop shortcut points), regenerates the public deck and, only if its cards changed, shows the diff and asks before committing and pushing it. Ends with a reminder to republish the phone version. `--yes` publishes without asking; `--no-deck` skips the deck. |
+| `npm run install-app` (or `npm run release`) | One-command release: runs every check and stops on a failure, keeps the old install as `SkillQuest.prev.html`, installs to `Documents\Job Search\SkillQuest.html` (where the Desktop shortcut points), regenerates the public deck and, only if its cards changed, shows the diff and asks before committing and pushing it. `--yes` publishes without asking; `--no-deck` skips the deck. |
 | `npm test` | Builds, then runs every check (see below) |
 | `npm run export-deck -- --out C:/Users/aleis/Documents/Linux-Cheat-sheet/index.html` | Regenerates the public Linux & Bandit command deck (GitHub Pages: aleisabek/Linux-Cheat-sheet) from the Linux cards. `logo.svg` in that repo is its logo and tab icon. Commit and push that repo to update the live page. |
 
 ## Phone version
 
-`npm run build` also writes `dist/SkillQuest-phone.html`: the same app with `PHONE = true` (no file downloads or microphone; backups move by copy/paste), shaped for the claude.ai artifact viewer. It is published as a **private** artifact at:
+`npm run build` also writes `dist/SkillQuest-phone.html`: the same app with `PHONE = true` (no file downloads or microphone; backups move by copy/paste), shaped for the claude.ai artifact viewer, and built without `src/private.js`.
 
-**https://claude.ai/artifact/GEJcWUxJjXUbdr8Mz9Mzrq** (since 2026-10-28; the earlier link, .../94UVR69nmwKTGZRyYr7pb2, holds the old build. Move phone progress with Copy backup there and Merge pasted backup here.)
-
-Always republish to that same URL so progress saved on the phone survives updates. PC and phone keep separate progress; combine them with How to use → Backup → Copy backup on one device and "Merge pasted backup" on the other.
+**Retired 2026-11-12:** the published phone artifact was deleted and is no longer updated. The build target stays because its private-content guard is the starting point for a later public build.
 
 ## Layout
 

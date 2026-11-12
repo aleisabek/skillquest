@@ -11,7 +11,9 @@ eval(js.split('/* ===================== STATE')[0] + ';' + line('shuffle') + ';'
   ';global.T = {GEN, OBJECTIVES, OBJECTIVE_TERMS, CERTS, buildExam, domCovered, domThin, genFor, LESSONS,' +
   'TABLES: {GOV_DOCS:[GOV_DOCS, GOV_ALL], DATA_ROLES:[DATA_ROLES, ROLE_ALL], CUSTODY:[CUSTODY, ROLE_ALL], TREAT:[TREAT, TREAT_ALL], RISK_TERMS:[RISK_TERMS, RISK_TERMS_ALL],' +
   'RECOVERY:[RECOVERY, RECOVERY_ALL], AGREE:[AGREE, AGREE_ALL], VENDOR:[VENDOR, VENDOR_ALL], CONSEQ:[CONSEQ, CONSEQ_ALL], AUDIT:[AUDIT, AUDIT_ALL], PENTEST:[PENTEST, PENTEST_ALL],' +
-  'NET_ATK:[NET_ATK, NET_ATK_ALL], NET_DEF:[NET_DEF, NET_DEF_ALL], AAA:[AAA, AAA_ALL], REGS:[REGS, REGS_ALL]}, AWARE};');
+  'NET_ATK:[NET_ATK, NET_ATK_ALL], NET_DEF:[NET_DEF, NET_DEF_ALL], AAA:[AAA, AAA_ALL], REGS:[REGS, REGS_ALL],' +
+  'ACTORS:[ACTORS, ACTORS_ALL], MOTIVES:[MOTIVES, MOTIVES_ALL], VECTORS:[VECTORS, VECTORS_ALL], VULNS:[VULNS, VULNS_ALL], INTEL:[INTEL, INTEL_ALL], IOC:[IOC, IOC_ALL], AI_T:[AI_T, AI_ALL]}, AWARE,' +
+  'DEFS:{ACTORS:[ACTORS, ACTORS_DEF], MOTIVES:[MOTIVES, MOTIVES_DEF], VECTORS:[VECTORS, VECTORS_DEF], VULNS:[VULNS, VULNS_DEF], INTEL:[INTEL, INTEL_DEF], IOC:[IOC, IOC_DEF], AI_T:[AI_T, AI_DEF]}};');
 let bad = 0; const fail = (...a) => { bad++; if (bad < 25) console.log('FAIL', ...a); };
 const strip = s => String(s).replace(/<[^>]+>/g, '').replace(/&amp;/g, '&');
 const all = Object.keys(T.GEN).flatMap(tid => T.genFor(tid, 0).map(f => ({ f, tid })));
@@ -55,7 +57,7 @@ for (const { f, tid } of tagged) if (!T.LESSONS['quiz:' + tid + ':' + f.sk]) fai
 
 /* 2. the gaps are filled: Security+ domain 5 and Network+ domain 4 are measured, with generated questions, not thin */
 const cert = id => T.CERTS.find(c => c.id === id);
-for (const [id, n] of [['secplus', 5], ['netplus', 4]]) {
+for (const [id, n] of [['secplus8', 5], ['secplus', 5], ['netplus', 4]]) {
   const d = cert(id).domains.find(x => x.n === n);
   if (!T.domCovered(d)) fail(id, 'domain', n, 'is still unmeasured');
   if (T.domThin(d)) fail(id, 'domain', n, 'is still thin');
@@ -67,7 +69,7 @@ for (const c of T.CERTS) for (const d of c.domains) for (const g of d.tagged || 
 for (const { f } of tagged) for (const c of T.CERTS) for (const o of f.obj[c.code] || [])
   if (!c.domains.find(d => d.n === +o.split('.')[0]).tagged.some(g => g.f === f)) fail('tagged generator missing from its domain', c.code, o, f.sk);
 /* the exams really serve them, credited to a real skill */
-for (const [id, n] of [['secplus', 5], ['netplus', 4]]) for (let k = 0; k < 30; k++) {
+for (const [id, n] of [['secplus8', 5], ['secplus', 5], ['netplus', 4]]) for (let k = 0; k < 30; k++) {
   const items = T.buildExam(cert(id), 45), mine = items.filter(it => it.dom === n);
   if (!mine.length) { fail(id, 'exam has no domain', n, 'questions'); break; }
   for (const it of mine) if (!it.qi && it.qi !== 0 && !/^quiz:(sec|net):/.test(it.sid || '')) { fail(id, 'domain', n, 'item without a skill', it.sid); break; }
@@ -83,6 +85,12 @@ for (const [name, [rows, ALL]] of Object.entries(T.TABLES)) {
     for (const x of not || []) if (!ALL.includes(x)) fail(name, '"not" names something that is never offered:', x);
     if (ALL.filter(x => x !== a && !(not || []).includes(x)).length < 3) fail(name, 'too few safe wrong options for', a);
   }
+}
+/* SY0-801 domain 2 tables explain every option: each answer has a definition and its own reason, so the explanation can say
+   what every wrong option on screen means */
+for (const [name, [rows, DEF]] of Object.entries(T.DEFS)) {
+  for (const [s, a, , why] of rows) if (!DEF[a] || !why || why.length < 15) fail(name, 'answer without a definition or a reason:', a);
+  for (const k of Object.keys(DEF)) if (!T.TABLES[name][1].includes(k)) fail(name, 'definition for an option that is never offered:', k);
 }
 for (const [s, a, w] of T.AWARE) { if (w.length !== 3 || w.includes(a) || new Set(w).size !== 3) fail('AWARE options', s.slice(0, 50)); }
 /* generated questions never put an answer's "not" list beside it */

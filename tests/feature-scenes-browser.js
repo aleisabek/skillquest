@@ -21,6 +21,9 @@ function findBrowser(){
   return null;
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+/* every look in the app (read from app.js, so a new palette is checked automatically) */
+const THEMES_ALL = [...require('fs').readFileSync(require('path').join(__dirname, '..', 'src', 'app.js'), 'utf8').matchAll(/\['([a-z]+)','(hacker|glass)'/g)].map(m => m[1]);
+if (THEMES_ALL.length < 4) { console.log('FAIL could not read the looks from app.js'); process.exit(1); }
 let bad = 0; const fail = (...a) => { bad++; console.log('FAIL', ...a); };
 
 async function main(){
@@ -37,7 +40,7 @@ async function main(){
   /* on Windows, kill() stops only the first process and leaves the browser's children running: end the whole tree */
   const stop = () => { try { if (process.platform === 'win32') require('child_process').spawnSync('taskkill', ['/PID', String(proc.pid), '/T', '/F'], { stdio: 'ignore' }); else proc.kill(); } catch (e) {} };
   /* never hang CI: the whole check has 90 seconds */
-  const guard = setTimeout(() => { fail('timed out after 150s'); stop(); process.exit(1); }, 150000);
+  const guard = setTimeout(() => { fail('timed out after 480s'); stop(); process.exit(1); }, 480000);   /* 8 looks × 6 scenes */
   guard.unref();
   let ws;
   try {
@@ -72,10 +75,10 @@ async function main(){
 
     const lessons = await run('return Object.keys(SCENES);');
     const fills = {};
-    for (const theme of ['matrix', 'cyber', 'amber']) for (const id of lessons) {
+    for (const theme of THEMES_ALL) for (const id of lessons) {
       const r = await run(`
         const out = [], sleep = ms => new Promise(r => setTimeout(r, ms)), sc = SCENES[${JSON.stringify(id)}];
-        document.documentElement.dataset.theme = ${JSON.stringify(theme)};
+        applyTheme(${JSON.stringify(theme)});
         vLesson(${JSON.stringify(id)});
         const host = document.querySelector('#scene'), svg = host && host.querySelector('svg');
         if (!svg) return {out: ['no scene on the lesson page']};
@@ -125,7 +128,7 @@ async function main(){
       (r.out || []).forEach(e => fail(theme, id, e));
       (fills[id] = fills[id] || new Set()).add(r.fill);
     }
-    for (const id of lessons) if (fills[id].size !== 3) fail(id, 'network cells should take each theme\'s colour, got', [...fills[id]].join(' | '));
+    for (const id of lessons) if (fills[id].size !== THEMES_ALL.length) fail(id, 'network cells should take each theme\'s colour, got', [...fills[id]].join(' | '));
 
     /* real key presses: arrows act only while focus is inside the scene */
     const id0 = JSON.stringify(lessons[0]);
@@ -242,7 +245,7 @@ async function main(){
     if (rm.s !== 1) fail('stepping should still work with reduced motion');
     await sleep(200);
     errors.filter(e => !/favicon|fonts\.g|net::ERR/i.test(e)).forEach(e => fail('page error:', e));
-    console.log('scene browser checks | scenes', lessons.length, '| themes 3 | browser', path.basename(bin), '| problems', bad);
+    console.log('scene browser checks | scenes', lessons.length, '| themes', THEMES_ALL.length, '| browser', path.basename(bin), '| problems', bad);
   } catch (e) { fail(e.message); }
   finally {
     clearTimeout(guard);

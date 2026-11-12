@@ -129,6 +129,17 @@ function toast(msg, ms){ const t=$('#toast'); t.textContent=msg; t.classList.add
 let sayT;
 function say(text){ const el = $('#srSay'); if(!el) return; clearTimeout(sayT); el.textContent = '';
   sayT = setTimeout(()=>{ el.textContent = String(text).replace(/\s+/g, ' ').trim().slice(0, 600); }, 80); }
+/* Motion is allowed only when Calm is off and the device doesn't ask for reduced motion (checked live, not at load). */
+function motionOK(){ return !calm && !matchMedia('(prefers-reduced-motion: reduce)').matches; }
+/* Screen entry: the new screen's headings and cards rise in with a short stagger. Called only after a whole screen
+   is drawn (go, vLesson), never on per-answer redraws, so focus and the live region are untouched. Opacity goes on
+   the cards themselves, never on a wrapper, so the frosted glass keeps blurring the light behind it. */
+const RISE_SEL = ':scope > h1, :scope > .sub, :scope > .slim, :scope > h2, :scope > .card, :scope > .row, .grid > .card, .bento > *, .acr-modes > button';
+function enterView(){
+  if(!motionOK()) return;
+  [...view.querySelectorAll(RISE_SEL)].slice(0, 14).forEach((el, i)=>{ el.style.setProperty('--i', Math.min(i, 8)); el.classList.add('rise');
+    el.addEventListener('animationend', ()=>el.classList.remove('rise'), {once:true}); });
+}
 /* feedback written into a result area (#after, #out) is announced automatically */
 new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes)
   if(n.nodeType === 1 && n.classList.contains('explain') && n.parentElement && /^(after|out)$/.test(n.parentElement.id)) say(n.textContent); })
@@ -564,35 +575,68 @@ function checkFullDay(){
 }
 
 /* ===================== HEADER / NAV ===================== */
-const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['exams','Exams'],['labs','Labs'],['practice','Free resources'],['ready','Job practice'],['progress','Progress'],['guide','How to use'],['backup','Backup']];
+const TABS = [['today','Today'],['skills','Skills'],['tracks','Tracks'],['tickets','Tickets'],['terminal','Terminal'],['sql','SQL'],['interview','Interview'],['review','Review'],['acronyms','Acronyms'],['exams','Exams'],['labs','Labs'],['practice','Free resources'],['ready','Job practice'],['progress','Progress'],['guide','How to use'],['backup','Backup']];
 let current = 'today';
 function header(){
   const {r,next} = rankOf(S.xp);
   $('#rank').textContent = r[1];
-  $('#xp').textContent = S.xp;
+  countXP(S.xp);
   const pct = next ? Math.round((S.xp - r[0]) / (next[0] - r[0]) * 100) : 100;
   $('#xpfill').style.width = pct + '%';
+  $('#xpfill').parentElement.style.setProperty('--pct', pct);
   const live = (S.lastFull === dayStr() || S.lastFull === addDays(dayStr(),-1)) ? S.streak : 0;
   $('#streak').textContent = live;
   const g = groupOf(current), sub = g[1].length > 1;
   lastIn[g[0]] = current;
+  const navFocus = $('#nav').contains(document.activeElement);
+  const before = navRects();
   $('#nav').innerHTML = '<div class="tabs">'+GROUPS.map(([name, ks])=>{ const on = name === g[0];
       return '<button class="'+(on?'on':'')+'"'+(on ? ' aria-current="'+(sub?'true':'page')+'"' : '')+' data-tab="'+(lastIn[name] || ks[0])+'">'+name+'</button>'; }).join('')+'</div>'+
     (sub ? '<div class="subtabs" role="group" aria-label="'+g[0]+' sections">'+g[1].map(k=>'<button class="'+(k===current?'on':'')+'"'+(k===current?' aria-current="page"':'')+' data-tab="'+k+'">'+tabLabel(k)+'</button>').join('')+'</div>' : '');
+  navAfter(before, navFocus);
 }
 /* Six top tabs, each grouping existing screens; a group with more than one screen shows them as sub-tabs.
    Screen keys are unchanged, so go('sql'), go('ready') and the rest still work everywhere. */
 const GROUPS = [['Today',['today']], ['Study',['skills','tracks']], ['Hands-on',['terminal','sql','labs']],
-  ['Job prep',['interview','tickets','exams','ready']], ['Review',['review','progress']], ['Guide',['guide','backup','practice']]];
+  ['Job prep',['interview','tickets','exams','ready']], ['Review',['review','acronyms','progress']], ['Guide',['guide','backup','practice']]];
 const lastIn = {};   /* the screen you were last on in each group, so a top tab returns you there */
 function groupOf(k){ return GROUPS.find(g=>g[1].includes(k)) || GROUPS[0]; }
+/* Gliding pill: remember where the lit tab was, redraw the nav, then slide a copy of the pill from there to the new
+   tab (glass looks only). Rebuilding the nav used to drop keyboard focus to the page; it now returns to the new tab. */
+function navRects(){ const r = sel=>{ const b = $('#nav '+sel+' .on'); return b ? b.getBoundingClientRect() : null; };
+  return {tabs:r('.tabs'), subtabs:r('.subtabs'), group:groupOf(current)[0]}; }
+function navAfter(before, navFocus){
+  if(navFocus){ const b = $('#nav .subtabs [data-tab="'+current+'"]') || $('#nav .tabs .on'); if(b) b.focus({preventScroll:true}); }
+  if(!before || !motionOK() || !document.documentElement.classList.contains('glass')) return;
+  for(const k of ['tabs', 'subtabs']){
+    const from = before[k], box = $('#nav .'+k), to = box && box.querySelector('.on');
+    if(!from || !to || (k === 'subtabs' && before.group !== groupOf(current)[0])) continue;
+    const t = to.getBoundingClientRect(), o = box.getBoundingClientRect();
+    if(Math.abs(t.left - from.left) < 2) continue;
+    const ghost = document.createElement('span'); ghost.className = 'navghost'; ghost.setAttribute('aria-hidden', 'true');
+    box.appendChild(ghost); to.classList.add('landing');
+    const at = r=>({left:(r.left - o.left + box.scrollLeft)+'px', top:(r.top - o.top)+'px', width:r.width+'px', height:r.height+'px'});
+    const a = ghost.animate([at(from), at(t)], {duration:300, easing:getComputedStyle(document.documentElement).getPropertyValue('--ease-spring').trim() || 'ease-out'});
+    a.onfinish = a.oncancel = ()=>{ ghost.remove(); to.classList.remove('landing'); };
+  }
+}
+/* XP counts up when it rises (and just changes when motion is off) */
+let shownXP = null, xpRaf = 0;
+function countXP(target){
+  const el = $('#xp'); cancelAnimationFrame(xpRaf);
+  if(shownXP === null || target <= shownXP || !motionOK()){ shownXP = target; el.textContent = target; return; }
+  const from = shownXP, t0 = performance.now(); shownXP = target;
+  const step = now=>{ const p = Math.min(1, (now - t0) / 600), e = 1 - Math.pow(1 - p, 3);
+    el.textContent = Math.round(from + (target - from) * e); if(p < 1) xpRaf = requestAnimationFrame(step); };
+  xpRaf = requestAnimationFrame(step);
+}
 function tabLabel(k){ const t = TABS.find(t=>t[0]===k); return t ? t[1] : k; }
 $('#nav').addEventListener('click', e=>{ const b=e.target.closest('button'); if(b) go(b.dataset.tab); });
 function go(tab){
   if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
   stopRecording(true);   /* leaving the page discards a half-finished recording */
   destroyScene();        /* and stops any lesson animation */
-  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); }
+  current = tab; stopTimer(); header(); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
 
 /* ===================== VIEWS ===================== */
 /* Today: the loop as a 4-step checklist with one "Next up" button, the last 14 days, one real lab, and a short tip. */
@@ -627,7 +671,7 @@ function vToday(){
     (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
     (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start '+esc(pilotEvidence().round.recheck)+'</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
     '<h1>Today\'s loop</h1><p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
-    '<div class="card today"><div class="row" style="justify-content:space-between"><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
+    '<div class="bento"><div class="card today hero"><div class="row" style="justify-content:space-between"><span class="ring" style="--p:'+(doneN*25)+'" aria-hidden="true"><span>'+doneN+'/4</span></span><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
       step(2, 'Practice', st.practiced, PRACTICE_N+' exercises per lesson, typed, first try counts. A set counts as done with one right answer: that is practice done, not mastery', '<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
       step(3, 'Apply', st.applied, 'one rep in today\'s main area', '<div class="chips"><button class="chip'+(st.applied?' on':'')+'" data-apply="1">'+repTitle+(st.applied?' ✓':'')+'</button></div>')+
@@ -637,7 +681,7 @@ function vToday(){
     (lab ? '<div class="card"><b>🌐 Outside practice (free)</b> <span class="small">· fits today\'s '+esc(track(lab.tid).name)+' lesson</span>'+
       '<p style="margin:8px 0"><a href="'+lab.url+'" target="_blank" rel="noopener">'+esc(lab.name)+' ↗</a> <span class="small">'+esc(lab.note)+'</span></p>'+
       '<div class="row"><button id="labUsed"'+(lab.usedToday?' disabled':'')+'>'+(lab.usedToday?'✓ Used today':'✓ Mark used today')+'</button><a href="#" id="moreLabs" class="small">More free resources →</a></div></div>' : '')+
-    (()=>{ const tip = STRATEGIES[dayNum() % STRATEGIES.length]; return '<details class="tipline"><summary>💡 Tip: <b>'+tip[0]+'</b></summary><p class="small">'+tip[1]+'</p></details>'; })();
+    (()=>{ const tip = STRATEGIES[dayNum() % STRATEGIES.length]; return '<details class="tipline"><summary>💡 Tip: <b>'+tip[0]+'</b></summary><p class="small">'+tip[1]+'</p></details>'; })()+'</div>';
   const on = (sel, f)=>{ const b = $(sel); if(b) b.onclick = f; };
   view.querySelectorAll('[data-lesson]').forEach(b=>b.onclick=()=>vLesson(plan.ids[+b.dataset.lesson], 'p'+b.dataset.lesson));
   view.querySelectorAll('[data-prac]').forEach(b=>b.onclick=()=>{ const i = +b.dataset.prac; startSkill(sk[i], PRACTICE_N, 'p'+i); });
@@ -1294,12 +1338,119 @@ function vReview(){
     '<div class="card mission"><h3>🃏 Due flashcards</h3><p>'+due.length+' card'+(due.length===1?'':'s')+' due today.</p><div><button class="primary" id="rc" '+(due.length?'':'disabled')+'>Review cards</button></div></div>'+
     '<div class="card mission"><h3>🔁 Fading quiz questions</h3><p>'+fq.length+' question'+(fq.length===1?'':'s')+' you answered right over '+QUIZ_FADE+' days ago. Answer again to keep them counted.</p><div><button class="primary" id="rf" '+(fq.length?'':'disabled')+'>Review '+Math.min(fq.length,10)+'</button></div></div>'+
     '<div class="card mission"><h3>📓 Mistake journal</h3><p>'+open+' open mistake'+(open===1?'':'s')+', '+jdue+' due for a retry today.</p><div class="row"><button class="primary" id="rq" '+(jdue?'':'disabled')+'>Retry due</button><button id="rj">Open journal</button></div></div>'+
-    '<div class="card mission"><h3>🎤 Weak interview answers</h3><p>'+weak.length+' marked "Need work."</p><div><button class="primary" id="ri" '+(weak.length?'':'disabled')+'>Practice one</button></div></div></div>';
+    '<div class="card mission"><h3>🎤 Weak interview answers</h3><p>'+weak.length+' marked "Need work."</p><div><button class="primary" id="ri" '+(weak.length?'':'disabled')+'>Practice one</button></div></div>'+
+    '<div class="card mission"><h3>🔤 Acronyms</h3><p>The Security+ acronym list as a short game. Practice score: '+skillScore(ACR_SKILL)+' / 100.</p><div><button class="primary" id="ra">Play a round</button></div></div></div>';
+  $('#ra').onclick = ()=>go('acronyms');
   if(due.length) $('#rc').onclick=()=>startCards(null, 20, null, due);
   if(fq.length) $('#rf').onclick=()=>startQuiz(null, 10, null, fq);
   if(jdue) $('#rq').onclick = retryMistakes;
   $('#rj').onclick = vJournal;
   if(weak.length) $('#ri').onclick=()=>startIV(weak[0], null);
+}
+
+/* ---------- Acronyms (Review → Acronyms) ----------
+   Three modes over the deck in acronyms.js. No timer, nothing shakes or flashes: on an answer the letters unfold
+   into their words in about 200 ms (instant in calm mode). Answers score into the "Acronyms" skill; a revealed
+   answer scores nothing either way. */
+const ACR_SKILL = 'quiz:sec:Acronyms', ACR_ROUND = 10;
+const ACR_MODES = [['words','Spell it out','See the letters, type the words.'], ['letters','Name it','See the words, type the acronym.'],
+  ['fit','Which one fits?','Read what it does, pick the acronym from lookalikes.']];
+let ACR = null;
+let acrMode = 'words', acrDeck = '801';
+function acrPool(){ return ACRONYMS.filter(e=>acrDeck === 'all' || e.src === '801'); }
+/* words as tiles; a word whose first letter is the acronym's next letter is lit, small words like "and" stay quiet.
+   A capital inside a word can supply the next letter too (DomainKeys gives D and K). */
+function acrWordTiles(e){
+  const want = [...e.a.toLowerCase().replace(/[^a-z0-9]/g, '')]; let n = 0, t = 0;
+  return e.w.split(/\s+/).map(w=>{
+    if(want[n] !== w[0].toLowerCase()) return '<span class="acr-tile minor" style="--i:'+(t++)+'"><span>'+esc(w[0])+'</span><span class="rest">'+esc(w.slice(1))+'</span></span>';
+    n++; let rest = '';
+    for(const c of w.slice(1)){ if(/[A-Z]/.test(c) && want[n] === c.toLowerCase()){ n++; rest += '<b>'+esc(c)+'</b>'; } else rest += esc(c); }
+    return '<span class="acr-tile" style="--i:'+(t++)+'"><b>'+esc(w[0])+'</b><span class="rest">'+rest+'</span></span>';
+  }).join('');
+}
+function acrLetterTiles(e){ return [...e.a].map(c=>/[a-z0-9+]/i.test(c) ? '<span class="acr-tile"><b>'+esc(c)+'</b></span>' : '<span class="small" aria-hidden="true">'+esc(c)+'</span>').join(''); }
+function vAcronyms(){
+  ACR = null;
+  const n801 = ACRONYMS.filter(e=>e.src === '801').length;
+  view.innerHTML = '<h1>Acronyms</h1><p class="sub">Every acronym on the Security+ (SY0-801) list, as a short game. '+ACR_ROUND+' per round, no timer.</p>'+
+    '<div class="acr-modes" role="group" aria-label="Game mode">'+ACR_MODES.map(([k,t,d])=>'<button data-mode="'+k+'" aria-pressed="'+(k===acrMode)+'"><b>'+t+'</b><span>'+d+'</span></button>').join('')+'</div>'+
+    '<div class="card"><fieldset style="border:none;margin:0 0 12px;padding:0"><legend style="font-weight:700;margin-bottom:6px">Which acronyms</legend>'+
+    '<label style="margin-right:18px"><input type="radio" name="acrdeck" value="801"'+(acrDeck==='801'?' checked':'')+'> Exam list ('+n801+')</label>'+
+    '<label><input type="radio" name="acrdeck" value="all"'+(acrDeck==='all'?' checked':'')+'> Exam list plus the extras the lessons use ('+ACRONYMS.length+')</label></fieldset>'+
+    '<div class="row"><button class="primary" id="acrGo">Start a round</button><span class="small">Practice score: '+skillScore(ACR_SKILL)+' / 100</span></div></div>';
+  view.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{ acrMode = b.dataset.mode;
+    view.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed', String(x === b))); });
+  view.querySelectorAll('[name=acrdeck]').forEach(r=>r.onchange=()=>{ acrDeck = r.value; });
+  $('#acrGo').onclick = ()=>{ ACR = {mode:acrMode, list:shuffle(acrPool()).slice(0, ACR_ROUND), i:0, res:[]}; acrShow(); };
+}
+function acrShow(){
+  const e = ACR.list[ACR.i], mode = ACR.mode;
+  const dots = '<div class="acr-dots" aria-hidden="true">'+ACR.list.map((x,i)=>'<i class="'+(i<ACR.res.length ? (ACR.res[i] ? 'r' : 'w') : i===ACR.i ? 'now' : '')+'"></i>').join('')+'</div>';
+  const prompt = mode === 'words' ? 'What do these letters stand for?' : mode === 'letters' ? 'Which acronym is this?' : 'Which acronym fits?';
+  const stage = mode === 'words' ? '<div class="acr-stage" id="acrStage" aria-label="'+esc(e.a)+'">'+acrLetterTiles(e)+'</div>'
+    : mode === 'letters' ? '<div class="acr-stage open words" id="acrStage">'+acrWordTiles(e)+'</div>'
+    : '<p class="acr-prompt">"'+esc(e.d)+'"</p><div class="acr-stage" id="acrStage"></div>';
+  let opts = [];
+  const input = mode === 'fit'
+    ? (opts = shuffle([e, ...acrLookalikes(e, 3)]), '<div class="opts">'+opts.map((o,k)=>'<button class="opt" data-k="'+k+'">'+esc(o.a)+'</button>').join('')+'</div>')
+    : '<div class="row"><input id="acrIn" class="typed" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="'+(mode==='words' ? 'The words for '+esc(e.a) : 'The acronym')+'" placeholder="'+(mode==='words' ? 'Type the words, then Enter' : 'Type the acronym, then Enter')+'">'+
+      '<button class="primary" id="acrChk">Check</button><button id="acrShow" class="quiet">Show answer</button></div>';
+  view.innerHTML = '<h1>Acronyms</h1><p class="sub">'+ACR_MODES.find(m=>m[0]===mode)[1]+' · '+(ACR.i+1)+' of '+ACR.list.length+'</p>'+
+    '<div class="card">'+dots+'<p class="q" style="text-align:center">'+prompt+'</p>'+stage+input+'<div id="after"></div></div>';
+  let done = false;
+  const finish = (ok, revealed, note)=>{
+    if(done) return; done = true;
+    ACR.res.push(ok);
+    ['#acrChk', '#acrShow'].forEach(s=>{ const b = $(s); if(b) b.disabled = true; });
+    if(!revealed){ recordSkill(ACR_SKILL, ok, true); if(ok) addXP(5); }
+    const st = $('#acrStage');
+    st.className = 'acr-stage'+(ok ? ' ok' : ''); st.innerHTML = acrWordTiles(e); st.removeAttribute('aria-label');
+    if(calm) st.classList.add('open'); else requestAnimationFrame(()=>requestAnimationFrame(()=>st.classList.add('open')));
+    const last = ACR.i + 1 >= ACR.list.length;
+    $('#after').innerHTML = '<div class="explain">'+(revealed ? 'Shown, no score either way. ' : ok ? '✅ <b>Correct.</b> ' : '❌ <b>Not quite.</b> ')+
+      '<b>'+esc(e.a)+'</b> = '+esc(e.w)+'. '+(note || '')+esc(e.d)+'</div>'+
+      '<div class="row" style="margin-top:12px"><button class="primary" id="acrNext">'+(last ? 'See the round' : 'Next')+'</button></div>';
+    $('#acrNext').onclick = ()=>{ ACR.i++; if(ACR.i >= ACR.list.length) acrEnd(); else acrShow(); };
+    $('#acrNext').focus();
+  };
+  if(mode === 'fit'){
+    view.querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+      if(done) return;
+      const pick = opts[+b.dataset.k], ok = pick === e;
+      view.querySelectorAll('.opt').forEach(x=>{ x.disabled = true; if(opts[+x.dataset.k] === e) x.classList.add('right'); });
+      if(!ok) b.classList.add('wrong');
+      finish(ok, false, ok ? '' : 'You picked '+esc(pick.a)+' = '+esc(pick.w)+'. ');
+    });
+    view.querySelector('.opt').focus();
+    return;
+  }
+  const inp = $('#acrIn');
+  const check = ()=>{
+    if(done) return;
+    const v = inp.value.trim();
+    if(!v){ toast('Type an answer first'); inp.focus(); return; }
+    inp.readOnly = true;
+    if(mode === 'letters'){ const ok = acrMatchLetters(e, v); inp.classList.add(ok ? 'ok' : 'no'); finish(ok, false); return; }
+    const m = acrMatch(e, v);
+    inp.classList.add(m.ok ? 'ok' : 'no');
+    finish(m.ok, false, m.ok && m.typo ? 'One small typo forgiven. ' : m.ok && !m.exact ? 'Also accepted: "'+esc(m.form)+'". ' : '');
+  };
+  $('#acrChk').onclick = check;
+  inp.onkeydown = ev=>{ if(ev.key === 'Enter'){ ev.preventDefault(); check(); } };
+  $('#acrShow').onclick = ()=>{ if(done) return; inp.readOnly = true; finish(false, true); };
+  inp.focus();
+}
+function acrEnd(){
+  const right = ACR.res.filter(Boolean).length, missed = ACR.list.filter((e,i)=>!ACR.res[i]);
+  view.innerHTML = '<h1>Acronyms</h1><p class="sub">Round done.</p><div class="card">'+
+    '<p class="q">'+right+' of '+ACR.list.length+' right.</p><p class="small">Practice score for acronyms: '+skillScore(ACR_SKILL)+' / 100. It counts as strong once it stays high on more than one day.</p>'+
+    (missed.length ? '<h3>Go over these</h3><ul>'+missed.map(e=>'<li><b>'+esc(e.a)+'</b> = '+esc(e.w)+'. <span class="small">'+esc(e.d)+'</span></li>').join('')+'</ul>' : '<p>Nothing missed this round.</p>')+
+    '<div class="row" style="margin-top:12px"><button class="primary" id="acrAgain">Another round</button><button id="acrMenu" class="quiet">Change mode</button></div></div>';
+  say(right+' of '+ACR.list.length+' right.');
+  $('#acrAgain').onclick = ()=>{ ACR = {mode:ACR.mode, list:shuffle(acrPool()).slice(0, ACR_ROUND), i:0, res:[]}; acrShow(); };
+  $('#acrMenu').onclick = vAcronyms;
+  $('#acrAgain').focus();
 }
 
 /* ---------- Progress ---------- */
@@ -1381,12 +1532,18 @@ function vGuide(){
     '<li><b>Fridays:</b> go to Progress and download a backup.</li></ol>'+
     '<p><b>Scoring:</b> quiz +10, flashcard +5, terminal and SQL +15 (+8 with a hint, 0 once the answer is shown), interview rep +10 to +25, full day (learn, practice, apply + reviews) +50.</p>'+
     '<p><b>Levels:</b> Levels 1 (Foundations) and 2 (Job-ready) are ready now. Levels 3 and 4 (Mid-level, Senior) come in a later phase.</p>'+
-    '<p><b>Look and feel:</b> the ◐ button switches between three color modes (matrix, cyber, amber). The ⁂ rain button turns the background code rain on or off.</p>'+
+    '<p><b>Look and feel:</b> there are two looks. Hacker (matrix, cyber, amber) is a terminal style with code rain. Glass (future, aurora, solar, glacier, jade) is a frosted, modern style. The ◐ button steps through the colors of the look you are in; Aa → Look switches between any of them.</p>'+
     '<p class="small">Your progress stays on this computer. When you are online, the fonts load from Google Fonts; offline, it uses your built-in coding font.</p></div>';
 }
 
 /* ===================== THEME + EFFECTS + START ===================== */
-const THEMES = ['matrix','cyber','amber'];
+/* Looks: three hacker palettes, and five glass palettes that share one futuristic style (html.glass).
+   [id, family, swatch colors for the picker]. The ◐ button cycles within the family you're in; Aa → Look has all of them. */
+const LOOKS = [['matrix','hacker','#39ff88','#00d1ff'], ['cyber','hacker','#00e5ff','#ff2bd6'], ['amber','hacker','#ffb000','#ff6b3d'],
+  ['future','glass','#93a8ff','#5fe3cf'], ['aurora','glass','#c6a2ff','#ffa6dc'], ['solar','glass','#ffb27a','#ffd86e'],
+  ['glacier','glass','#7fd6ff','#a8f5dc'], ['jade','glass','#6cf0b4','#f2cf7c']];
+const THEMES = LOOKS.map(l=>l[0]);
+const lookFamily = t=>(LOOKS.find(l=>l[0]===t) || LOOKS[0])[1];
 function pref(k, d){ try{ const v = localStorage.getItem(k); return v===null ? d : v; }catch(e){ return d; } }
 function setPref(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
 /* Display settings (per device, outside saved progress): text size, an easier-to-read font, and a calm screen.
@@ -1405,7 +1562,9 @@ applyDisplay();
 function applyTheme(t){
   if(!THEMES.includes(t)) t = 'matrix';
   document.documentElement.dataset.theme = t;
+  document.documentElement.classList.toggle('glass', lookFamily(t) === 'glass');
   $('#themeName').textContent = t;
+  document.querySelectorAll('input[name=look]').forEach(r=>{ r.checked = r.value === t; });
 }
 applyTheme(pref('skillquest-theme','matrix'));
 /* PowerShell line on Linux cards: shown unless turned off */
@@ -1413,7 +1572,8 @@ function psOn(){ return pref('skillquest-ps','on') !== 'off'; }
 function applyPs(){ document.documentElement.classList.toggle('nops', !psOn()); }
 applyPs();
 $('#theme').onclick=()=>{
-  const t = THEMES[(THEMES.indexOf(document.documentElement.dataset.theme)+1) % THEMES.length];
+  const cur = document.documentElement.dataset.theme, fam = THEMES.filter(x=>lookFamily(x) === lookFamily(cur));
+  const t = fam[(fam.indexOf(cur)+1) % fam.length];
   applyTheme(t); setPref('skillquest-theme', t); toast('Color mode: '+t);
 };
 
@@ -1455,6 +1615,9 @@ $('#rainBtn').onclick=()=>{ rain.set(!rain.on); setPref('skillquest-rain', rain.
     $('#calmBox').parentElement.title = osCalm ? 'On because your device asks for reduced motion' : ''; };
   btn.onclick = ()=>{ sync(); open(box.hidden); };
   $('#displayClose').onclick = ()=>open(false);
+  $('#lookSet').insertAdjacentHTML('beforeend', '<div class="looks">'+LOOKS.map(([id,fam,c1,c2])=>'<label><input type="radio" name="look" value="'+id+'"'+(id===document.documentElement.dataset.theme?' checked':'')+'>'+
+    '<span class="sw" aria-hidden="true" style="background:linear-gradient(120deg,'+c1+','+c2+')"></span>'+id+(fam==='glass'?' <span class="small">glass</span>':'')+'</label>').join('')+'</div>');
+  box.querySelectorAll('input[name=look]').forEach(r=>r.onchange = ()=>{ applyTheme(r.value); setPref('skillquest-theme', r.value); });
   box.addEventListener('keydown', e=>{ if(e.key === 'Escape'){ e.preventDefault(); open(false); } });
   box.querySelectorAll('input[name=ts]').forEach(r=>r.onchange = ()=>{ setPref('skillquest-ts', r.value); applyDisplay(); });
   $('#readableBox').onchange = e=>{ setPref('skillquest-readable', e.target.checked ? 'on' : 'off'); applyDisplay(); };
@@ -1465,7 +1628,7 @@ $('#rainBtn').onclick=()=>{ rain.set(!rain.on); setPref('skillquest-rain', rain.
 /* "Decrypt" effect: page titles scramble, then resolve */
 function decrypt(el){
   const node = [...el.childNodes].find(n=>n.nodeType===3 && n.textContent.trim());
-  if(!node || calm) return;
+  if(!node || calm || document.documentElement.classList.contains('glass')) return;   /* the scramble is a hacker-look effect */
   const final = node.textContent, chars = '!<>-_\\/[]{}=+*^?#01';
   let frame = 0; const total = 14;
   const tick = ()=>{

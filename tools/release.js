@@ -2,7 +2,6 @@
 //   1. runs every check (npm test) and stops if anything fails
 //   2. keeps the previous installed copy as SkillQuest.prev.html, then installs the new build
 //   3. regenerates the public Linux deck; if it changed, shows the diff and asks before committing and pushing that repo
-//   4. reminds you to republish the phone version (that step needs claude.ai, so it stays manual)
 // Options: --yes publishes the deck without asking; --no-deck skips step 3.
 // Paths: SKILLQUEST_INSTALL (installed app) and DECK_DIR (flashcards repo) override the defaults.
 const fs = require('fs');
@@ -51,7 +50,4 @@ const ask = q => new Promise(res => { const rl = readline.createInterface({ inpu
       }
     }
   }
-
-  step('Phone version');
-  console.log('If the app changed, republish dist/SkillQuest-phone.html to the same artifact URL (see README "Phone version").');
 })();
