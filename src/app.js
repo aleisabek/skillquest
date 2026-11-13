@@ -1548,7 +1548,13 @@ const ACR_SKILL = 'quiz:sec:Acronyms', ACR_ROUND = 10;
 const ACR_MODES = [['words','Spell it out','See the letters, type the words.'], ['letters','Name it','See the words, type the acronym.'],
   ['fit','Which one fits?','Read what it does, pick the acronym from lookalikes.']];
 let ACR = null;
-let acrMode = 'words', acrDeck = '801';
+let acrMode = 'words', acrDeck = '801', acrLearn = true;
+/* a new round: learn cards first (unless switched off), then the quiz on the same acronyms in a new order */
+function acrStart(mode){
+  const list = acrRound(acrPool(), ACR_ROUND);
+  if(acrLearn){ ACR = {mode, list, i:0, res:[], learn:true}; acrLearnShow(); }
+  else { ACR = {mode, list:shuffle(list), i:0, res:[]}; acrShow(); }
+}
 function acrPool(){ return ACRONYMS.filter(e=>acrDeck === 'all' || e.src === '801'); }
 /* words as tiles; a word whose first letter is the acronym's next letter is lit, small words like "and" stay quiet.
    A capital inside a word can supply the next letter too (DomainKeys gives D and K). */
@@ -1570,11 +1576,33 @@ function vAcronyms(){
     '<div class="card"><fieldset style="border:none;margin:0 0 12px;padding:0"><legend style="font-weight:700;margin-bottom:6px">Which acronyms</legend>'+
     '<label style="margin-right:18px"><input type="radio" name="acrdeck" value="801"'+(acrDeck==='801'?' checked':'')+'> Exam list ('+n801+')</label>'+
     '<label><input type="radio" name="acrdeck" value="all"'+(acrDeck==='all'?' checked':'')+'> Exam list plus the extras the lessons use ('+ACRONYMS.length+')</label></fieldset>'+
+    '<label class="acr-learnsw"><input type="checkbox" id="acrLearn"'+(acrLearn?' checked':'')+'> <span><b>Learn these first</b> <span class="small">Read this round\'s '+ACR_ROUND+' acronyms as cards, lookalikes side by side, then take the quiz on them.</span></span></label>'+
     '<div class="row"><button class="primary" id="acrGo">Start a round</button><span class="small">Practice score: '+skillScore(ACR_SKILL)+' / 100</span></div></div>';
   view.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{ acrMode = b.dataset.mode;
     view.querySelectorAll('[data-mode]').forEach(x=>x.setAttribute('aria-pressed', String(x === b))); });
   view.querySelectorAll('[name=acrdeck]').forEach(r=>r.onchange=()=>{ acrDeck = r.value; });
-  $('#acrGo').onclick = ()=>{ ACR = {mode:acrMode, list:shuffle(acrPool()).slice(0, ACR_ROUND), i:0, res:[]}; acrShow(); };
+  $('#acrLearn').onchange = ev=>{ acrLearn = ev.target.checked; };
+  $('#acrGo').onclick = ()=>acrStart(acrMode);
+}
+/* Learn first: one card per acronym (letters unfold into words, then what it does and its lookalikes). Nothing is
+   scored or saved here; the quiz that follows scores as usual. */
+function acrLearnShow(){
+  const e = ACR.list[ACR.i], last = ACR.i + 1 >= ACR.list.length;
+  const dots = '<div class="acr-dots" aria-hidden="true">'+ACR.list.map((x,i)=>'<i class="'+(i===ACR.i ? 'now' : i<ACR.i ? 'r' : '')+'"></i>').join('')+'</div>';
+  const mates = acrConfusers(e, ACR.list, 2);
+  view.innerHTML = '<h1>Acronyms</h1><p class="sub">Learn first · '+(ACR.i+1)+' of '+ACR.list.length+' · then the quiz on these '+ACR.list.length+'</p>'+
+    '<div class="card acr-learn">'+dots+'<div class="acr-stage" id="acrStage">'+acrWordTiles(e)+'</div>'+
+    '<p class="acr-means"><b>'+esc(e.a)+'</b> = '+esc(e.w)+'</p><p class="acr-prompt">'+esc(e.d)+'</p>'+
+    (mates.length ? '<div class="acr-mixup"><b>Don\'t mix up with</b><ul class="clean">'+mates.map(m=>'<li><b>'+esc(m.a)+'</b> = '+esc(m.w)+'. <span class="small">'+esc(m.d)+'</span></li>').join('')+'</ul></div>' : '')+
+    '<div class="row" style="margin-top:14px">'+(ACR.i ? '<button id="acrBack">Back</button>' : '')+
+    '<button class="primary" id="acrNext">'+(last ? 'Start the quiz' : 'Next')+'</button>'+(last ? '' : '<button id="acrSkip" class="quiet">Skip to the quiz</button>')+'</div></div>';
+  const st = $('#acrStage');
+  if(calm) st.classList.add('open'); else requestAnimationFrame(()=>requestAnimationFrame(()=>st.classList.add('open')));
+  const quiz = ()=>{ ACR = {mode:ACR.mode, list:shuffle(ACR.list), i:0, res:[]}; acrShow(); };
+  $('#acrNext').onclick = ()=>{ if(last) quiz(); else { ACR.i++; acrLearnShow(); } };
+  if($('#acrBack')) $('#acrBack').onclick = ()=>{ ACR.i--; acrLearnShow(); };
+  if($('#acrSkip')) $('#acrSkip').onclick = quiz;
+  $('#acrNext').focus();
 }
 function acrShow(){
   const e = ACR.list[ACR.i], mode = ACR.mode;
@@ -1588,19 +1616,19 @@ function acrShow(){
     ? (opts = shuffle([e, ...acrLookalikes(e, 3)]), '<div class="opts">'+opts.map((o,k)=>'<button class="opt" data-k="'+k+'">'+esc(o.a)+'</button>').join('')+'</div>')
     : '<div class="row"><input id="acrIn" class="typed" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="'+(mode==='words' ? 'The words for '+esc(e.a) : 'The acronym')+'" placeholder="'+(mode==='words' ? 'Type the words, then Enter' : 'Type the acronym, then Enter')+'">'+
       '<button class="primary" id="acrChk">Check</button><button id="acrShow" class="quiet">Show answer</button></div>';
-  view.innerHTML = '<h1>Acronyms</h1><p class="sub">'+ACR_MODES.find(m=>m[0]===mode)[1]+' · '+(ACR.i+1)+' of '+ACR.list.length+'</p>'+
+  view.innerHTML = '<h1>Acronyms</h1><p class="sub">'+ACR_MODES.find(m=>m[0]===mode)[1]+' · '+(ACR.i+1)+' of '+ACR.list.length+(ACR.retry ? ' · retrying your misses, not scored' : '')+'</p>'+
     '<div class="card">'+dots+'<p class="q" style="text-align:center">'+prompt+'</p>'+stage+input+'<div id="after"></div></div>';
   let done = false;
   const finish = (ok, revealed, note)=>{
     if(done) return; done = true;
     ACR.res.push(ok);
     ['#acrChk', '#acrShow'].forEach(s=>{ const b = $(s); if(b) b.disabled = true; });
-    if(!revealed){ recordSkill(ACR_SKILL, ok, true); if(ok) addXP(5); }
+    if(!revealed && !ACR.retry){ recordSkill(ACR_SKILL, ok, true); if(ok) addXP(5); }
     const st = $('#acrStage');
     st.className = 'acr-stage'+(ok ? ' ok' : ''); st.innerHTML = acrWordTiles(e); st.removeAttribute('aria-label');
     if(calm) st.classList.add('open'); else requestAnimationFrame(()=>requestAnimationFrame(()=>st.classList.add('open')));
     const last = ACR.i + 1 >= ACR.list.length;
-    $('#after').innerHTML = '<div class="explain">'+(revealed ? 'Shown, no score either way. ' : ok ? '✅ <b>Correct.</b> ' : '❌ <b>Not quite.</b> ')+
+    $('#after').innerHTML = '<div class="explain">'+(revealed ? 'Shown, no score either way. ' : ACR.retry ? (ok ? '✅ <b>Got it this time.</b> ' : '❌ <b>Still tricky.</b> ') : ok ? '✅ <b>Correct.</b> ' : '❌ <b>Not quite.</b> ')+
       '<b>'+esc(e.a)+'</b> = '+esc(e.w)+'. '+(note || '')+esc(e.d)+'</div>'+
       '<div class="row" style="margin-top:12px"><button class="primary" id="acrNext">'+(last ? 'See the round' : 'Next')+'</button></div>';
     $('#acrNext').onclick = ()=>{ ACR.i++; if(ACR.i >= ACR.list.length) acrEnd(); else acrShow(); };
@@ -1636,15 +1664,16 @@ function acrShow(){
 function acrEnd(){
   sessionFlag('sAcr');
   const right = ACR.res.filter(Boolean).length, missed = ACR.list.filter((e,i)=>!ACR.res[i]);
-  view.innerHTML = '<h1>Acronyms</h1><p class="sub">Round done.</p><div class="card">'+
-    '<p class="q">'+right+' of '+ACR.list.length+' right.</p><p class="small">Practice score for acronyms: '+skillScore(ACR_SKILL)+' / 100. It counts as strong once it stays high on more than one day.</p>'+
+  view.innerHTML = '<h1>Acronyms</h1><p class="sub">'+(ACR.retry ? 'Retry done (not scored).' : 'Round done.')+'</p><div class="card">'+
+    '<p class="q">'+right+' of '+ACR.list.length+' right'+(ACR.retry ? ' on the retry' : '')+'.</p><p class="small">Practice score for acronyms: '+skillScore(ACR_SKILL)+' / 100. It counts as strong once it stays high on more than one day.</p>'+
     (missed.length ? '<h3>Go over these</h3><ul>'+missed.map(e=>'<li><b>'+esc(e.a)+'</b> = '+esc(e.w)+'. <span class="small">'+esc(e.d)+'</span></li>').join('')+'</ul>' : '<p>Nothing missed this round.</p>')+
-    '<div class="row" style="margin-top:12px"><button class="primary" id="acrAgain">Another round</button><button id="acrHome">Back to Today</button><button id="acrMenu" class="quiet">Change mode</button></div>'+sessionRow()+'</div>';
+    '<div class="row" style="margin-top:12px">'+(missed.length ? '<button class="primary" id="acrRetry">Try your misses again</button><button id="acrAgain">Another round</button>' : '<button class="primary" id="acrAgain">Another round</button>')+'<button id="acrHome">Back to Today</button><button id="acrMenu" class="quiet">Change mode</button></div>'+sessionRow()+'</div>';
   say(right+' of '+ACR.list.length+' right.');
   $('#acrHome').onclick = ()=>go('today');
-  $('#acrAgain').onclick = ()=>{ ACR = {mode:ACR.mode, list:shuffle(acrPool()).slice(0, ACR_ROUND), i:0, res:[]}; acrShow(); };
+  $('#acrAgain').onclick = ()=>acrStart(ACR.mode);
+  if($('#acrRetry')) $('#acrRetry').onclick = ()=>{ ACR = {mode:ACR.mode, list:shuffle(missed), i:0, res:[], retry:true}; acrShow(); };
   $('#acrMenu').onclick = vAcronyms;
-  if(!sessionWire()) $('#acrAgain').focus();
+  if(!sessionWire()) ($('#acrRetry') || $('#acrAgain')).focus();
 }
 
 /* ---------- Progress ---------- */

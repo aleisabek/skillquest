@@ -154,6 +154,27 @@ function acrLookalikes(entry, n){
   for(const e of mix(ACRONYMS)) if(out.length < n && e !== entry && !out.includes(e)) out.push(e);
   return out;
 }
+/* Learn-first rounds: n acronyms from the pool, where each one picked brings up to 2 of its lookalikes along (same
+   group, also in the pool), so ALE and ARO are learned side by side. Families stay next to each other, in learn order. */
+const ACR_FAMILY = 3;
+function acrRound(pool, n){
+  const mix = a=>a.map(x=>[Math.random(), x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
+  const inPool = new Map(pool.map(e=>[e.a, e])), out = [];
+  for(const e of mix(pool)){
+    if(out.length >= n) break;
+    if(out.includes(e)) continue;
+    out.push(e);
+    const mates = mix([...new Set(ACR_GROUPS.filter(g=>g.includes(e.a)).flat())].map(a=>inPool.get(a)).filter(m=>m && m !== e && !out.includes(m)));
+    for(const m of mates.slice(0, ACR_FAMILY - 1)) if(out.length < n) out.push(m);
+  }
+  return out;
+}
+/* "Don't mix up with": up to max lookalikes, the ones in this round first */
+function acrConfusers(entry, round, max){
+  const byA = new Map(ACRONYMS.map(e=>[e.a, e]));
+  const near = [...new Set(ACR_GROUPS.filter(g=>g.includes(entry.a)).flat())].filter(a=>a !== entry.a).map(a=>byA.get(a));
+  return [...near.filter(e=>round.includes(e)), ...near.filter(e=>!round.includes(e))].slice(0, max);
+}
 /* ---------- the answer checker ----------
    Fair, not picky: case, punctuation, "&" vs "and", hyphens, small filler words (of, the, a, an, for, to, and),
    plurals and joined/split words ("multi factor" = "multifactor") never cost you. One typo in one longer word is

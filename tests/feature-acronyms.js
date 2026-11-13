@@ -3,7 +3,7 @@
 // Also checks the deck against the lessons: wherever a lesson writes "ACR (words)" for a deck acronym, the words match.
 const fs = require('fs'), path = require('path');
 const src = p => fs.readFileSync(path.join(__dirname, '..', 'src', p), 'utf8');
-eval(src('acronyms.js') + ';global.A = {ACRONYMS, ACR_801, ACR_GROUPS, acrMatch, acrMatchLetters, acrLookalikes};');
+eval(src('acronyms.js') + ';global.A = {ACRONYMS, ACR_801, ACR_GROUPS, acrMatch, acrMatchLetters, acrLookalikes, acrRound, acrConfusers};');
 let bad = 0, checked = 0; const fail = (...a) => { bad++; if (bad < 30) console.log('FAIL', ...a); };
 const byA = new Map(A.ACRONYMS.map(e => [e.a, e]));
 
@@ -24,6 +24,25 @@ for (let i = 0; i < 3000; i++) {
   const e = A.ACRONYMS[i % A.ACRONYMS.length], w = A.acrLookalikes(e, 3);
   if (w.length !== 3 || new Set(w).size !== 3 || w.includes(e)) { fail('bad wrong options for', e.a); break; }
 }
+
+/* 1b. learn-first rounds: n unique acronyms from the pool, lookalikes picked together and kept next to each other */
+const official = A.ACRONYMS.filter(e => e.src === '801');
+let families = 0;
+for (let i = 0; i < 2000; i++) {
+  const pool = i % 2 ? A.ACRONYMS : official, r = A.acrRound(pool, 10);
+  if (r.length !== 10 || new Set(r).size !== 10 || r.some(e => !pool.includes(e))) { fail('bad learn round', r.map(e => e.a).join(' ')); break; }
+  const mates = (x, y) => A.ACR_GROUPS.some(g => g.includes(x.a) && g.includes(y.a));
+  for (let k = 0; k < r.length; k++) {
+    const later = r.slice(k + 1).findIndex(y => mates(r[k], y));
+    if (later === 0) families++;
+  }
+}
+if (!families) fail('learn rounds never put lookalikes side by side');
+{ const small = official.slice(0, 4), r = A.acrRound(small, 10);
+  if (r.length !== 4 || new Set(r).size !== 4) fail('a pool smaller than a round should give each acronym once'); }
+{ const ale = byA.get('ALE'), aro = byA.get('ARO'), c = A.acrConfusers(ale, [ale, aro], 2);
+  if (c.length !== 2 || c[0] !== aro || c.includes(ale)) fail('"Don\'t mix up with" should list the lookalikes of ALE, the ones in the round first');
+  for (const e of A.ACRONYMS) if (A.acrConfusers(e, [], 2).some(x => !x || x === e)) fail('bad lookalike list for', e.a); }
 
 /* 2. the checker: [acronym, typed, should pass] */
 const CASES = [

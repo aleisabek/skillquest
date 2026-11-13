@@ -372,6 +372,12 @@ html.calm .acr-tile .rest{transition:none}
 .acr-stage.ok .acr-tile.minor{border-color:var(--line);background:transparent}
 .acr-tile .rest b{color:inherit;font-weight:800}
 .acr-stage.ok .acr-tile .rest b{color:var(--good)}
+.acr-learnsw{display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;cursor:pointer}
+.acr-learnsw input{margin-top:4px}
+.acr-means{text-align:center;font-size:1.1rem;margin:0 0 6px}
+.acr-mixup{border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
+.acr-mixup ul{margin:6px 0 0}
+.acr-mixup li{margin:4px 0}
 
 /* ===================== GLASS LOOK (future, aurora, solar, glacier, jade) =====================
    Every rule starts with .glass, so the hacker themes are untouched. Frosted panels over soft colored light,
