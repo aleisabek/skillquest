@@ -1,6 +1,10 @@
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=VT323&family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;600;700&display=swap');
-/* Base tokens (used for a moment before a look is applied). Offline, fonts fall back to Cascadia Code / Consolas. */
+/* Fonts are embedded (latin, variable weight), so the app makes no outside requests: build.js turns each fonts/ url into a data: URL. Licenses: src/fonts/OFL-*.txt */
+@font-face{font-family:'Inter';font-style:normal;font-weight:100 900;font-display:swap;src:url(fonts/inter.woff2) format('woff2')}
+@font-face{font-family:'JetBrains Mono';font-style:normal;font-weight:100 800;font-display:swap;src:url(fonts/jetbrains-mono.woff2) format('woff2')}
+@font-face{font-family:'Space Grotesk';font-style:normal;font-weight:300 700;font-display:swap;src:url(fonts/space-grotesk.woff2) format('woff2')}
+@font-face{font-family:'VT323';font-style:normal;font-weight:400;font-display:swap;src:url(fonts/vt323.woff2) format('woff2')}
+/* Base tokens (used for a moment before a look is applied). */
 :root{
   --bg:#030806; --panel:rgba(6,18,12,.88); --panel2:rgba(57,255,136,.07); --text:#c9ffdc; --muted:#6fae86;
   --line:#1b4a31; --accent:#39ff88; --accent2:#00d1ff; --accent-soft:rgba(57,255,136,.12); --on-accent:#021a0c;

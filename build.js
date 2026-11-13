@@ -16,7 +16,9 @@ const priv = fs.existsSync(path.join(SRC, 'private.js')) ? ['private.js'] : [];
 const ORDER = ['content.js', 'acronyms.js', ...lessons, 'generators.js', 'scenes.js', 'learning.js', 'journal.js', 'exam.js', 'pbq.js', 'labs.js', 'pilot.js', 'practice.js', 'recorder.js', ...priv, 'app.js'];
 
 const read = f => fs.readFileSync(path.join(SRC, f), 'utf8');
-const page = order => read('shell.html').replace('{{STYLE}}', () => read('styles.css')).replace('{{SCRIPT}}', () => order.map(read).join(''));
+// fonts are embedded as data: URLs, so the built file loads nothing from outside
+const css = () => read('styles.css').replace(/url\(fonts\/([a-z0-9-]+\.woff2)\)/g, (m, f) => 'url(data:font/woff2;base64,' + fs.readFileSync(path.join(SRC, 'fonts', f)).toString('base64') + ')');
+const page = order => read('shell.html').replace('{{STYLE}}', css).replace('{{SCRIPT}}', () => order.map(read).join(''));
 const html = page(ORDER);
 
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
