@@ -3,7 +3,8 @@
 //   2. keeps the previous installed copy as SkillQuest.prev.html, then installs the new build
 //   3. regenerates the public Linux deck; if it changed, shows the diff and asks before committing and pushing that repo
 // Options: --yes publishes the deck without asking; --no-deck skips step 3.
-// Paths: SKILLQUEST_INSTALL (installed app) and DECK_DIR (flashcards repo) override the defaults.
+//   Also copies the build into OneDrive\SkillQuest when OneDrive is on this PC, so another computer (a Mac) gets it too.
+// Paths: SKILLQUEST_INSTALL (installed app), SKILLQUEST_CLOUD (cloud copy) and DECK_DIR (flashcards repo) override the defaults.
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
@@ -11,6 +12,8 @@ const { spawnSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
 const INSTALL = process.env.SKILLQUEST_INSTALL || path.join(require('os').homedir(), 'Documents', 'Job Search', 'SkillQuest.html');
+const ONEDRIVE = process.env.OneDrive || path.join(require('os').homedir(), 'OneDrive');
+const CLOUD = process.env.SKILLQUEST_CLOUD || (fs.existsSync(ONEDRIVE) ? path.join(ONEDRIVE, 'SkillQuest', 'SkillQuest.html') : '');
 const DECK_DIR = process.env.DECK_DIR || path.join(require('os').homedir(), 'Documents', 'Linux-Cheat-sheet');
 const args = process.argv.slice(2);
 const step = msg => console.log('\n== ' + msg);
@@ -27,6 +30,11 @@ const ask = q => new Promise(res => { const rl = readline.createInterface({ inpu
   if (fs.existsSync(INSTALL)) fs.copyFileSync(INSTALL, INSTALL.replace(/\.html$/, '.prev.html'));
   fs.copyFileSync(path.join(root, 'dist', 'SkillQuest.html'), INSTALL);
   console.log('installed to', INSTALL, '(previous copy kept as', path.basename(INSTALL.replace(/\.html$/, '.prev.html')) + ')');
+  if (CLOUD) {
+    fs.mkdirSync(path.dirname(CLOUD), { recursive: true });
+    fs.copyFileSync(path.join(root, 'dist', 'SkillQuest.html'), CLOUD);
+    console.log('cloud copy for your other computer:', CLOUD);
+  }
 
   if (!args.includes('--no-deck')) {
     step('Public deck');
