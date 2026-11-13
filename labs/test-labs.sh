@@ -45,6 +45,18 @@ run secret-leak "bash $FX/secret-leak.sh wrong" "bash $FX/secret-leak.sh right" 
 run vuln-triage "bash $FX/vuln-triage.sh wrong" "bash $FX/vuln-triage.sh right" "bash $FX/vuln-triage.sh broken"
 # other valid fixes must pass; a crashed checker must never count as a pass
 for lab in cloudtrail-hunt iam-tighten ssh-harden secret-leak vuln-triage; do try "$lab" pass alt; try "$lab" fail crash; done
+# Network discovery: the right fix really sweeps the throwaway lab network; then check it has no way out and leaves nothing behind.
+run net-discover "bash $FX/net-discover.sh wrong" "bash $FX/net-discover.sh right" "bash $FX/net-discover.sh broken"
+try net-discover pass alt; try net-discover fail crash
+echo "[net-discover · isolation]"
+bash "$SQ" start net-discover >/dev/null; cd "$HOME/sq-labs/net-discover" || exit 1
+./enter-lab -c 'ping -c1 -W1 8.8.8.8' >/dev/null 2>&1 && fail "net-discover: the lab network reached 8.8.8.8" || pass "net-discover: no way to the internet"
+./enter-lab -c 'ping -c1 -W1 192.168.1.1' >/dev/null 2>&1 && fail "net-discover: the lab network reached 192.168.1.1" || pass "net-discover: no way to a home network"
+[ -z "$(./enter-lab -c 'ip route show default')" ] && pass "net-discover: no default route inside" || fail "net-discover: a default route inside"
+n=$(./enter-lab -c 'for i in $(seq 1 254); do ping -c1 -W1 198.51.100.$i >/dev/null 2>&1 & done; wait; ip neigh show dev br0' | grep -c lladdr)
+[ "$n" = 4 ] && pass "net-discover: the sweep finds the 4 devices that are on (the switched-off one stays silent)" || fail "net-discover: the sweep found $n devices, expected 4"
+pgrep -u "$(id -u)" -f sq-netlab-host >/dev/null && fail "net-discover: lab devices still running after leaving" || pass "net-discover: nothing left running after leaving"
+cd "$HOME"; bash "$SQ" reset net-discover >/dev/null
 # Permissions pilot: started -> checked (no credit) -> finished once; the report line is the evidence.
 rep() { bash "$SQ" report "$1" 2>/dev/null | python3 -c 'import sys,json; l=sys.stdin.read(); print(json.loads(l[5:]).get(sys.argv[1], "") if l.startswith("SQR2 ") else "none")' "$2"; }
 pilot() { # pilot LAB RIGHT_Q1 RIGHT_Q2 THE_FAULTS_Q2_NUMBER

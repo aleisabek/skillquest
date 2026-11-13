@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SkillQuest break-and-fix labs.
 # Everything happens inside ~/sq-labs. No sudo, no real services, nothing outside that folder is touched.
+# (net-discover's ./enter-lab builds a throwaway private network in Linux namespaces, with no way out; it is gone on exit.)
 #
 #   sq-lab                 list labs and your status
 #   sq-lab start NAME      break things on purpose and show your mission

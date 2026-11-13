@@ -25,7 +25,7 @@ dirs.forEach(d => { if (!new RegExp('^' + (pilotIds.includes(d) ? 'pilot ' : 'ru
 const py = fs.readFileSync(path.join(__dirname, '..', 'labs', 'sq-evidence.py'), 'utf8'), pyList = n => JSON.parse(py.match(new RegExp('^' + n + ' = (\\[.*?\\])', 'm'))[1].replace(/'/g, '"'));
 ['q1', 'q2'].forEach(q => { if (JSON.stringify(pyList(q.toUpperCase())) !== JSON.stringify(L.PILOT[q])) fail('answer list', q, 'differs between the app and sq-evidence.py'); });
 /* security labs practice one lesson: it must exist, and that lesson must point back to the lab */
-const SECURITY = ['cloudtrail-hunt', 'iam-tighten', 'ssh-harden', 'secret-leak', 'vuln-triage'];
+const SECURITY = ['cloudtrail-hunt', 'iam-tighten', 'ssh-harden', 'secret-leak', 'vuln-triage', 'net-discover'];
 L.LABS.filter(l => SECURITY.includes(l.id)).forEach(l => {
   if (!l.lesson || !L.lessonFor(l.lesson)) fail('lab', l.id, 'needs a lesson that exists, got', l.lesson);
   else if (L.labForLesson(l.lesson) !== l) fail('lesson', l.lesson, 'does not link back to lab', l.id);

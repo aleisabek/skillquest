@@ -30,7 +30,9 @@ const LABS = [
  {id:'secret-leak', title:'The key is still in the history', level:'L2', code:'7676E0', lesson:'quiz:cloud:Leaked key response', skills:['quiz:sec:Secrets & untrusted code','quiz:code:Git','quiz:cloud:Leaked key response'],
   summary:'A deleted .env file still holds an API key in git history. Purge it everywhere, keep the history and the app working, and note the rotation.'},
  {id:'vuln-triage', title:'Fix what matters first', level:'L2', code:'A38CCA', lesson:'quiz:offsec:Findings report', skills:['quiz:sec:Vulnerabilities','quiz:offsec:Findings report'],
-  summary:'Rank scan findings by KEV, exposure and CVSS, and write the top three up as a client-ready findings.md.'}
+  summary:'Rank scan findings by KEV, exposure and CVSS, and write the top three up as a client-ready findings.md.'},
+ {id:'net-discover', title:'Which device doesn\'t belong?', level:'L2', code:'98254F', lesson:'quiz:sec:Asset management', skills:['term:linux:Networking','quiz:net:IP addressing','quiz:sec:Asset management'],
+  summary:'On a throwaway lab network with no way out, sweep 198.51.100.0/24, read the ARP table with ip neigh, and find the device that isn\'t on the approved inventory. Scope: the lab network only, never a real one.'}
 ];
 /* the optional lab that practices a lesson, shown at the end of that lesson (PC only: labs run in WSL) */
 function labForLesson(id){ return LABS.find(l=>l.lesson === id) || null; }
