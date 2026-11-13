@@ -1159,6 +1159,37 @@ function termNorm(x){
   end();
   return bad ? null : norm(x);
 }
+/* A friendlier note for a near miss: typed is termNorm's result (never null here), pats the task's answer patterns,
+   model its model answer. Each check only fires when fixing that one slip would make the answer right (or, for the
+   last three, match the model answer), so the note never points at the wrong problem. '' means no slip was found. */
+function termSlip(typed, pats, model){
+  const ok = s=>pats.some(re=>re.test(s)), m = norm(model);
+  const flat = s=>s.replace(/\s+/g, ''), words = s=>s.split(' ').sort().join(' ');
+  /* try each look-alike one at a time, since the answer may have real i's elsewhere (ln -s ... site) */
+  const swap1 = (re, to)=>[...typed].some((c, i)=>re.test(c) && ok(typed.slice(0, i) + to(c) + typed.slice(i + 1)));
+  if(swap1(/[Ii]/, ()=>'l')) return '✘ Close: that letter is a lowercase L, not an i or a capital I (for example ln, short for "link").';
+  if(swap1(/[O0]/, c=>c === 'O' ? '0' : 'O')) return '✘ Close: check the zeros and capital Os, they are different characters.';
+  if(pats.some(re=>new RegExp(re.source, re.flags.replace('i', '') + 'i').test(typed))) return '✘ Close: check upper and lowercase. Linux treats them as different (ls works, LS does not).';
+  if(typed.includes('\\') && ok(typed.replace(/\\/g, '/'))) return '✘ Close: Linux paths use forward slashes (/), not backslashes (\\).';
+  if(typed !== m && flat(typed) === flat(m)) return '✘ Close: check the spaces. Each part of the command needs a space between it and the next.';
+  if(typed !== m && typed.includes(' ') && words(typed) === words(m)) return '✘ Right pieces, wrong order: check which part goes first.';
+  /* a typo: exactly one word differs, it is a command name, path or file (not a flag or a number, where a different
+     value is a different answer, not a typo), and it is one or two letters off */
+  const ta = typed.split(' '), tb = m.split(' '), diff = tb.map((w, i)=>i).filter(i=>ta[i] !== tb[i]);
+  if(ta.length === tb.length && diff.length === 1){
+    const a = ta[diff[0]], b = tb[diff[0]];
+    if(b.length >= (diff[0] === 0 ? 2 : 3) && !/^-/.test(b) && !/^\d+$/.test(b) && Math.abs(a.length - b.length) <= 2){
+      let prev = Array.from({length:b.length + 1}, (_, j)=>j);
+      for(let i=1; i<=a.length; i++){
+        const cur = [i];
+        for(let j=1; j<=b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j-1] + 1, prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1));
+        prev = cur;
+      }
+      if(prev[b.length] <= 2) return '✘ Very close: check the spelling of '+(diff[0] === 0 ? 'the command name' : '"'+a+'"')+'.';
+    }
+  }
+  return '';
+}
 function termStep(s){
   if(s.i >= s.items.length){
     if(s.mission) finishMission(s);
@@ -1204,7 +1235,7 @@ function termStep(s){
       termStep(s);
     } else {
       s.wrong = true; s.last = v;
-      s.lines.push([typed === null ? '✘ Check the quotes: they change which words the shell sees (\'ls -la\' is one word, not ls plus -la).' : '✘ Not that one. Try again, or use Hint.', 'no']); say(s.lines[s.lines.length - 1][0]); termStep(s);
+      s.lines.push([typed === null ? '✘ Check the quotes: they change which words the shell sees (\'ls -la\' is one word, not ls plus -la).' : termSlip(typed, t[1], t[2]) || '✘ Not that one. Try again, or use Hint.', 'no']); say(s.lines[s.lines.length - 1][0]); termStep(s);
     }
   };
   $('#hint').onclick=()=>{ s.hinted=true; s.lines.push(['hint: '+t[3], '']); say('Hint: '+t[3]); termStep(s); };

@@ -172,6 +172,8 @@ h3{color:var(--text)}
 .term .ok{color:var(--term-green)}
 .term .no{color:var(--bad)}
 .term .line{white-space:pre-wrap;margin:2px 0}
+/* commands always in a monospace font, in every look: in Inter a lowercase l and a capital I look the same (ln vs In) */
+.term,.term input,html .glass .term,html .glass .term input{font-family:"Cascadia Code",Consolas,"JetBrains Mono",ui-monospace,monospace}
 .term .inrow{display:flex;gap:8px;align-items:center;margin-top:8px}
 .term input{flex:1;background:transparent;border:none;outline:none;color:var(--term-text);font:inherit;caret-color:var(--accent)}
 textarea{width:100%;min-height:130px;font:inherit;padding:12px;border:1px solid var(--line);background:rgba(0,0,0,.45);color:var(--text);resize:vertical;outline:none;caret-color:var(--accent)}
