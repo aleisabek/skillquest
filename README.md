@@ -92,6 +92,7 @@ Each day: **Learn** 3 two-minute lessons → **Practice** 4 typed exercises from
 - **Path:** cloud security + red team, foundations first (`PATH` in app.js). Every beginner skill stays; the path only orders them. Per track, Level 1 comes first and Level 2 opens once the track's Level 1 skills average 70%. Weights: Linux, networking, security 3; code, SQL, cloud and offensive security 2; IT support 1; Software Testing is not on the path (still in Study). Cloud Security and Offensive Security are the later stages (see their sections below).
 - **Today's 3 skills** (`dailyPlan`, fixed for the day in `S.plan`): two path skills from different tracks (started-but-weak first, then new ones by weight and level) plus one slipping skill you've started (or a third track when none is slipping).
 - **Lessons come back** when a skill you've read drops under 50% or you miss 2+ of its exercises in a day (`S.slip`); otherwise a read lesson is skipped as healthy.
+- **Security+ session:** an optional session (acronyms, a PBQ round, the weakest Security+ skill, a 20-question practice exam) offered after the four steps. While an SY0-801 exam date is set and not yet past, it moves to the top of Today ("Security+ exam focus") so exam study comes first. It reaches Level 2 Security+ skills directly; the four steps, full day and streak are unchanged.
 - **Day flags:** `p0`–`p2` per practice slot, `practice` when all three are done, `learn` when no needed lesson is left (once something was actually done), `apply`, and `rev`.
 
 ## Streak

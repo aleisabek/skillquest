@@ -78,7 +78,8 @@ body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:30;
 header,.wrap,.toast{position:relative;z-index:2}
 a{color:var(--accent2)}
 a:hover{text-shadow:var(--glow)}
-code,.mono{font-family:inherit;font-size:.92em}
+/* code, commands, model answers and typed answers always in a monospace font, in every look (in Inter, ln reads as In) */
+code,.mono{font-family:"Cascadia Code",Consolas,"JetBrains Mono",ui-monospace,monospace;font-size:.92em}
 code{background:var(--panel2);color:var(--accent);padding:1px 6px;border:1px solid var(--line);border-radius:3px}
 button{font:inherit;font-size:.9rem;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--text);border-radius:var(--radius);padding:8px 16px;letter-spacing:.02em;transition:border-color .15s,box-shadow .15s,color .15s}
 button:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--glow)}
@@ -256,6 +257,7 @@ input.typed.no{border-color:var(--bad)}
 @media (max-width:600px){ .chip{min-height:36px} }
 /* lesson snippets ("You'll see this as"): log lines and rule tables keep their columns and scroll sideways on phones */
 .model pre{margin:0 0 6px;white-space:pre;overflow-x:auto;font:inherit;font-size:.85em;color:var(--term-text)}
+.model pre,input.typed,html.readable input.typed,html.readable .model pre{font-family:"Cascadia Code",Consolas,"JetBrains Mono",ui-monospace,monospace}
 /* Animated lesson scenes ("Watch it", see scenes.js): theme variables only; solid = network/focus, dashed = host */
 .scene{border:1px solid var(--line);background:var(--panel2);padding:12px 12px 10px;margin:6px 0 4px;outline:none;max-width:calc(620px * var(--ts,1))}
 .scene:focus-within{border-color:var(--accent)}
@@ -640,7 +642,10 @@ html.idle body::before,html.idle .glitch::before,html.idle .glitch::after,html.i
   -webkit-mask:radial-gradient(circle,transparent 15px,#000 16px);mask:radial-gradient(circle,transparent 15px,#000 16px)}
 .glass .sring.good{--rc:var(--good)} .glass .sring.mid{--rc:var(--warn)} .glass .sring.bad{--rc:var(--bad)} .glass .sring.none{--rc:var(--accent2)}
 /* lesson stepper: section chips above the lesson, the current one lit */
-.glass .lsteps{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.glass .lsteps{display:flex;flex-direction:row;gap:6px;flex-wrap:wrap;margin:0 0 12px;padding:0;max-width:none}
+/* the lesson stepper is a <nav>, so undo the header menu's look (column, lowercase, "./" prefix) */
+.glass .lsteps button{text-transform:none}
+.glass .lsteps button::before{content:none}
 .glass .lsteps button{padding:4px 12px;font-size:.78rem;border-radius:999px;color:var(--muted)}
 .glass .lsteps button[aria-current]{color:var(--text);border-color:color-mix(in srgb,var(--accent) 55%,transparent);background:var(--accent-soft)}
 .glass .card.reading > h2{scroll-margin-top:180px}

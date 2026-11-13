@@ -678,7 +678,7 @@ function vToday(){
   const solid = pathSkills().filter(s=>skillLevel(s)===1), solidN = solid.filter(s=>skillScore(s.id) >= PATH.solid).length;
   const chip = (attr, i, label, state)=>'<button class="chip'+(state==='done'?' on':'')+'" data-'+attr+'="'+i+'">'+label+'</button>';
   const step = (n, name, ok, hint, body)=>'<div class="step'+(ok?' ok':'')+'"><span class="chk" aria-hidden="true">'+(ok?'✓':'○')+'</span><span class="sr">'+(ok?'Done: ':'To do: ')+'</span><div><b>'+n+' · '+name+'</b> <span class="small">'+hint+'</span>'+body+'</div></div>';
-  const lab = labPick(plan);
+  const lab = labPick(plan), examFirst = secExamFirst();
   view.innerHTML =
     (saveBlocked ? '<div class="card tip" style="margin-top:18px;border-color:var(--bad)"><b>⚠ Your saved progress could not be read.</b> A copy was kept in this browser, and nothing will be saved over it until you choose. '+
       'Best: restore your latest backup. Or start fresh (the unreadable copy stays in browser storage).<div class="row" style="margin-top:10px"><button class="primary" id="fixRestore">Restore a backup</button><button id="fixFresh">Start fresh</button></div></div>' : '')+
@@ -686,14 +686,14 @@ function vToday(){
     (!saveBlocked && !hasProgress() ? '<div class="slim">👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup so your progress follows you. <button id="fixMerge">Merge a backup</button></div>' : '')+
     (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
     (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start '+esc(pilotEvidence().round.recheck)+'</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
-    '<h1>Today\'s loop</h1>'+missionClock()+syncNote()+'<p class="sub">Path: '+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
+    '<h1>Today\'s loop</h1>'+missionClock()+syncNote()+(examFirst ? '<div class="card exfirst">'+sessionCard(true)+'</div>' : '')+'<p class="sub">Path:'+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
     '<div class="bento"><div class="card today hero"><div class="row" style="justify-content:space-between"><span class="ring" style="--p:'+(doneN*25)+'" aria-hidden="true"><span>'+doneN+'/4</span></span><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
       '<div class="launch" style="--p:'+doneN+'"><span class="sr">Launch progress: '+doneN+' of 4 stages.</span>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
       step(2, 'Practice', st.practiced, PRACTICE_N+' exercises per lesson, typed, first try counts. A set counts as done with one right answer: that is practice done, not mastery', '<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
       step(3, 'Apply', st.applied, 'one rep in today\'s main area', '<div class="chips"><button class="chip'+(st.applied?' on':'')+'" data-apply="1">'+repTitle+(st.applied?' ✓':'')+'</button></div>')+
       step(4, 'Reviews', st.reviewed, st.reviewed ? 'handled for today' : dueN+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done (clear them, or do '+REVIEW_CAP+')', st.reviewed ? '' : '<div class="chips"><button class="chip" data-go="review">Open Review</button></div>')+'</div>'+
-      '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<b class="donetoday">Orbit reached: done for today ✓</b> <span class="small">That\'s the daily loop. Stop here, or keep going below.</span> <button id="logGo">🎙 Captain\'s log (1 min)</button>')+'</div>'+(next ? '' : sessionCard())+'</div>'+
+      '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<b class="donetoday">Orbit reached: done for today ✓</b> <span class="small">That\'s the daily loop. Stop here, or keep going below.</span> <button id="logGo">🎙 Captain\'s log (1 min)</button>')+'</div>'+(next || examFirst ? '' : sessionCard())+'</div>'+
     stripHTML()+
     (lab ? '<div class="card"><b>🌐 Outside practice (free)</b> <span class="small">· for today\'s '+esc(lab.sk)+' lesson</span>'+
       '<p style="margin:8px 0"><a href="'+lab.url+'" target="_blank" rel="noopener">'+esc(lab.name)+' ↗</a> <span class="small">'+esc(lab.note)+'</span></p>'+
@@ -787,7 +787,8 @@ function wireMissionClock(){
    last three days (so the same exam pool doesn't repeat every night). Progress is read from saved data plus three
    true-only day flags (sAcr, sPbq, sWeak), which the backup merge keeps as "set on either device = set". None of this
    touches the four steps, isFullDay or the streak. SESSION is in memory only: it decides whether end screens offer
-   "Next in session". */
+   "Next in session". While an SY0-801 exam date is set and not yet past, the session card moves to the top of Today
+   (exam study first); nothing it saves changes. */
 let SESSION = false, SESSION_WEAK = null;
 function weakSecSkill(){
   const list = allSkills().filter(s=>s.id.startsWith('quiz:sec:') && s.id !== ACR_SKILL);
@@ -819,9 +820,10 @@ function sessionWire(){
   b.onclick = ()=>{ const n = sessionStops().find(x=>!x.done); if(n) n.run(); else { SESSION = false; go('today'); } };
   b.focus(); return true;
 }
-function sessionCard(){
+function secExamFirst(){ const n = examDays(); return n !== null && n >= 0; }
+function sessionCard(top){
   const stops = sessionStops(), left = stops.filter(x=>!x.done), mins = left.reduce((a,x)=>a+x.mins, 0);
-  return '<div class="session"><b>Full study session</b> <span class="small">· optional · '+(left.length ? 'about '+mins+' min left' : 'done today ✓')+'</span>'+
+  return '<div class="session"><b>'+(top ? '🚀 Security+ exam focus' : 'Full study session')+'</b> <span class="small">· '+(top ? 'first while your exam date is ahead' : 'optional')+' · '+(left.length ? 'about '+mins+' min left' : 'done today ✓')+'</span>'+
     '<ol class="sesstops">'+stops.map(x=>'<li'+(x.done ? ' class="ok"' : '')+'>'+(x.done ? '✓ ' : '')+esc(x.name)+'</li>').join('')+'</ol>'+
     (left.length ? '<button class="primary" id="sesGo">'+(stops.some(x=>x.done) ? 'Continue: ' : 'Start: ')+esc(left[0].name)+' →</button>' : '<span class="small">Session done. See you tomorrow.</span>')+'</div>';
 }
