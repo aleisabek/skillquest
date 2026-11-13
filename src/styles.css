@@ -618,8 +618,9 @@ html.calm .acr-tile .rest{transition-delay:0s}
 .glass .card.reading h2{margin-top:30px}
 .glass .card.reading h2:first-child{margin-top:4px}
 
-/* idle pause (see app.js): looping background and title effects stop while nobody is using the page */
-html.idle body::before,html.idle .glitch::before,html.idle .glitch::after,html.idle h1::after{animation-play-state:paused}
+/* idle pause and settle (see app.js): looping background and title effects stop while nobody is using the page (idle),
+   and a few seconds after each screen change (still), so they cost no CPU or GPU while you read and type */
+html.idle body::before,html.idle .glitch::before,html.idle .glitch::after,html.idle h1::after,html.still body::before,html.still .glitch::before,html.still .glitch::after,html.still h1::after{animation-play-state:paused}
 
 /* performance-based practice */
 .pbq-fields{display:grid;gap:10px;margin:14px 0}
@@ -685,7 +686,7 @@ html.idle body::before,html.idle .glitch::before,html.idle .glitch::after,html.i
 @keyframes scanin{from{opacity:0;clip-path:inset(0 0 100% 0);transform:translateY(6px)}to{opacity:1;clip-path:inset(0 0 0 0);transform:none}}
 .hack .rise{animation-name:scanin;animation-duration:420ms}
 html.calm.hack body::after,html.calm.hack h1{animation:none}
-html.idle.hack body::after{animation-play-state:paused}
+html.idle.hack body::after,html.still.hack body::after{animation-play-state:paused}
 @media (prefers-reduced-motion: reduce){ .hack body::after,.hack h1{animation:none} }
 
 /* Today: the finish line and the optional full study session */
@@ -735,7 +736,7 @@ html.idle.hack body::after{animation-play-state:paused}
   1%{opacity:.85}3.5%{opacity:0;transform:translate3d(115vw,36vh,0) rotate(18deg)}100%{opacity:0;transform:translate3d(115vw,36vh,0) rotate(18deg)}}
 html.calm #space *,html.calm #space *::before{animation:none}
 html.calm #space .comet{display:none}
-html.idle #space *,html.idle #space *::before{animation-play-state:paused}
+html.idle #space *,html.idle #space *::before,html.still #space *,html.still #space *::before{animation-play-state:paused}
 @media (prefers-reduced-motion: reduce){ #space *,#space *::before{animation:none} #space .comet{display:none} }
 @media (max-width:600px){ #space{--pl-op:.4} }
 
@@ -779,7 +780,7 @@ html.calm #space .jump{display:none}
 .gl-hit{fill:transparent}
 .gl-star[data-star]{cursor:pointer}
 .gl-star[data-star]:hover circle:not(.gl-hit){stroke:var(--text);stroke-width:1.2}
-html.idle #space .jump{animation-play-state:running}   /* a jump always finishes, even if it starts while idle */
+html.idle #space .jump,html.still #space .jump{animation-play-state:running}   /* a jump always finishes, even if it starts while idle */
 
 /* Mission clock (exam date) and the launch rail beside Today's four steps: a small rocket climbs one stage per
    finished step. It moves only when a step is finished (a short transition), never on its own. */
@@ -811,7 +812,7 @@ html.calm #space::after{transition:none}
 .orb{transform-box:view-box;transform-origin:170px 170px;animation:orbit 400s linear infinite}
 .orb.o0{animation-duration:160s}.orb.o1{animation-duration:240s;animation-direction:reverse}.orb.o3{animation-duration:600s;animation-direction:reverse}
 html.calm .orb{animation:none}
-html.idle .orb{animation-play-state:paused}
+html.idle .orb,html.still .orb{animation-play-state:paused}
 @media (prefers-reduced-motion: reduce){ .orb{animation:none} }
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle}
 .orbits ul{list-style:none;padding-left:0}

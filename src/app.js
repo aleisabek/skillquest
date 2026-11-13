@@ -140,6 +140,11 @@ const RISE_SEL = ':scope > h1, :scope > .sub, :scope > .slim, :scope > h2, :scop
 /* Warp jump: when you move to another screen, star streaks rush outward for a moment (light speed). One short
    transform/opacity animation on #space .jump; nothing runs between jumps. Skipped in Calm, under reduced motion,
    and without the warp style. Synchronous on purpose: callers that draw right after go() keep working. */
+/* Settle: the background drift, stars, planet and title effects play for a few seconds after the app opens or the
+   screen changes, then hold still (html.still) until the next screen change. Measured Nov 13: left looping they kept
+   the GPU process busy (~35% in Chrome's Task Manager) the whole time you read or typed. */
+const SETTLE_MS = 6000; let settleT = 0;
+function settleSoon(){ const h = document.documentElement; h.classList.remove('still'); clearTimeout(settleT); settleT = setTimeout(()=>h.classList.add('still'), SETTLE_MS); }
 function warpJump(){
   const j = document.querySelector('#space .jump');
   if(!j || !motionOK() || !document.documentElement.classList.contains('hack')) return;
@@ -652,7 +657,7 @@ function go(tab){
   if(EX && tab!=='exams'){ askConfirm('Leave the exam in progress? Your answers will be lost.', 'Leave exam', ()=>{ stopExamTimer(); EX = null; go(tab); }); return; }
   stopRecording(true);   /* leaving the page discards a half-finished recording */
   destroyScene();        /* and stops any lesson animation */
-  current = tab; stopTimer(); header(); warpJump(); document.documentElement.classList.remove('redalert'); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,pbq:vPbq,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
+  current = tab; stopTimer(); header(); warpJump(); settleSoon(); document.documentElement.classList.remove('redalert'); ({today:vToday,skills:vSkills,exams:vExams,labs:vLabs,practice:vPractice,tracks:vTracks,tickets:vTickets,sql:vSQL,terminal:vTerminal,interview:vInterview,review:vReview,acronyms:vAcronyms,pbq:vPbq,ready:vReady,progress:vProgress,guide:vGuide,backup:vBackup})[tab](); window.scrollTo(0,0); enterView(); }
 
 /* ===================== VIEWS ===================== */
 /* Today: the loop as a 4-step checklist with one "Next up" button, the last 14 days, one real lab, and a short tip. */
@@ -1914,7 +1919,7 @@ function blip(kind){
     if(!idle || document.hidden) return; idle = false; html.classList.remove('idle'); applySound(); }
   ['pointermove','pointerdown','keydown','wheel','touchstart','scroll'].forEach(e=>addEventListener(e, wake, {passive:true}));
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden){ clearTimeout(t); sleep(); } else wake(); });
-  wake();
+  wake(); settleSoon();   /* the first screen settles too, not only screens reached through go() */
 })();
 
 /* Display panel */
