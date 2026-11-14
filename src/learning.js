@@ -120,7 +120,16 @@ function vLesson(id, mission, opts){
   const fromPlan = /^p[0-2]$/.test(mission||'');
   const markRead = ()=>{ S.lessons = S.lessons || {}; S.lessons[id] = dayStr(); S.days[dayStr()] = S.days[dayStr()] || {}; afterStep(); save(); };
   const v = skillScore(id), [st, cls] = skillStatus(id);
-  view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · practice score '+v+'% ('+st+') · about 2 minutes</p>'+
+  /* Coming back to a lesson read on an earlier day: recall what you remember first, then reread (recallCard below). */
+  const readOn = (S.lessons||{})[id], returning = !preview && !!readOn && readOn !== dayStr();
+  /* How it connects: related lessons, each a question first ("how does it connect?") with the reason one click away */
+  const links = lessonLinks(id).map(([o, why])=>[skillById(o), why]).filter(([o])=>o && lessonFor(o.id));
+  view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · practice score '+v+'% ('+st+') · about 3 minutes</p>'+
+    (returning ? '<div class="card" id="recallCard"><h2>First: what do you remember?</h2><p>You read this lesson on '+esc(readOn)+'. Before you reread it, write down everything you can remember about <b>'+esc(s.sk)+'</b>: what it is, why it matters, and an example.</p>'+
+      '<p class="small">Pulling it back up, even partly, makes the reread stick far better than reading it cold. A blank page is fine: it shows you what to look for.</p>'+
+      '<textarea id="recallText" class="recall" spellcheck="true" placeholder="What I remember…" aria-label="What you remember about '+esc(s.sk)+'"></textarea>'+
+      '<div class="row" style="margin-top:10px"><button class="primary" id="recallGo">Show the lesson</button><button id="recallSkip">Skip</button></div><p class="small">This is not saved anywhere. It is only for you to compare.</p></div>' : '')+
+    '<div id="lessonBody"'+(returning ? ' hidden' : '')+'>'+
     '<div class="card reading"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+messerLessonHTML(id)+
     '<h2>The core idea</h2>'+L.idea+
     (SCENES[id] ? '<h2>Watch it</h2><div id="scene" role="group" aria-label="Animated explainer: '+esc(SCENES[id].title)+'"></div>' : '')+
@@ -130,16 +139,49 @@ function vLesson(id, mission, opts){
     (L.detect ? '<h2>How to detect it</h2>'+L.detect : '')+
     '<h2>Common mistakes</h2><ul class="clean">'+L.mistakes.map(x=>'<li>'+x+'</li>').join('')+'</ul>'+
     (L.spot ? '<h2>Spot the problem</h2><p>'+L.spot.q+'</p><details><summary>Show the answer</summary><p>'+L.spot.a+'</p></details>' : '')+
-    '<h2>Say it in an interview</h2><div class="explain">"'+L.say+'"</div>'+
-    (!PHONE && !preview && labForLesson(id) ? '<h2>Try it for real (optional, on your PC)</h2><p>In Ubuntu (WSL): <code>sq-lab start '+esc(labForLesson(id).id)+'</code>. '+esc(labForLesson(id).summary)+' <a href="#" id="toLabs">Open Labs</a></p>' : '')+
-    (preview ? '<p class="small" style="margin-top:16px">🔒 Preview: reading this records nothing. '+esc(track(s.tid).name)+' opens when '+unlockText(s.tid)+'.</p><div class="row"><button id="back">Back</button></div></div>'
-      : '<div class="row" style="margin-top:16px"><button class="primary" id="prac">Practice it now: '+(fromPlan ? PRACTICE_N+' exercises (today’s plan)' : '6 fresh problems')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div>');
-  if(SCENES[id]) mountScene($('#scene'), SCENES[id]); else destroyScene();
+    (links.length ? '<h2>How it connects</h2><p class="small">A new fact sticks when it hooks onto one you already have. For each one, try to say how it connects before you open the answer.</p>'+
+      links.map(([o, why], k)=>'<details class="link"><summary>🔗 '+o.icon+' '+esc(o.sk)+': how does it connect?</summary><p>'+esc(why)+' <a href="#" data-link="'+k+'">Open that lesson →</a></p></details>').join('') : '')+
+    /* the model explanation is shown only in preview; otherwise you explain it yourself first (sayCard below) */
+    (preview ? '<h2>Say it in an interview</h2><div class="explain">"'+L.say+'"</div>' : '')+
+    (!PHONE && !preview && labForLesson(id) ?'<h2>Try it for real (optional, on your PC)</h2><p>In Ubuntu (WSL): <code>sq-lab start '+esc(labForLesson(id).id)+'</code>. '+esc(labForLesson(id).summary)+' <a href="#" id="toLabs">Open Labs</a></p>' : '')+
+    (preview ? '<p class="small" style="margin-top:16px">🔒 Preview: reading this records nothing. '+esc(track(s.tid).name)+' opens when '+unlockText(s.tid)+'.</p><div class="row"><button id="back">Back</button></div></div></div>'
+      : '<div class="row" style="margin-top:16px"><button class="primary" id="sayGo">Close the lesson and explain it (1 min)</button><button id="prac">'+(fromPlan ? 'Skip to the next step' : 'Skip, practice now')+'</button><button id="back">'+(fromPlan ? 'Back to Today' : 'Skills map')+'</button></div></div></div>'+
+        /* Say it first: the lesson is hidden while you explain it out loud, then the model answer is shown to compare */
+        '<div class="card" id="sayCard" hidden><h2>Explain it with the lesson closed</h2><p>Out loud, in plain words, as if to a friend who has never heard of it: what <b>'+esc(s.sk)+'</b> is, why it matters, and one example.</p>'+
+        '<p class="small">If you use a technical term, say what it means. The spot where a sentence falls apart is exactly what to reread, and finding it is the point. Recording is optional and stays on this computer.</p>'+
+        '<div id="rec"></div><div id="sayAfter"><div class="row" style="margin-top:10px"><button class="primary" id="sayCmp">I said it: compare with a model answer</button></div></div></div>');
+  const scene = ()=>{ if(SCENES[id]) mountScene($('#scene'), SCENES[id]); else destroyScene(); };
+  if(returning) destroyScene(); else scene();
   lessonSteps();
+  const body = $('#lessonBody'), top = ()=>window.scrollTo({top:0, behavior:'auto'});
+  view.querySelectorAll('[data-link]').forEach(a=>a.onclick=e=>{ e.preventDefault(); if(!preview) markRead();
+    const o = links[+a.dataset.link][0]; vLesson(o.id, null, {preview:!trackOpen(o.tid), back:'skills'}); });
   if(preview){ $('#back').onclick = ()=>go(opts.back || 'skills'); return; }
+  const showBody = ()=>{ body.hidden = false; scene(); };
+  if(returning){
+    const reveal = ()=>{ const t = $('#recallText').value.trim(), c = $('#recallCard');
+      c.outerHTML = t ? '<details class="card recalled" open><summary><b>What you remembered</b> <span class="small">(compare it as you read)</span></summary><p class="recall-said">'+esc(t)+'</p></details>' : '';
+      showBody(); top(); };
+    $('#recallGo').onclick = reveal; $('#recallSkip').onclick = ()=>{ $('#recallText').value = ''; reveal(); };
+    queueMicrotask(()=>{ const t = $('#recallText'); if(t) t.focus(); });
+  }
+  /* after the lesson: today's plan goes on to its next step (another lesson, or the mixed set); otherwise 6 problems */
+  const goOn = ()=>{ markRead(); if(fromPlan){ go('today'); const n = $('#nextUp'); if(n) n.click(); } else startSkill(s, 6, null); };
   if($('#toLabs')) $('#toLabs').onclick = e=>{ e.preventDefault(); markRead(); go('labs'); };
-  $('#prac').onclick = ()=>{ markRead(); startSkill(s, fromPlan ? PRACTICE_N : 6, mission || null); };
+  $('#prac').onclick = goOn;
   $('#back').onclick = ()=>{ markRead(); go(fromPlan ? 'today' : 'skills'); };
+  $('#sayGo').onclick = ()=>{
+    body.hidden = true; destroyScene(); const card = $('#sayCard'); card.hidden = false; top();
+    renderRecorder('say:'+id);
+    $('#sayCmp').onclick = ()=>{
+      stopRecording();   /* a recording still running is saved, so you can play it back next to the model answer */
+      $('#sayAfter').innerHTML = '<h3>A model answer</h3><div class="explain">"'+L.say+'"</div>'+
+        '<p class="small">Compare: what did you leave out, and where did you get stuck? Reopen the lesson for exactly that part, then say it again.</p>'+
+        '<div class="row" style="margin-top:10px"><button class="primary" id="sayDone">'+(fromPlan ? 'Continue today’s plan' : 'Practice it: 6 fresh problems')+'</button><button id="sayOpen">Reopen the lesson</button></div>';
+      $('#sayDone').onclick = goOn; $('#sayDone').focus();
+      $('#sayOpen').onclick = ()=>{ showBody(); top(); };
+    };
+  };
 }
 
 /* ---- Skill galaxy: every skill as a star, every track as a constellation ----

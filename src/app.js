@@ -443,7 +443,7 @@ function statsLine(st){
 }
 
 /* ===================== DAILY LEARNING LOOP =====================
-   Every day: LEARN 3 lessons → PRACTICE 4 exercises from each of those skills → APPLY one ticket or interview rep
+   Every day: LEARN 3 lessons → PRACTICE them in one mixed set (4 exercises from each, plus older skills; mix.js) → APPLY one ticket or interview rep
    in the same area → REVIEWS. The lessons are the input, the exercises and the rep are the output.
 
    Career path: cloud security and red team, foundations first. Every beginner skill stays; the path only orders them.
@@ -667,15 +667,14 @@ function vToday(){
   const rep = plan.apply || applyRep(plan.ids[0]);
   const dueN = dueReviewCount(), revLeft = st.reviewed ? 0 : Math.min(dueN, Math.max(0, REVIEW_CAP - (d.reviews||0)));
   const todo = st.lessons.filter(l=>l.state === 'todo').length, pLeft = st.practice.filter(x=>!x).length;
-  const mins = todo*2 + pLeft*PRACTICE_N + (st.applied ? 0 : 5) + Math.ceil(revLeft*0.3);
+  const mins = todo*3 + (pLeft ? pLeft*PRACTICE_N + MIX_OLD : 0) +(st.applied ? 0 : 5) + Math.ceil(revLeft*0.3);
   const doneN = [st.learn, st.practiced, st.applied, st.reviewed].filter(Boolean).length;
   const repTitle = rep.kind === 'ticket' ? '🎫 Ticket: '+esc(SCEN[rep.i].title) : '🎤 Interview: "'+esc(IV[rep.i].q)+'"';
   const repGo = ()=> rep.kind === 'ticket' ? playTicket(rep.i, 'apply') : startIV(rep.i, 'apply');
   const next = (()=>{
-    for(let i=0;i<plan.ids.length;i++){
-      if(st.lessons[i].state === 'todo') return ['📖 Lesson: '+esc(sk[i].sk), ()=>vLesson(plan.ids[i], 'p'+i)];
-      if(!st.practice[i]) return ['✍ Practice: '+esc(sk[i].sk)+' ('+PRACTICE_N+')', ()=>startSkill(sk[i], PRACTICE_N, 'p'+i)];
-    }
+    /* every lesson first, then one mixed set of all their exercises (mix.js) */
+    for(let i=0;i<plan.ids.length;i++) if(st.lessons[i].state === 'todo') return ['📖 Lesson: '+esc(sk[i].sk), ()=>vLesson(plan.ids[i], 'p'+i)];
+    if(pLeft) return ['🔀 Mixed practice ('+(pLeft*PRACTICE_N)+' + older skills)', startMix];
     if(!st.applied) return [rep.kind === 'ticket' ? '🎫 Apply: ticket' : '🎤 Apply: interview rep', repGo];
     if(!st.reviewed) return ['🔁 Reviews ('+dueN+' due)', ()=>go('review')];
     return null;
@@ -691,11 +690,11 @@ function vToday(){
     (!saveBlocked && !hasProgress() ? '<div class="slim">👋 Studied SkillQuest in another browser, profile or on your phone? Merge that backup so your progress follows you. <button id="fixMerge">Merge a backup</button></div>' : '')+
     (backupDue() ? '<div class="slim">💾 '+(S.lastBackup ? 'Last backup '+esc(S.lastBackup)+'.' : 'No backup yet.')+' <button id="bk">'+(PHONE?'Copy backup':'Back up now')+'</button></div>' : '')+
     (journal().some(labDue) ? '<div class="slim">🧭 Permissions pilot: your delayed check is due. In Ubuntu: <code>sq-lab start '+esc(pilotEvidence().round.recheck)+'</code> <button id="pilotDue">Open the pilot</button></div>' : '')+
-    '<h1>Today\'s loop</h1>'+missionClock()+syncNote()+(examFirst ? '<div class="card exfirst">'+sessionCard(true)+'</div>' : '')+'<p class="sub">Path:'+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Each lesson feeds its own exercises.</p>'+
+    '<h1>Today\'s loop</h1>'+missionClock()+syncNote()+(examFirst ? '<div class="card exfirst">'+sessionCard(true)+'</div>' : '')+'<p class="sub">Path:'+PATH.name+', foundations first ('+solidN+' of '+solid.length+' foundation skills solid). Read today\'s lessons first, then practice them all in one mixed set.</p>'+
     '<div class="bento"><div class="card today hero"><div class="row" style="justify-content:space-between"><span class="ring" style="--p:'+(doneN*25)+'" aria-hidden="true"><span>'+doneN+'/4</span></span><b>'+doneN+' of 4 done</b><span class="small">'+(isFullDay(S.days[dayStr()]) ? 'Full day ✓' : next ? '~'+Math.max(mins,1)+' min left' : '')+'</span></div>'+
       '<div class="launch" style="--p:'+doneN+'"><span class="sr">Launch progress: '+doneN+' of 4 stages.</span>'+
       step(1, 'Learn', st.learn, '2-minute lessons (skipped when the skill is healthy)', '<div class="chips">'+st.lessons.map((l,i)=>chip('lesson', i, sk[i].icon+' '+esc(sk[i].sk)+(l.state==='read'?' ✓':l.state==='skip'?' · healthy':''), l.state==='read'?'done':'')).join('')+'</div>')+
-      step(2, 'Practice', st.practiced, PRACTICE_N+' exercises per lesson, typed, first try counts. A set counts as done with one right answer: that is practice done, not mastery', '<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
+      step(2, 'Practice', st.practiced, 'one mixed set: '+PRACTICE_N+' exercises per lesson plus up to '+MIX_OLD+' from older skills, shuffled and unlabeled, so you have to work out what each one needs. A lesson counts as practiced with one right answer: that is practice done, not mastery','<div class="chips">'+st.practice.map((ok,i)=>chip('prac', i, esc(sk[i].sk)+(ok?' ✓':''), ok?'done':'')).join('')+'</div>')+
       step(3, 'Apply', st.applied, 'one rep in today\'s main area', '<div class="chips"><button class="chip'+(st.applied?' on':'')+'" data-apply="1">'+repTitle+(st.applied?' ✓':'')+'</button></div>')+
       step(4, 'Reviews', st.reviewed, st.reviewed ? 'handled for today' : dueN+' due · '+(d.reviews||0)+' of '+REVIEW_CAP+' done (clear them, or do '+REVIEW_CAP+')', st.reviewed ? '' : '<div class="chips"><button class="chip" data-go="review">Open Review</button></div>')+'</div>'+
       '<div class="row" style="margin-top:12px">'+(next ? '<button class="primary" id="nextUp">Next up: '+next[0]+'</button>' : '<b class="donetoday">Orbit reached: done for today ✓</b> <span class="small">That\'s the daily loop. Stop here, or keep going below.</span> <button id="logGo">🎙 Captain\'s log (1 min)</button>')+'</div>'+(next || examFirst ? '' : sessionCard())+'</div>'+
@@ -706,7 +705,7 @@ function vToday(){
     (()=>{ const tip = STRATEGIES[dayNum() % STRATEGIES.length]; return '<details class="tipline"><summary>💡 Tip: <b>'+tip[0]+'</b></summary><p class="small">'+tip[1]+'</p></details>'; })()+'</div>';
   const on = (sel, f)=>{ const b = $(sel); if(b) b.onclick = f; };
   view.querySelectorAll('[data-lesson]').forEach(b=>b.onclick=()=>vLesson(plan.ids[+b.dataset.lesson], 'p'+b.dataset.lesson));
-  view.querySelectorAll('[data-prac]').forEach(b=>b.onclick=()=>{ const i = +b.dataset.prac; startSkill(sk[i], PRACTICE_N, 'p'+i); });
+  view.querySelectorAll('[data-prac]').forEach(b=>b.onclick=startMix);
   view.querySelectorAll('[data-apply]').forEach(b=>b.onclick=repGo);
   view.querySelectorAll('[data-go="review"]').forEach(b=>b.onclick=()=>go('review'));
   if(next) on('#nextUp', next[1]);
@@ -919,15 +918,15 @@ function sigText(s){
 function sigHTML(s){ return '<div class="signal" aria-hidden="true"><span class="small">📡 Incoming transmission · '+Math.round(100 * s.right / s.items.length)+'% decoded</span><div class="sigtext">'+esc(sigText(s))+'</div></div>'; }
 function quizStep(s){
   if(s.i >= s.items.length) return quizEnd(s);
-  if(!s.sig){ const tip = STRATEGIES[(hashStr(dayStr()) + s.items.length + (s.sk || s.tid || '').length) % STRATEGIES.length], m = plainText(tip[1]);
+  if(!s.sig && !s.mix){ const tip = STRATEGIES[(hashStr(dayStr()) + s.items.length + (s.sk || s.tid || '').length) % STRATEGIES.length], m = plainText(tip[1]);
     s.sig = {msg:m, order:shuffle([...m].map((c, i)=>i))}; }
   const idx = s.items[s.i], isGen = typeof idx === 'object', q = isGen ? idx.d : QUIZ[idx], t = track(q[0]);
   const sid = isGen && idx.sk ? skillIdFor('quiz', idx.tid, idx.sk) : null;
   /* Generated short-answer questions are typed (recall), unless typed mode is off or you asked to see the choices. */
   const typed = isGen && typedOn() && typeable(idx) && !s.showChoices;
   const order = shuffle(q[3].map((o,k)=>k));
-  view.innerHTML = '<h1>'+(s.journalRun ? '📓 Mistake retry' : t.icon+' '+(s.sk ? esc(s.sk) : t.name)+(s.endless?' drill':' quiz'))+' <span class="lv open">L'+q[1]+'</span>'+(isGen && !s.journalRun?' <span class="lv open" title="Freshly generated for you">∞ new</span>':'')+(typed?' <span class="lv open" title="Type the answer from memory">⌨ type it</span>':'')+'</h1>'+
-    '<div class="card">'+sigHTML(s)+'<div class="progress"><span>Question '+(s.i+1)+' of '+s.items.length+'</span><span>'+s.right+' correct</span></div>'+
+  view.innerHTML = '<h1>'+(s.mix ? '🔀 Mixed practice' : s.journalRun ? '📓 Mistake retry' : t.icon+' '+(s.sk ? esc(s.sk) : t.name)+(s.endless?' drill':' quiz'))+' <span class="lv open">L'+q[1]+'</span>'+(isGen && !s.journalRun?' <span class="lv open" title="Freshly generated for you">∞ new</span>':'')+(typed?' <span class="lv open" title="Type the answer from memory">⌨ type it</span>':'')+'</h1>'+
+    '<div class="card">'+(s.mix ? '' : sigHTML(s))+'<div class="progress"><span>'+(s.mix ? mixLabel(s) : 'Question '+(s.i+1)+' of '+s.items.length)+'</span><span>'+s.right+' correct</span></div>'+
     '<div class="q">'+q[2]+'</div>'+
     (typed ? '<div class="row"><input id="ta" class="typed" autocomplete="off" spellcheck="false" placeholder="Type your answer, then Enter" aria-label="Your answer"><button class="primary" id="chk">Check</button></div>'+
              '<p class="small">Recall it from memory; that is what makes it stick. Stuck? <a href="#" id="choices">Show the choices</a> (counts as a guess).</p>'
@@ -951,10 +950,10 @@ function quizStep(s){
       }
     }
     { const sg = view.querySelector('.signal'); if(sg) sg.outerHTML = sigHTML(s); }
-    const nx = s.i+1 < s.items.length ? 'Next' : 'Finish';
+    const nx = s.i+1 < s.items.length || (s.mix && s.mix.n < s.mix.of) ? 'Next' : 'Finish';
     /* After a correct answer on a skill question, ask whether it was sure or a guess: guesses barely raise mastery. */
     const btns = (sid && ok) ? '<button class="primary" id="sure">'+nx+' · I was sure</button><button id="guess">'+nx+' · I guessed</button>' : '<button class="primary" id="next">'+nx+'</button>';
-    $('#after').innerHTML = '<div class="explain">'+(ok?'✅ <b>Correct.</b> ':'❌ <b>Not quite.</b> ')+(!ok ? 'Answer: <b>'+q[3][q[4]]+'</b>. ' : '')+q[5]+'</div><div class="row" style="margin-top:12px">'+btns+'</div>';
+    $('#after').innerHTML = '<div class="explain">'+(ok?'✅ <b>Correct.</b> ':'❌ <b>Not quite.</b> ')+(!ok ? 'Answer: <b>'+q[3][q[4]]+'</b>. ' : '')+q[5]+'</div>'+(s.mix ? mixReveal(s) : '')+'<div class="row" style="margin-top:12px">'+btns+'</div>';
     if(sid && ok){
       $('#sure').onclick = ()=>{ recordSkill(sid, true, !viaChoice); advance(); };
       $('#guess').onclick = ()=>{ recordSkill(sid, true, false); advance(); };
@@ -983,6 +982,7 @@ function quizStep(s){
   });
 }
 function quizEnd(s){
+  if(s.then) return s.then(s);   /* one question of a mixed set: hand back to it */
   if(s.mission) finishMission(s);
   if(SESSION && SESSION_WEAK && !s.mission && s.tid && 'quiz:'+s.tid+':'+s.sk === SESSION_WEAK){ sessionFlag('sWeak'); SESSION_WEAK = null; }
   const pct = Math.round(s.right/s.items.length*100);
@@ -1203,19 +1203,20 @@ function termSlip(typed, pats, model){
 }
 function termStep(s){
   if(s.i >= s.items.length){
+    if(s.then) return s.then(s);   /* one task of a mixed set: hand back to it */
     if(s.mission) finishMission(s);
     view.innerHTML = '<h1>🐧 Terminal</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' solved</p><p>Want the real thing? Log into OverTheWire Bandit and use these commands on an actual server.</p><div class="row"><button class="primary" id="more">Another set</button><button id="home">Back to Today</button></div></div>';
     $('#more').onclick=()=>startTerm(8,null,s.lv,s.sk); $('#home').onclick=()=>go('today'); return;
   }
   const it = s.items[s.i], isGen = Array.isArray(it), t = isGen ? it : TERM[it];
-  view.innerHTML = '<h1>🐧 Terminal</h1><p class="sub">Type the Linux command and press Enter. Task '+(s.i+1)+' of '+s.items.length+'.</p>'+
+  view.innerHTML = '<h1>'+(s.mix ? '🔀 Mixed practice' : '🐧 Terminal')+'</h1><p class="sub">Type the Linux command and press Enter. '+(s.mix ? mixLabel(s) : 'Task '+(s.i+1)+' of '+s.items.length)+'.</p>'+
     '<div class="term" id="term">'+(t.chain ? '<div class="task"># SCENARIO: '+esc(t.chain.title)+' (step '+(t.chain.i+1)+' of '+t.chain.n+')</div>' : '')+
     (t.out ? t.out.map(l=>'<div class="line'+(/^\$ /.test(l) ? '' : ' outp')+'">'+esc(l)+'</div>').join('') : '')+
     '<div class="task"># TASK: '+esc(t[0])+'</div>'+
     s.lines.map(l=>'<div class="line '+l[1]+'">'+esc(l[0])+'</div>').join('')+
     (s.settled ? '' : '<div class="inrow"><span class="ok">alei@skillquest:~$</span><input id="cmd" autocomplete="off" spellcheck="false" aria-label="Command"></div>')+'</div>'+
     /* once solved the task is settled: no input, and nothing moves on until you choose Next (no timer to outlive the page) */
-    (s.settled ? '<div class="row" style="margin-top:12px"><button class="primary" id="tnext">'+(s.i + 1 < s.items.length ? 'Next task' : 'See results')+'</button></div>'
+    (s.settled ? (s.mix ? mixReveal(s) : '')+'<div class="row" style="margin-top:12px"><button class="primary" id="tnext">'+(s.i + 1 < s.items.length || (s.mix && s.mix.n < s.mix.of) ? 'Next task' : 'See results')+'</button></div>'
       : '<div class="row" style="margin-top:12px"><button id="hint">Hint</button><button id="show">Show answer</button><button id="skip">Skip</button></div>');
   const next = ()=>{ s.i++; s.lines=[]; s.hinted=false; s.wrong=false; s.shown=false; s.settled=false; termStep(s); };
   if(s.settled){
@@ -1351,12 +1352,13 @@ function startSQL(n, mission, lv, sk){
 }
 function sqlStep(s){
   if(s.i >= s.items.length){
+    if(s.then) return s.then(s);   /* one challenge of a mixed set: hand back to it */
     if(s.mission) finishMission(s);
     view.innerHTML = '<h1>🗄️ SQL console</h1><div class="card"><p class="q">'+s.right+' / '+s.items.length+' solved</p><p>Want more? SQLBolt (sqlbolt.com) has free interactive lessons that use the same skills.</p><div class="row"><button class="primary" id="more">Another set</button><button id="home">Back to Today</button></div></div>';
     $('#more').onclick=()=>startSQL(8, null, s.lv, s.sk); $('#home').onclick=()=>go('today'); return;
   }
   const it = s.items[s.i], isGen = Array.isArray(it), t = isGen ? it : SQLT[it];
-  view.innerHTML = '<h1>🗄️ SQL console <span class="lv open">L'+t[0]+'</span></h1><p class="sub">Challenge '+(s.i+1)+' of '+s.items.length+'. Press Ctrl+Enter to run.</p>'+
+  view.innerHTML = '<h1>'+(s.mix ? '🔀 Mixed practice' : '🗄️ SQL console')+' <span class="lv open">L'+t[0]+'</span></h1><p class="sub">'+(s.mix ? mixLabel(s) : 'Challenge '+(s.i+1)+' of '+s.items.length)+'. Press Ctrl+Enter to run.</p>'+
     '<div class="card">'+schemaHTML(false)+'<p class="q">'+esc(t[1])+'</p>'+
     '<textarea class="sqlin" id="sq" spellcheck="false" placeholder="SELECT ..."></textarea>'+
     '<div class="row" style="margin-top:10px"><button class="primary" id="run">Run</button><button id="hint">Hint</button><button id="show">Show answer</button><button id="skip">Skip</button></div>'+
@@ -1379,7 +1381,7 @@ function sqlStep(s){
       if(pts) addXP(pts); else save();
       const r = t[5]();
       out.innerHTML = '<div class="explain">✅ <b>'+(s.shown ? 'Locked in (no XP, the answer was shown).' : 'Correct (+'+pts+' XP).')+'</b> Model answer: <code>'+esc(t[3])+'</code></div>'+
-        (r.msg ? '<p>'+esc(r.msg)+'</p>' : '<p class="small">Expected result (from the model answer, which your query matched): '+r.rows.length+' row'+(r.rows.length===1?'':'s')+'</p>'+tableHTML(r.cols, r.rows))+
+        (r.msg ? '<p>'+esc(r.msg)+'</p>' : '<p class="small">Expected result (from the model answer, which your query matched): '+r.rows.length+' row'+(r.rows.length===1?'':'s')+'</p>'+tableHTML(r.cols, r.rows))+(s.mix ? mixReveal(s) : '')+
         '<div class="row" style="margin-top:10px"><button class="primary" id="nx">Next challenge</button></div>';
       $('#run').disabled = true; $('#nx').onclick = next; $('#nx').focus();
     } else if(/^(update|delete)\b/.test(q) && !/ where /.test(q)){
@@ -1847,7 +1849,8 @@ function importBackup(raw, mode, force){
 /* ---------- Guide ---------- */
 function vGuide(){
   view.innerHTML = '<h1>How to use SkillQuest</h1><div class="card"><ol>'+
-    '<li><b>Every day (20 to 30 minutes):</b> open Today and follow <b>Next up</b>: 3 two-minute lessons, 4 exercises from each, one ticket or interview rep, then your due reviews (clear them, or do 20). That full loop keeps your 🔥 streak. Lessons are picked for your path (cloud security + red team, foundations first) plus one slipping skill, and come back when a skill drops.</li>'+
+    '<li><b>Every day (25 to 35 minutes):</b> open Today and follow <b>Next up</b>: 3 short lessons, then one mixed practice set (4 exercises from each lesson plus a couple from older skills, shuffled), one ticket or interview rep, then your due reviews (clear them, or do 20). That full loop keeps your 🔥 streak. Lessons are picked for your path (cloud security + red team, foundations first) plus one slipping skill, and come back when a skill drops.</li>'+
+    '<li><b>Why it feels harder than rereading:</b> what you can pull out of your own head is what you keep. So each lesson ends with you explaining it out loud with the lesson closed, then comparing with a model answer. A lesson that comes back first asks what you remember. Each lesson links to related ones and asks how they connect before showing why. And practice is mixed, with no labels, so you have to work out what each question needs. Mixed sets score lower while you do them and stick better afterward. A smooth, easy session usually means less was stored, so a hard one is a good sign.</li>'+
     '<li><b>Type your answers.</b> Short-answer questions ask you to type from memory. That is harder than picking, and that is why it works. After a correct answer, say honestly whether you were sure or guessed: guesses barely count toward the practice score.</li>'+
     '<li><b>Mistake journal (Review tab):</b> every miss is saved with the right answer. Tag why you missed it, and retry what is due each day. A mistake clears only after you get it right on two different days.</li>'+
     '<li><b>Labs (Hands-on):</b> real break-and-fix problems in your WSL Ubuntu. Do one or two a week; they are your best interview stories.</li>'+
