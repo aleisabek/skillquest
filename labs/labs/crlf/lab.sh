@@ -1,5 +1,6 @@
 TITLE="Script edited on Windows won't run"
 LEVEL="L1 · Files & scripts"
+GOAL="Why a script written on Windows can fail on Linux, and how to spot and fix the invisible difference."
 LESSON="Windows (CRLF) vs Linux (LF) line endings, the 'bad interpreter ^M' error, fixing files with sed."
 HINTS=(
   "Run it and read the error closely: ./deploy.sh  The ^M (or \\r) in the message is the clue."

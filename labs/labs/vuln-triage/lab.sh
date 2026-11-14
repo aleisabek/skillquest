@@ -1,5 +1,6 @@
 TITLE="Fix what matters first"
 LEVEL="L2 · Vulnerability triage"
+GOAL="Deciding which security flaws to fix first, based on real-world risk, and writing them up so a client can act on them."
 LESSON="Prioritizing findings: known-exploited (CISA KEV) first, then internet-facing, then CVSS; and writing each finding so a manager can rank it and a developer can fix it."
 HINTS=(
   "Read the table: column -s, -t findings.csv | less -S   The rule is in the mission: KEV first, then internet-facing, then higher CVSS."

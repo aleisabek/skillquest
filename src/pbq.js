@@ -4,8 +4,9 @@
    with random details, every answer is worked out from those details, and everything is done with dropdowns and number
    fields (no dragging), so a keyboard or screen reader can do all of it. Each item gets partial credit, like the exam. */
 
-/* Each builder returns {title, obj (SY0-801 objectives), skill (an existing skill the result counts toward), html (the
-   situation), fields:[{label, options|num, answer, why}], check?(values) for tasks graded as a whole (firewall)} */
+/* Each builder returns {title, obj (SY0-801 objectives), skill (an existing skill the result counts toward), goal (what the
+   task teaches and why it matters, shown first), html (the situation), task (exactly what to do, shown last),
+   fields:[{label, options|num, answer, why}], check?(values) for tasks graded as a whole (firewall)} */
 const PBQ_ZONES = ['Screened subnet', 'Internal network', 'Management network', 'Guest network'];
 const PBQ_BUILDERS = [
   /* 1. Firewall rules: graded by sending test traffic through the rules, first match wins, then the implicit deny */
@@ -28,9 +29,12 @@ const PBQ_BUILDERS = [
       {label:'Rule '+r+' destination', options:DST, rule:r, part:'dst'}, {label:'Rule '+r+' port', options:PORT, rule:r, part:'port'});
     const hit = (v, x)=>v === 'Any' || v === x;
     return {title:'Firewall rules', obj:['3.2'], skill:'quiz:sec:Firewalls',
-      html:'<p>Configure the firewall between the internet, a screened subnet and the internal network. Rules are read top to bottom, the <b>first match wins</b>, and anything that matches no rule is denied (implicit deny).</p>'+
+      goal:'How a firewall decides what gets through: it checks rules from the top down, the <b>first rule that matches wins</b>, and anything no rule allows is blocked (the implicit deny). You use this to let in only the traffic the business needs.',
+      task:'Fill in rules 1 to 4 (action, source, destination, port) so the three allowed connections work and everything else is blocked. Your rules are tested by sending seven connections through them, some that should get through and some that shouldn\'t.',
+      html:'<p>You\'re setting up the firewall that sits between the internet, the screened subnet (where the public web server lives) and the internal network.</p>'+
         '<ul class="clean"><li>Web server: <code>'+web+'</code> (screened subnet), serves HTTPS on 443.</li><li>Database server: <code>'+db+'</code> (internal), '+dbPort[1]+' on port '+dbPort[0]+'.</li><li>Management network: <code>'+mgmt+'</code>.</li></ul>'+
-        '<p>Requirements: customers reach the website over HTTPS; only the web server may query the database; admins may use SSH to the web server only from the management network. Everything else must be blocked, so use as few "Any" values as the job allows.</p>',
+        '<p><b>What must work:</b></p><ul class="clean"><li>Customers on the internet reach the website over HTTPS.</li><li>Only the web server may query the database.</li><li>Admins may use SSH to the web server, but only from the management network.</li></ul>'+
+        '<p>Everything else must be blocked, so use "Any" only where the job needs it.</p>',
       fields, rows:4,
       check(vals){
         const rules = [1,2,3,4].map(r=>({act:vals['Rule '+r+' action'], src:vals['Rule '+r+' source'], dst:vals['Rule '+r+' destination'], port:vals['Rule '+r+' port']}));
@@ -54,7 +58,9 @@ const PBQ_BUILDERS = [
     const ATT = ['Password spraying', 'Brute force', 'User enumeration', 'Impossible travel'];
     const ans = kind === 'spray' ? 'Password spraying' : 'Brute force';
     return {title:'Read the log', obj:['2.5'], skill:'quiz:sec:Indicators of compromise',
-      html:'<p>An analyst exports these sign-in lines from a Linux server (<code>/var/log/auth.log</code>). Mark each line, then name the attack.</p><pre>'+shown.map(l=>esc(l.t)).join('\n')+'</pre>',
+      goal:'Spotting an attack in sign-in logs: telling a real attack apart from ordinary mistakes, and naming the attack from its pattern (how many accounts, how many tries, from where).',
+      task:'For each line, choose <b>Normal</b> or <b>Part of the attack</b>. Then name the attack. Look at where each attempt comes from and which accounts it targets.',
+      html:'<p>You\'re the analyst on duty. These are last night\'s and this morning\'s sign-in lines from a Linux server (<code>/var/log/auth.log</code>). Addresses starting with <code>10.</code> are inside the company; the rest are on the internet.</p><pre>'+shown.map(l=>esc(l.t)).join('\n')+'</pre>',
       fields:shown.map((l,i)=>({label:'Line '+(i+1)+': '+l.t.slice(0,5), options:['Normal', 'Part of the attack'], answer:l.bad ? 'Part of the attack' : 'Normal',
         why:l.bad ? 'a failed guess from '+ip+', an outside address, one of a burst within minutes' : l.why}))
         .concat([{label:'Which attack is this?', options:ATT, answer:ans, why:kind === 'spray' ? 'one source tries many different accounts, a few guesses each, to stay under lockout limits' : 'one source tries many passwords against one account'}])};
@@ -71,7 +77,13 @@ const PBQ_BUILDERS = [
       ['Employees\' file server', 'Internal network', 'staff need it, the internet doesn\'t']];
     const pickd = shuffle(ITEMS).slice(0,6);
     return {title:'Place each system', obj:['3.2'], skill:'quiz:sec:Firewalls',
-      html:'<p>A company is redesigning its network into four zones: a <b>screened subnet</b> (the zone between the internet and the inside, formerly called a DMZ, or demilitarized zone), the <b>internal network</b>, a <b>management network</b> for admin access, and a <b>guest network</b>. Place each system.</p>',
+      goal:'Network segmentation: putting each system in the zone that matches who needs to reach it, so an attacker who gets into one zone can\'t reach everything else.',
+      task:'Choose the zone for each system. Ask yourself: who needs to reach it, and from where?',
+      html:'<p>A company is splitting its network into four zones:</p><ul class="clean">'+
+        '<li><b>Screened subnet</b> (formerly called a DMZ): servers the internet must reach, kept apart from the inside.</li>'+
+        '<li><b>Internal network</b>: systems only staff use.</li>'+
+        '<li><b>Management network</b>: admin access to servers and network devices.</li>'+
+        '<li><b>Guest network</b>: visitors\' devices, internet access only.</li></ul>',
       fields:pickd.map(([s,a,w])=>({label:s, options:PBQ_ZONES, answer:a, why:w}))};
   },
   /* 4. Match each attack to the control that stops it best */
@@ -86,7 +98,9 @@ const PBQ_BUILDERS = [
       ['A laptop with patient records is stolen from a car', 'Full-disk encryption', 'the data is unreadable without the key']];
     const pickd = shuffle(PAIRS).slice(0,6), opts = shuffle(pickd.map(p=>p[1]));
     return {title:'Match controls to attacks', obj:['2.5', '4.1'], skill:'quiz:sec:Attack types',
-      html:'<p>Each control is used once. Pick the control that best stops each attack.</p>',
+      goal:'Matching a security control to the attack it actually stops. Many controls are good; the exam asks which one fits this attack best.',
+      task:'For each incident, choose the control that best stops it. Each control is used exactly once.',
+      html:'<p>Your company had these incidents this year. Your manager asks which control would have stopped each one.</p>',
       fields:pickd.map(([s,a,w])=>({label:s, options:opts, answer:a, why:w}))};
   },
   /* 5. Data protection methods */
@@ -99,38 +113,55 @@ const PBQ_BUILDERS = [
       ['Access to the HR app is blocked when the device is outside the country', 'Geofencing', 'location decides access']];
     const pickd = shuffle(PAIRS).slice(0,5), opts = shuffle(PAIRS.map(p=>p[1]));
     return {title:'Protect the data', obj:['3.3'], skill:'quiz:sec:Cryptography',
-      html:'<p>Pick the method each situation describes. One option is not used.</p>', fields:pickd.map(([s,a,w])=>({label:s, options:opts, answer:a, why:w}))};
+      goal:'The differences between ways of protecting data: hiding part of it (masking), swapping it for a stand-in (tokenization), one-way scrambling (hashing), scrambling you can undo with a key (encryption), and more. The exam often tests masking vs. tokenization and hashing vs. encryption.',
+      task:'Name the method each situation describes. There are more methods than situations, so one method is left over.',
+      html:'<p>Each situation below is a way a company protects sensitive data.</p>', fields:pickd.map(([s,a,w])=>({label:s, options:opts, answer:a, why:w}))};
   },
   /* 6. Order: incident response */
   function irOrder(){
-    const STEPS = [['Preparation', 'playbooks, tools and training ready before anything happens'], ['Identification', 'an alert is confirmed as a real incident'],
-      ['Containment', 'isolate the affected systems so it can\'t spread'], ['Eradication/recovery', 'remove the cause, then restore and watch'],
-      ['Post-incident (lessons learned)', 'root cause, report and improvements']];
-    return pbqOrder('Incident response order', ['4.7'], 'quiz:sec:Incident response', '<p>Put the incident response activities in order.</p>', STEPS);
+    const STEPS = [['Preparation: the team already has a ransomware playbook, tools and tested backups', 'preparation happens before anything goes wrong: playbooks, tools and training are ready'],
+      ['Identification: confirm the alert is real ransomware, not a false alarm', 'an alert becomes an incident only once it\'s confirmed'],
+      ['Containment: disconnect the laptop from the network so it can\'t spread', 'stop the damage from spreading first, before cleaning up'],
+      ['Eradication and recovery: wipe the laptop and restore the files from backup', 'remove the cause, then bring things back and watch for a return'],
+      ['Lessons learned: find out how it got in and improve the playbook', 'after it\'s over: root cause, report and changes so it doesn\'t happen again']];
+    return pbqOrder('Incident response order', ['4.7'], 'quiz:sec:Incident response',
+      'The incident response process: the order a team handles an incident in, so the damage is limited, evidence is kept and the same thing doesn\'t happen again.',
+      '<p>Your EDR (endpoint detection and response) tool alerts that ransomware is encrypting files on one employee\'s laptop. Think about the whole life of this incident, including what the team did before it happened.</p>',
+      'Number the five phases in the order they happen, 1 = first.', STEPS);
   },
   /* 7. Order: change management */
   function changeOrder(){
-    const STEPS = [['Submit the change request with an owner', 'every change starts as a request with one accountable owner'],
-      ['Impact analysis and test results', 'what could break, with proof from testing'], ['Change advisory board (CAB) approval', 'the board reviews the request and approves it'],
-      ['Implement in the maintenance window, with the backout plan ready', 'the agreed time slot, with a way back'],
-      ['Verify, then update diagrams and procedures', 'check it worked, then fix the documentation']];
-    return pbqOrder('Change management order', ['1.2'], 'quiz:sec:Change management', '<p>Put the change management steps in order.</p>', STEPS);
+    const STEPS = [['Submit a change request with one named owner', 'every change starts as a written request with one person accountable for it'],
+      ['Analyze the impact and test the update in a lab', 'find out what could break (here, the whole network) and prove the update works before asking for approval'],
+      ['Get approval from the change advisory board (CAB)', 'the board reviews the request, the impact and the test results, then approves it'],
+      ['Install it in the maintenance window, with a backout plan ready', 'the agreed low-traffic time, with a tested way back to the old firmware if it fails'],
+      ['Check that it works, then update the network diagrams and procedures', 'confirm traffic flows and the flaw is fixed, then make the documentation match reality']];
+    return pbqOrder('Change management order', ['1.2'], 'quiz:sec:Change management',
+      'Change management: the process that makes sure a change is approved, tested and reversible before it touches a live system, so a routine fix doesn\'t cause an outage or open a security hole.',
+      '<p>Your team needs to update the company firewall\'s firmware to fix a security flaw. Every connection in the company goes through that firewall, so a bad update could take everyone offline.</p>',
+      'Number the steps in the order this change goes through, 1 = first.', STEPS);
   },
   /* 8. Risk calculation: SLE, ALE */
   function risk(){
     const av = rnd(4,40)*5000, ef = pick([10,20,25,40,50,75]), aro = pick([0.25,0.5,1,2,4]);
     const sle = Math.round(av*ef/100), ale = Math.round(sle*aro);
     return {title:'Calculate the risk', obj:['5.2'], skill:'quiz:sec:Risk management',
-      html:'<p>A server and its data are worth <b>'+money(av)+'</b> (asset value). A flood would destroy <b>'+ef+'%</b> of it (exposure factor). Floods are expected <b>'+(aro === 1 ? 'once a year' : aro < 1 ? 'once every '+(1/aro)+' years' : aro+' times a year')+'</b>. Enter whole dollars.</p>',
+      goal:'Quantitative risk: putting a dollar figure on a risk, so you can tell whether a control is worth paying for. A control that costs less per year than the ALE pays for itself.',
+      task:'Work out the three values. Enter SLE and ALE in whole dollars, and ARO as a number (once every 2 years is 0.5).',
+      html:'<p>Your manager wants to know what the flood risk to one server costs the company per year.</p>'+
+        '<p>The server and its data are worth <b>'+money(av)+'</b> (asset value). A flood would destroy <b>'+ef+'%</b> of it (exposure factor). Floods are expected <b>'+(aro === 1 ? 'once a year' : aro < 1 ? 'once every '+(1/aro)+' years' : aro+' times a year')+'</b>.</p>'+
+        '<details><summary>Need the formulas?</summary><p class="small">SLE (single loss expectancy) = asset value × exposure factor: the cost of one flood.<br>ARO (annualized rate of occurrence) = how many floods a year.<br>ALE (annualized loss expectancy) = SLE × ARO: the cost per year.</p></details>',
       fields:[{label:'SLE (single loss expectancy)', num:true, answer:sle, why:'SLE = asset value × exposure factor = '+money(av)+' × '+ef+'% = '+money(sle)},
         {label:'ARO (annualized rate of occurrence)', num:true, answer:aro, why:'ARO is how many times a year: '+aro},
         {label:'ALE (annualized loss expectancy)', num:true, answer:ale, why:'ALE = SLE × ARO = '+money(sle)+' × '+aro+' = '+money(ale)+'. Spend less than this per year on a control and it pays for itself.'}]};
   }
 ];
+/* a number field's value as a number: $12,500 / 12,500 / 12500 / 40% / 0.5 / .5 all work (null if it isn't a number) */
+function pbqNum(v){ const t = String(v).trim().replace(/^\./, '0.').replace(/^-\./, '-0.'); const d = numAns(t); return d === null ? null : Number(d); }
 /* ordering tasks: each step gets a position dropdown */
-function pbqOrder(title, obj, skill, html, STEPS){
+function pbqOrder(title, obj, skill, goal, html, task, STEPS){
   const shown = shuffle(STEPS.map((s,i)=>[...s, i+1])), pos = STEPS.map((_,i)=>String(i+1));
-  return {title, obj, skill, html:html+'<p class="small">Give each step its position, 1 = first.</p>',
+  return {title, obj, skill, goal, html, task,
     fields:shown.map(([s,w,n])=>({label:s, options:pos, answer:String(n), why:w}))};
 }
 
@@ -158,7 +189,7 @@ function pbqShow(){
   const t = PBQ.list[PBQ.i], sys = pbqSys(t);
   pbqAlert(true);
   const field = (f, k)=>'<label class="pbq-f"><span>'+esc(f.label)+'</span>'+(f.num
-      ? '<input type="number" step="any" inputmode="decimal" data-k="'+k+'" aria-label="'+esc(f.label)+'">'
+      ? '<input type="text" inputmode="decimal" autocomplete="off" spellcheck="false" data-k="'+k+'" aria-label="'+esc(f.label)+'">'
       : '<select data-k="'+k+'" aria-label="'+esc(f.label)+'"><option value="">Choose…</option>'+f.options.map(o=>'<option>'+esc(o)+'</option>').join('')+'</select>')+'</label>';
   const body = t.rows
     ? '<div class="tw"><table class="res pbq-rules"><thead><tr><th>#</th><th>Action</th><th>Source</th><th>Destination</th><th>Port</th></tr></thead><tbody>'+
@@ -166,13 +197,14 @@ function pbqShow(){
     : '<div class="pbq-fields">'+t.fields.map(field).join('')+'</div>';
   view.innerHTML = '<div class="slim stalert"><b>'+sys[1]+' Station alert: '+esc(sys[0])+' offline</b> <span class="small">Bring it back with '+esc(sys[2])+'.</span></div>'+
     '<div class="progress"><span>Task '+(PBQ.i+1)+' of '+PBQ.list.length+'</span><span>SY0-801 '+esc(t.obj.join(', '))+'</span></div>'+
-    '<div class="card"><h2 style="margin-top:4px">'+esc(t.title)+'</h2>'+t.html+body+
+    '<div class="card"><h2 style="margin-top:4px">'+esc(t.title)+'</h2>'+
+    '<p class="pbq-goal"><b>What you\'re practicing:</b> '+t.goal+'</p>'+t.html+'<p class="pbq-task"><b>Your task:</b> '+t.task+'</p>'+body+
     '<div class="row" style="margin-top:14px"><button class="primary" id="pbqCheck">Check</button><button class="quiet" id="pbqShow">Show answer</button></div><div id="after"></div></div>';
   const get = ()=>{ const v = {}; view.querySelectorAll('[data-k]').forEach(el=>{ v[t.fields[+el.dataset.k].label] = el.value; }); return v; };
   const done = (revealed)=>{
     const v = get(); let parts, model = t.model || '';
     if(t.check){ const r = t.check(v); parts = r.parts; model = r.model; }
-    else parts = t.fields.map(f=>{ const got = v[f.label], ok = f.num ? got !== '' && Math.abs(Number(got) - f.answer) <= (f.answer >= 100 ? 1 : 0.001) : got === f.answer;
+    else parts = t.fields.map(f=>{ const got = v[f.label], ok = f.num ? pbqNum(got) !== null && Math.abs(pbqNum(got) - f.answer) <= (f.answer >= 100 ? 1 : 0.001) : got === f.answer;
       return {ok, text:f.label+': '+(ok ? '✔ ' : '✘ '+(got ? 'you said '+got+'. ' : 'no answer. '))+'Answer: '+(f.num ? (f.answer >= 100 ? money(f.answer) : f.answer) : f.answer)+' ('+f.why+')'}; });
     const right = parts.filter(p=>p.ok).length, frac = revealed ? 0 : right / parts.length;
     view.querySelectorAll('[data-k],#pbqCheck,#pbqShow').forEach(el=>el.disabled = true);

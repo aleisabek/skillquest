@@ -35,11 +35,13 @@ load_lab() {
   if ! [[ "$name" =~ ^[a-z0-9-]+$ ]] || [ ! -f "$LABS_HOME/labs/$name/lab.sh" ]; then
     echo "${R}Unknown lab:${N} ${name:-(none)}. Run ${B}sq-lab${N} to see the list."; exit 1
   fi
-  LAB="$name"; DIR="$LAB_ROOT/$name"; PILOT=""; HINTS=()
+  LAB="$name"; DIR="$LAB_ROOT/$name"; PILOT=""; HINTS=(); GOAL=""
   # shellcheck source=/dev/null
   source "$LABS_HOME/labs/$name/lab.sh"
   if [ -n "$PILOT" ]; then ATTEMPT=$(ev current "$LAB_ROOT" "$LAB"); seed; fi
 }
+# what the lab teaches, shown before the mission (pilot labs leave GOAL empty: it could hint at the answer)
+show_goal() { [ -n "$GOAL" ] && { echo "${C}What you're practicing:${N} $GOAL"; echo; }; return 0; }
 seed() { SEED=$(printf '%s' "${ATTEMPT:-none}" | sha256sum | cut -c1-64); }
 # A lab folder may hold folders without x (the pilot breaks them on purpose); rm can't empty those, so give them back first.
 wipe() { [ -d "$DIR" ] && chmod -R u+rwx "$DIR" 2>/dev/null; rm -rf "$DIR"; }
@@ -92,11 +94,11 @@ case "$cmd" in
     if [ -n "$PILOT" ]; then ATTEMPT=$(ev new "$LAB_ROOT" "$LAB" "$CONTENT_VERSION" "$FAMILY" "$FAULT") || exit 1; seed; fi
     lab_setup
     set_status "$LAB" started
-    echo "${B}${TITLE}${N}  ${C}[${LEVEL}]${N}"; echo; lab_mission; echo
+    echo "${B}${TITLE}${N}  ${C}[${LEVEL}]${N}"; echo; show_goal; lab_mission; echo
     echo "Work in: ${B}cd $DIR${N}"
     [ -n "$PILOT" ] || echo "Stuck? ${B}sq-lab hint $LAB${N}    Done? ${B}sq-lab check $LAB${N}";;
   mission)
-    load_lab "${1:-}"; echo "${B}${TITLE}${N}"; echo; lab_mission; echo; echo "Work in: ${B}cd $DIR${N}";;
+    load_lab "${1:-}"; echo "${B}${TITLE}${N}"; echo; show_goal; lab_mission; echo; echo "Work in: ${B}cd $DIR${N}";;
   hint)
     load_lab "${1:-}"
     total=${#HINTS[@]}

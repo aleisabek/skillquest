@@ -13,6 +13,7 @@ let built = 0, fields = 0;
 for (const b of P.PBQ_BUILDERS) for (let k = 0; k < 300; k++) {
   const t = b(); built++;
   if (!t.title || !t.html || !Array.isArray(t.fields) || !t.fields.length) { fail(b.name, 'is missing parts'); break; }
+  if (!t.goal || t.goal.length < 40 || !t.task || t.task.length < 30) { fail(b.name, 'needs a clear goal (what it teaches) and task (what to do)'); break; }
   if (!P.SKILLS.includes(t.skill)) { fail(b.name, 'counts toward a skill that does not exist:', t.skill); break; }
   const labels = t.fields.map(f => f.label);
   if (new Set(labels).size !== labels.length) fail(b.name, 'has two items with the same label');

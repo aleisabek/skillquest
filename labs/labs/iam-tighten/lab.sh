@@ -1,5 +1,6 @@
 TITLE="Too much access"
 LEVEL="L2 · Cloud IAM"
+GOAL="Least privilege in cloud access policies: giving an app exactly the access it needs, and keeping data from being public."
 LESSON="Least privilege in IAM: exact actions on exact resources (bucket ARN for ListBucket, bucket/* for objects), an explicit Deny always wins, and no public bucket policies."
 HINTS=(
   "The app needs two things only: s3:GetObject on arn:aws:s3:::reports/* (the files) and s3:ListBucket on arn:aws:s3:::reports (the bucket itself). Note the two different resource formats."

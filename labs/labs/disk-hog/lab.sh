@@ -1,5 +1,6 @@
 TITLE="Disk filling up"
 LEVEL="L2 · Disk & logs"
+GOAL="Finding what is filling a disk, and freeing space safely while a running program still uses the file."
 LESSON="du to find space hogs, why rm on an open log doesn't free space, truncating safely."
 HINTS=(
   "Find what's big: du -sh var/* | sort -h   then go deeper into the biggest folder."

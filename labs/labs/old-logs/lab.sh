@@ -1,5 +1,6 @@
 TITLE="Archive old logs"
 LEVEL="L2 · Files & archives"
+GOAL="Cleaning up by a written policy: picking files by age, archiving them, and deleting only what the policy says."
 LESSON="find with -mtime, tar -czf, and checking before you delete."
 HINTS=(
   "List files older than 7 days: find logs -name '*.log' -mtime +7"

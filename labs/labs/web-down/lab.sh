@@ -1,5 +1,6 @@
 TITLE="The website is down"
 LEVEL="L2 · Services & ports"
+GOAL="Troubleshooting a website that's down: test it like a user, see what is actually running, and fix the cause."
 LESSON="curl to test, ss -tulpn to see what's listening, reading a start script, running a process in the background."
 HINTS=(
   "Test it like a user would: curl http://localhost:8088   Then see what IS listening: ss -tlnp | grep 80"

@@ -1,5 +1,6 @@
 TITLE="Which key was stolen?"
 LEVEL="L2 · Cloud log hunt"
+GOAL="Investigating a cloud incident from its audit log: who did it, from where, and which keys to switch off to stop them."
 LESSON="Reading CloudTrail records: who (userIdentity), what (eventName), from where (sourceIPAddress); contain stolen keys without breaking the services that still need theirs."
 HINTS=(
   "The file is JSON. Pretty-print it and type /StopLogging inside less to search:  python3 -m json.tool cloudtrail.json | less"
@@ -44,13 +45,15 @@ PY
 lab_mission() {
   echo "Alert: audit logging was switched off in the AWS account last night."
   echo "cloudtrail.json holds the day's CloudTrail records (example data)."
-  echo "  1. Write the outside IP address behind it into answer.txt, like:  ip=203.0.113.X"
+  echo "  1. Find who switched logging off, and write the outside IP address they used into answer.txt, like:  ip=203.0.113.X"
   echo "  2. List every access key ID that must be deactivated, one per line, in disable.txt."
   echo "Contain the attacker completely, but don't break the other internal services: keys that were never misused must keep working."
   echo "(In real life you'd also turn logging back on with StartLogging and delete anything the attacker created.)"
 }
 lab_check() {
-  local ip want; ip=$(grep -oE '^ip=[0-9.]+' "$DIR/answer.txt" 2>/dev/null | cut -d= -f2); want=$(cat "$DIR/.ip" 2>/dev/null)
+  # "ip=203.0.113.9" as the mission shows, or just the address; exactly one IP either way
+  local ip want; ip=$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$DIR/answer.txt" 2>/dev/null | sort -u); want=$(cat "$DIR/.ip" 2>/dev/null)
+  [ "$(grep -c . <<<"$ip")" -gt 1 ] && ip="more than one IP"
   if [ -n "$want" ] && [ "$ip" = "$want" ]; then ok "found the outside IP that stopped logging: $ip"; else bad "answer.txt needs ip=... with the IP that called StopLogging"; fi
   [ -f "$DIR/disable.txt" ] && [ -s "$DIR/.bad" ] || { bad "disable.txt is missing (or the lab files were changed: sq-lab start cloudtrail-hunt)"; return; }
   local got; got=$(grep -oE 'AKIA[A-Z0-9]{16}' "$DIR/disable.txt" | sort -u)

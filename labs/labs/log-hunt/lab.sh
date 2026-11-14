@@ -1,5 +1,6 @@
 TITLE="Who keeps failing to log in?"
 LEVEL="L2 · Log analysis"
+GOAL="Reading a sign-in log to find where a password-guessing attack comes from, by counting failures per address."
 LESSON="grep + awk/cut + sort | uniq -c | sort -nr: the classic pipeline for counting things in logs."
 HINTS=(
   "Only the failures matter: grep 'Failed password' auth.log"
@@ -27,8 +28,10 @@ lab_mission() {
   echo "(The IPs are from 203.0.113.0/24, a range reserved for documentation and examples.)"
 }
 lab_check() {
-  want=$(cat "$DIR/.answer"); got=$(tr -d ' \r\n' < "$DIR/answer.txt" 2>/dev/null)
-  if [ -z "$got" ]; then bad "answer.txt is missing or empty"
+  # the IP can be written any way ("203.0.113.7", "ip=203.0.113.7", or a uniq -c line like "42 203.0.113.7"), but only one IP
+  want=$(cat "$DIR/.answer"); got=$(grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' "$DIR/answer.txt" 2>/dev/null | sort -u)
+  if [ -z "$got" ]; then bad "answer.txt is missing, empty, or has no IP address in it"
+  elif [ "$(grep -c . <<<"$got")" -gt 1 ]; then bad "answer.txt names more than one IP; write just the one with the most failures"
   elif [ "$got" = "$want" ]; then ok "$got is the top source of failed logins"
   else bad "$got isn't the IP with the most failures; count them again"; fi
 }

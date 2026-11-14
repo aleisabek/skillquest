@@ -964,7 +964,7 @@ function quizStep(s){
     const inp = $('#ta'); inp.focus();
     const check = ()=>{
       if(!inp.value.trim()) return;
-      const ok = normAns(inp.value) === normAns(plainText(q[3][q[4]]));
+      const ok = typedOk(inp.value, plainText(q[3][q[4]]));
       inp.disabled = true; $('#chk').disabled = true; inp.classList.add(ok ? 'ok' : 'no');
       finish(ok, false, inp.value.trim());
     };

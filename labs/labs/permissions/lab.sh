@@ -1,5 +1,6 @@
 TITLE="Permission denied"
 LEVEL="L1 · Permissions"
+GOAL="File permissions: making a script runnable and locking a secrets file down to its owner, giving the least access that still works."
 LESSON="chmod with numbers and +x, reading ls -l, least privilege."
 HINTS=(
   "Look at the permissions first: ls -l"

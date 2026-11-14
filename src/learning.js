@@ -68,6 +68,20 @@ function startSkill(s, n, mission){
 /* ---- Typed answers (recall beats recognition) ---- */
 function plainText(h){ const d = document.createElement('div'); d.innerHTML = h; return d.textContent.trim(); }
 function normAns(x){ return String(x).toLowerCase().trim().replace(/\s+/g,' ').replace(/\s*,\s*/g,', ').replace(/[.\/]+$/,''); }
+/* A number typed the way people write it, reduced to its digits: "40", "40%", "40 percent" -> "40"; "$12,500", "12,500",
+   "12500" -> "12500". Only the %, the $ and thousands commas are ignored: decimals must match exactly, because in a code
+   question 5 and 5.0 are different answers. Commas count only as thousands separators (1,000 / 12,500), never as a
+   list ("3, 5" stays a list). Returns null if it isn't a number. */
+function numAns(x){
+  const m = /^\$?\s*(-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(%|percent)?$/i.exec(String(x).trim());
+  return m ? m[1].replace(/,/g, '') : null;
+}
+/* typed answer vs the right one: the same words, or the same number with or without % / $ / thousands commas */
+function typedOk(typed, answer){
+  if(normAns(typed) === normAns(answer)) return true;
+  const a = numAns(answer);
+  return a !== null && a === numAns(typed);
+}
 /* Only short, single-answer questions are typed; long or multi-answer ones keep multiple choice. */
 function typeable(g){
   if(!g || g.noType) return false;

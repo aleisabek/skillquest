@@ -1,5 +1,6 @@
 TITLE="Which device doesn't belong?"
 LEVEL="L2 · Networking & asset inventory"
+GOAL="Asset discovery: finding every device on a network and checking it against the approved list, the first step in spotting a device that shouldn't be there."
 LESSON="Device discovery on a network you're allowed to scan: a ping sweep, the neighbor (ARP) table with ip neigh, and checking what you find against an approved inventory to spot a rogue device."
 HINTS=(
   "Open the lab network first: ./enter-lab   Then sweep it, one ping per address, all at once:  for i in \$(seq 1 254); do ping -c1 -W1 198.51.100.\$i >/dev/null & done; wait"
@@ -93,7 +94,7 @@ lab_mission() {
 lab_check() {
   local want_ip want_mac got ips
   read -r want_ip want_mac < "$DIR/.answer"
-  got=$(tr 'A-F' 'a-f' < "$DIR/answer.txt" 2>/dev/null | tr -d '\r')
+  got=$(tr 'A-F' 'a-f' < "$DIR/answer.txt" 2>/dev/null | tr -d '\r' | sed -E 's/([0-9a-f]{2})-/\1:/g')   # 02-AB-... = 02:ab:...
   if [ -z "$(echo "$got" | tr -d ' \n')" ]; then bad "answer.txt is missing or empty"; return; fi
   ips=$(echo "$got" | grep -oE '198\.51\.100\.[0-9]+' | sort -u)
   if [ "$(echo "$ips" | grep -c .)" -gt 1 ]; then bad "answer.txt names more than one device; only the one that isn't approved belongs there"; return; fi

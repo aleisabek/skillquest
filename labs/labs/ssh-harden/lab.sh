@@ -1,5 +1,6 @@
 TITLE="Lock down SSH (without locking out deploy)"
 LEVEL="L2 · Linux security"
+GOAL="Securing remote sign-in (SSH): keys only, no direct root sign-in, and making sure the one account that needs access keeps it."
 LESSON="SSH hardening: keys only and no root login, sshd keeps the FIRST value it reads (drop-ins in sshd_config.d come first), and sshd ignores key files that group or others can write (700/600 is the safe standard)."
 HINTS=(
   "Files in sshd_config.d are read first, in name order, and the first value wins. Find every place a setting is made:  grep -ri 'passwordauthentication\\|permitrootlogin' etc/ssh/"

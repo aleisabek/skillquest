@@ -1,5 +1,6 @@
 TITLE="Find the bad setting"
 LEVEL="L1 · Searching & editing"
+GOAL="Searching many files at once to find one bad setting, then changing exactly that line and nothing else."
 LESSON="grep -rn to find a setting across many files, sed -i to change it safely."
 HINTS=(
   "Search every file for the setting, with line numbers: grep -rn max_connections config/"
@@ -21,7 +22,7 @@ lab_mission() {
   echo "Find that file and change ONLY that value. Don't touch any other file."
 }
 lab_check() {
-  if grep -qE '^max_connections = 100$' "$DIR/config/db/pool.conf"; then ok "pool.conf now has max_connections = 100"; else bad "the pool's max_connections isn't 100 yet"; fi
+  if grep -qE '^max_connections[[:space:]]*=[[:space:]]*100[[:space:]]*$' "$DIR/config/db/pool.conf"; then ok "pool.conf now has max_connections = 100"; else bad "the pool's max_connections isn't 100 yet"; fi
   if grep -qE '^timeout = 30$' "$DIR/config/db/pool.conf" && grep -qE '^retry = 3$' "$DIR/config/db/pool.conf"; then ok "other settings in pool.conf intact"; else bad "other lines in pool.conf were changed"; fi
   now=$(cd "$DIR/config" && find . -type f ! -path ./db/pool.conf -exec md5sum {} + | sort)
   if [ "$now" = "$(cat "$DIR/.others")" ]; then ok "no other files touched"; else bad "another config file was changed"; fi

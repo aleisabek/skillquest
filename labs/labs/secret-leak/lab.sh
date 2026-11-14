@@ -1,5 +1,6 @@
 TITLE="The key is still in the history"
 LEVEL="L2 · Secrets & Git"
+GOAL="Responding to a leaked password or key in code: removing it everywhere, stopping it happening again, and replacing the key."
 LESSON="Deleting a leaked secret in a new commit leaves it in history: rewrite history to remove it, ignore the file so it can't come back, and rotate the key, because copies may already exist."
 HINTS=(
   "The 'Remove .env' commit didn't erase the earlier one. See where it lives:  cd ~/sq-labs/secret-leak/app && git log --all --stat && git log --all -p -- .env"

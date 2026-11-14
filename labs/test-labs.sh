@@ -36,6 +36,11 @@ run web-down 'nohup python3 -m http.server 8088 --bind 127.0.0.1 --directory sit
 run old-logs 'tar -czf old-logs.tar.gz logs; rm logs/*.log' "tar -czf old-logs.tar.gz \$(find logs -name '*.log' -mtime +7); find logs -name '*.log' -mtime +7 -delete"
 run cron-fix "sed -i 's/^2 30 \\* \\* 1/30 2 * * */' backup.cron" "sed -i 's/^2 30 /30 2 /' backup.cron"
 run config-hunt "sed -i 's/max_connections = .*/max_connections = 100/' config/*/*.conf; sed -i 's/workers = 4/workers = 8/' config/web/server.conf" "sed -i 's/^max_connections = 5\$/max_connections = 100/' config/db/pool.conf"
+# the same right answer written another valid way must pass too (leading zeros, MON, no spaces, a count before the IP)
+alt() { echo "[$1 · written differently]"; bash "$SQ" start "$1" >/dev/null; cd "$HOME/sq-labs/$1" || return; eval "$2"; expect pass "$1"; bash "$SQ" reset "$1" >/dev/null; cd "$HOME"; }
+alt cron-fix "sed -i 's/^2 30 \\* \\* 1/30 02 * * MON/' backup.cron"
+alt log-hunt "grep 'Failed password' auth.log | awk '{for(i=1;i<=NF;i++) if(\$i==\"from\") print \$(i+1)}' | sort | uniq -c | sort -nr | head -1 > answer.txt"
+alt config-hunt "sed -i 's/^max_connections = 5\$/max_connections=100/' config/db/pool.conf"
 # security labs: wrong = insecure fix, last argument = secure but broken fix; both must be caught
 FX="$SRC/test-solutions"
 run cloudtrail-hunt "bash $FX/cloudtrail-hunt.sh wrong" "bash $FX/cloudtrail-hunt.sh right" "bash $FX/cloudtrail-hunt.sh broken"
@@ -48,6 +53,8 @@ for lab in cloudtrail-hunt iam-tighten ssh-harden secret-leak vuln-triage; do tr
 # Network discovery: the right fix really sweeps the throwaway lab network; then check it has no way out and leaves nothing behind.
 run net-discover "bash $FX/net-discover.sh wrong" "bash $FX/net-discover.sh right" "bash $FX/net-discover.sh broken"
 try net-discover pass alt; try net-discover fail crash
+alt net-discover "bash $FX/net-discover.sh right; sed -i 's/:/-/g; y/abcdef/ABCDEF/' answer.txt"
+alt cloudtrail-hunt "bash $FX/cloudtrail-hunt.sh right; sed -i 's/^ip=//' answer.txt"
 echo "[net-discover · isolation]"
 bash "$SQ" start net-discover >/dev/null; cd "$HOME/sq-labs/net-discover" || exit 1
 ./enter-lab -c 'ping -c1 -W1 8.8.8.8' >/dev/null 2>&1 && fail "net-discover: the lab network reached 8.8.8.8" || pass "net-discover: no way to the internet"
