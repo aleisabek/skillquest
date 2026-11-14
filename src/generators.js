@@ -212,7 +212,8 @@ GEN.support = {1:[
 GEN.qa = {1:[
   sk('Test design', ()=>{ const lo = rnd(1,50), hi = lo + rnd(5,100), mid = Math.round((lo+hi)/2);
       return mcq('qa',1,'A field accepts whole numbers from <b>'+lo+'</b> to <b>'+hi+'</b>. Which set is the best boundary-value test?', [lo-1,lo,hi,hi+1].join(', '),
-        [[lo,hi].join(', '), [lo+1,hi-1].join(', '), String(mid), [lo-1,hi+1].join(', '), [0,mid,1000].join(', ')],
+        /* every choice is four values, so the right one can't be spotted by being the only full set */
+        [[lo,lo+1,hi-1,hi].join(', '), [lo-1,lo+1,hi-1,hi+1].join(', '), [lo-2,lo,hi,hi+2].join(', '), [lo-1,mid,mid+1,hi+1].join(', '), [lo+1,lo+2,hi-2,hi-1].join(', ')],
         'Test just outside and just inside each edge: '+(lo-1)+' (invalid), '+lo+' (valid), '+hi+' (valid), '+(hi+1)+' (invalid).'); }),
   sk('Test design', ()=>{ const lo = rnd(10,60), hi = lo + rnd(10,80), grp = pick(['valid','too low','too high']);
       const v = {valid:()=>rnd(lo+1,hi-1), 'too low':()=>rnd(Math.max(0,lo-30),lo-1), 'too high':()=>rnd(hi+1,hi+40)};
@@ -1241,8 +1242,8 @@ const AWARE = [
     ['Plug it in to find out who owns it', 'Plug it into a computer that isn\'t on the network', 'Keep it as a spare drive']],
   ['Someone you don\'t recognize follows you through a badge-controlled door without badging in.', 'Politely stop them and send them to reception or security',
     ['Hold the door; refusing would be rude', 'Ignore it: door security is facilities\' job', 'Mention it to your team at the end of the week']],
-  ['Working in a café, you notice the person behind you can see your screen.', 'Move or use a privacy screen, and lock the screen whenever you step away',
-    ['Keep working: only the café Wi-Fi is a risk', 'Turn the screen brightness up', 'Switch to your personal laptop instead']],
+  ['Working in a café, you notice the person behind you can see your screen.', 'Move so no one is behind you, or use a privacy screen',
+    ['Switch to your phone\'s hotspot so the café can\'t see it', 'Turn the brightness down so the screen is harder to read', 'Keep working, since the screen locks itself when idle']],
   ['A caller says they are from the help desk and asks for the code your authenticator app is showing.', 'Refuse, hang up and report the call',
     ['Read out the code if they know your name and department', 'Give the code, then change your password afterwards', 'Ask them to email instead, then send the code by reply']],
   ['A colleague asks to borrow your login for the day because their own account is locked.', 'Decline, and send them to the help desk to unlock their account',
