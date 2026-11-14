@@ -372,6 +372,9 @@ html.calm .acr-tile .rest{transition:none}
 .acr-stage.ok .acr-tile.minor{border-color:var(--line);background:transparent}
 .acr-tile .rest b{color:inherit;font-weight:800}
 .acr-stage.ok .acr-tile .rest b{color:var(--good)}
+.messer{border:1px solid var(--line);border-left:3px solid var(--accent2);border-radius:10px;padding:10px 14px;margin:12px 0}
+.messer-obj summary{cursor:pointer;padding:4px 0}
+.messer-obj ul{margin:4px 0 10px 18px}
 .acr-learnsw{display:flex;gap:10px;align-items:flex-start;margin:0 0 14px;cursor:pointer}
 .acr-learnsw input{margin-top:4px}
 .acr-means{text-align:center;font-size:1.1rem;margin:0 0 6px}

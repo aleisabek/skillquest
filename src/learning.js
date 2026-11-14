@@ -121,7 +121,7 @@ function vLesson(id, mission, opts){
   const markRead = ()=>{ S.lessons = S.lessons || {}; S.lessons[id] = dayStr(); S.days[dayStr()] = S.days[dayStr()] || {}; afterStep(); save(); };
   const v = skillScore(id), [st, cls] = skillStatus(id);
   view.innerHTML = '<h1>'+s.icon+' '+esc(s.sk)+'</h1><p class="sub">'+esc(s.area)+' · '+s.lvs.map(l=>'L'+l).join('/')+' · practice score '+v+'% ('+st+') · about 2 minutes</p>'+
-    '<div class="card reading"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+
+    '<div class="card reading"><h2>Why it matters at work</h2><p>'+L.why+'</p>'+messerLessonHTML(id)+
     '<h2>The core idea</h2>'+L.idea+
     (SCENES[id] ? '<h2>Watch it</h2><div id="scene" role="group" aria-label="Animated explainer: '+esc(SCENES[id].title)+'"></div>' : '')+
     (L.seen ? '<h2>You\'ll see this as</h2><div class="model">'+L.seen+'</div>' : '')+

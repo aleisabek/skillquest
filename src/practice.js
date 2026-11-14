@@ -65,9 +65,18 @@ const RES_FOR = {
   'sql:sql:':['SQLBolt', 'Do the next SQLBolt lesson: short exercises that run in the browser.'],
   'sql:sql:Joins':['SQLBolt', 'The SQLBolt lessons on queries across several tables with JOINs.'],
   'quiz:code:Python':['picoCTF', 'The General Skills category: several beginner challenges are solved with a short Python script.'],
-  'quiz:sec:':['Professor Messer', 'In the free Security+ course, the video on today\'s lesson topic. Then drill it here.']
+  'quiz:sec:':['Professor Messer', 'The free Security+ video that matches today\'s lesson (linked directly). Then drill it here.']
 };
 const ROUTINE = [['Daily','The SkillQuest daily loop, plus one OverTheWire Bandit level'],['2× a week','One Professor Messer video, then drill the matching exam domain in SkillQuest'],['1× a week','One picoCTF or Blue Team Labs challenge, plus one sq-lab lab']];
+/* Professor Messer's free Security+ videos, listed under the SY0-801 objective they cover (links only, see messer.js) */
+function messerObjectivesHTML(){
+  const o = OBJECTIVES['SY0-801'].o, intro = MESSER_VIDEOS[0];
+  return '<h2>Professor Messer videos by SY0-801 objective</h2><div class="card"><p class="small">His free course is made for <b>SY0-701</b>; here each video sits under the SY0-801 objective it covers, matched by topic. '+
+    'Links open his site. Start with <a href="'+MESSER_BASE+intro[3]+'" target="_blank" rel="noopener noreferrer">'+esc(intro[1])+' ↗</a> <span class="small">('+intro[2]+')</span>, or see <a href="'+MESSER_COURSE+'" target="_blank" rel="noopener noreferrer">his full course page ↗</a>.</p>'+
+    Object.keys(MESSER_801).map(k=>{ const m = MESSER_801[k];
+      return '<details class="messer-obj"><summary><b>'+k+'</b> '+esc(o[k] || '')+' <span class="small">· '+(Array.isArray(m) ? m.length+' video'+(m.length===1?'':'s') : 'no video')+'</span></summary>'+
+        (Array.isArray(m) ? '<ul class="clean">'+m.map(messerVideo).map(v=>'<li>'+messerLink(v)+'</li>').join('')+'</ul>' : '<p class="small">'+esc(m)+'</p>')+'</details>'; }).join('')+'</div>';
+}
 function vPractice(){
   current = 'practice'; header();
   S.practice = S.practice || {};
@@ -76,6 +85,7 @@ function vPractice(){
     PRACTICE.map(g=>'<h2>'+g.group+'</h2><div class="grid">'+g.items.map(([name,url,note])=>{ const last = S.practice[name];
       return '<div class="card mission"><h3><a href="'+url+'" target="_blank" rel="noopener">'+esc(name)+' ↗</a></h3><p>'+esc(note)+'</p>'+
         '<div class="row"><button data-used="'+esc(name)+'">✓ Used today</button><span class="small">'+(last ? 'Last used: '+esc(last) : 'Not used yet')+'</span></div></div>'; }).join('')+'</div>').join('')+
+    messerObjectivesHTML()+
     '<p class="small">Free tiers change over time. If something here starts charging, tell Claude and swap it for another option.</p>';
   view.querySelectorAll('[data-used]').forEach(b=>b.onclick=()=>{ S.practice[b.dataset.used] = dayStr(); save(); toast('Logged: '+b.dataset.used); vPractice(); });
 }

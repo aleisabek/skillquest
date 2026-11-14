@@ -852,7 +852,11 @@ function labPick(plan){
   const list = [...cands.values()].map(c=>({...c, score: c.score - (recent(c.it[0]) ? 15 : 0)}));
   const best = Math.max(...list.map(c=>c.score)), top = list.filter(c=>c.score === best);
   const pick = top[hashStr(dayStr()) % top.length], s = skillById(pick.sid);
-  return {name:pick.it[0], url:pick.it[1], note:pick.hint || pick.it[2], tid:s.tid, sk:s.sk, usedToday:used(pick.it[0]) === dayStr()};
+  const out = {name:pick.it[0], url:pick.it[1], note:pick.hint || pick.it[2], tid:s.tid, sk:s.sk, usedToday:used(pick.it[0]) === dayStr()};
+  /* Professor Messer for a Security+ lesson: go straight to the matching video, not his home page */
+  const mv = out.name === 'Professor Messer' && typeof messerFor === 'function' ? messerFor(pick.sid).videos[0] : null;
+  if(mv){ out.url = mv.url; out.note = 'Watch "'+mv.title+'" ('+mv.len+') in his free SY0-701 course, then drill it here.'; }
+  return out;
 }
 
 /* Mastery = share of a level's questions and cards that are retained right now (see cardStatus / quizStatus) */
